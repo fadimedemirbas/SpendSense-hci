@@ -7,7 +7,35 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Theme values and global styling will be defined from the Figma design. */
+:root {
+  --background: #F6F8F7;
+  --foreground: #20332F;
+  --card: #FFFFFF;
+  --card-foreground: #20332F;
+  --primary: #24685C;
+  --primary-hover: #1B5148;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E7F0EC;
+  --secondary-foreground: #20332F;
+  --muted: #E7F0EC;
+  --muted-foreground: #5B6B65;
+  --border: #D6DEDA;
+  --input: #D6DEDA;
+  --ring: #24685C;
+  --radius: 0.5rem;
+  font-family: Arial, sans-serif;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

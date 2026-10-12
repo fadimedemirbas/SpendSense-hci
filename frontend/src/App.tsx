@@ -1,10 +1,7 @@
+import WelcomePage from './features/onboarding/pages/WelcomePage'
+
 function App() {
-  return (
-    <main>
-      <h1>SpendSense</h1>
-      <p>Web application setup is ready.</p>
-    </main>
-  )
+  return <WelcomePage />
 }
 
 export default App
