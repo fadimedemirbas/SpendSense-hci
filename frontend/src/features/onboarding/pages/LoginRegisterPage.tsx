@@ -6,9 +6,9 @@ import './login-register.css'
 
 export type AuthMode = 'register' | 'login'
 type Field = 'email' | 'password' | 'confirmPassword'
-type Props = { initialMode?: AuthMode; onBack: () => void }
+type Props = { initialMode?: AuthMode; onBack: () => void; onRegistrationContinue?: () => void }
 
-export default function LoginRegisterPage({ initialMode = 'register', onBack }: Props) {
+export default function LoginRegisterPage({ initialMode = 'register', onBack, onRegistrationContinue }: Props) {
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [values, setValues] = useState({ email: '', password: '', confirmPassword: '' })
   const [visible, setVisible] = useState({ password: false, confirmPassword: false })
@@ -39,6 +39,8 @@ export default function LoginRegisterPage({ initialMode = 'register', onBack }: 
     setNotice('')
     if (Object.keys(nextErrors).length) {
       document.getElementById(`auth-${Object.keys(nextErrors)[0]}`)?.focus()
+    } else if (isRegister) {
+      onRegistrationContinue?.()
     }
   }
 
