@@ -22,7 +22,12 @@ const benefits = [
   },
 ]
 
-export default function WelcomePage() {
+type WelcomePageProps = {
+  onCreateAccount?: () => void
+  onLogin?: () => void
+}
+
+export default function WelcomePage({ onCreateAccount, onLogin }: WelcomePageProps) {
   return (
     <div className="welcome-page">
       <header className="welcome-header">
@@ -35,10 +40,10 @@ export default function WelcomePage() {
           </span>
         </div>
         <nav className="welcome-actions" aria-label="Account">
-          <Button className="welcome-button welcome-button-ghost" variant="ghost">
+          <Button className="welcome-button welcome-button-ghost" variant="ghost" onClick={onLogin}>
             Log in
           </Button>
-          <Button className="welcome-button">Create account</Button>
+          <Button className="welcome-button" onClick={onCreateAccount}>Create account</Button>
         </nav>
       </header>
       <main className="welcome-main">
@@ -52,8 +57,8 @@ export default function WelcomePage() {
               </p>
             </div>
             <div className="welcome-hero-actions">
-              <Button className="welcome-button">Get started</Button>
-              <button className="welcome-login-link" type="button">
+              <Button className="welcome-button" onClick={onCreateAccount}>Get started</Button>
+              <button className="welcome-login-link" type="button" onClick={onLogin}>
                 I already have an account
               </button>
             </div>
