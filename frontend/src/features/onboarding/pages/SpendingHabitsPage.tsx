@@ -6,13 +6,14 @@ import { calculateSpendingProfile, spendingQuestions, type SpendingAnswer, type 
 import './spending-habits.css'
 
 type Props = {
+  answers: SpendingAnswer[]
+  onAnswersChange: (answers: SpendingAnswer[]) => void
   onBack: () => void
   onComplete: (result: SpendingProfileResult) => void
 }
 
-export default function SpendingHabitsPage({ onBack, onComplete }: Props) {
+export default function SpendingHabitsPage({ answers, onAnswersChange, onBack, onComplete }: Props) {
   const [currentQuestion, setCurrentQuestion] = useState(0)
-  const [answers, setAnswers] = useState<SpendingAnswer[]>(() => Array(spendingQuestions.length).fill(null))
   const [error, setError] = useState(false)
   const questionLegend = useRef<HTMLLegendElement>(null)
   const question = spendingQuestions[currentQuestion]!
@@ -69,7 +70,7 @@ export default function SpendingHabitsPage({ onBack, onComplete }: Props) {
                       checked={answers[currentQuestion] === index} aria-invalid={error}
                       aria-describedby={error ? 'habits-error' : undefined}
                       onChange={() => {
-                        setAnswers(previous => previous.map((answer, questionIndex) => questionIndex === currentQuestion ? index : answer))
+                        onAnswersChange(answers.map((answer, questionIndex) => questionIndex === currentQuestion ? index : answer))
                         setError(false)
                       }} />
                     <span>{option.label}</span>
