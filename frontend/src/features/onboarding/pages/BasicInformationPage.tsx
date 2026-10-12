@@ -29,13 +29,14 @@ export type BasicInformationData = {
   monthlySavingsRange: SavingsRange
 }
 type Props = {
+  initialData?: BasicInformationData | null
   onBack: () => void
   onContinue?: (data: BasicInformationData) => void
 }
 
-export default function BasicInformationPage({ onBack, onContinue }: Props) {
-  const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<IncomeRange | ''>('')
-  const [monthlySavingsRange, setMonthlySavingsRange] = useState<SavingsRange | ''>('')
+export default function BasicInformationPage({ initialData, onBack, onContinue }: Props) {
+  const [monthlyIncomeRange, setMonthlyIncomeRange] = useState<IncomeRange | ''>(initialData?.monthlyIncomeRange ?? '')
+  const [monthlySavingsRange, setMonthlySavingsRange] = useState<SavingsRange | ''>(initialData?.monthlySavingsRange ?? '')
   const [errors, setErrors] = useState({ income: false, savings: false })
 
   function submit(event: FormEvent<HTMLFormElement>) {
