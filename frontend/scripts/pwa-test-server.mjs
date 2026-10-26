@@ -49,7 +49,7 @@ const api = createServer(async (req, res) => {
     req.headers["access-control-request-headers"] ||
       "authorization,apikey,content-type,x-client-info,x-supabase-api-version",
   );
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "application/json");
   if (req.method === "OPTIONS") {

@@ -17,9 +17,21 @@ import {
   EyeOff,
   Wallet,
   ShieldCheck,
-  ArrowLeft,
 } from "lucide-react";
-import { Blob, Button, Card, Logo, Ring, Say, Tile, Tube, useT, LangCtx, Segmented } from "./ui";
+import {
+  Blob,
+  Button,
+  Card,
+  Logo,
+  Ring,
+  Say,
+  Tile,
+  Tube,
+  useT,
+  LangCtx,
+  Segmented,
+  rangeLabel,
+} from "./ui";
 import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, type Profile } from "./store";
 import { useContext } from "react";
 import { Sheet } from "./ui";
@@ -177,14 +189,14 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
             {t("Here's the context. It's your call.")}
           </Say>
           <div className="flex gap-4 items-center">
-            <Ring value={68} size={110} label="Example fit 68" />
+            <Ring value={68} size={110} label={t("Example fit {n}", { n: 68 })} />
             <div className="flex-1 grid gap-2">
               {["Budget fit", "Need level", "Goal impact", "Impulse signals"].map((c, i) => (
                 <Tube key={c} label={t(c)} value={[84, 64, 28, 36][i]} />
               ))}
             </div>
           </div>
-          <p className="f-ui text-xs text-soft m-0">Example preview</p>
+          <p className="f-ui text-xs text-soft m-0">{t("Example preview")}</p>
         </Card>
       </section>
       <section id="how" className="py-6">
@@ -246,12 +258,20 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
       </section>
       <footer className="f-ui text-sm text-soft flex items-center gap-2 py-4">
         <Logo size={24} />
-        SpendSense · HCI prototype
+        SpendSense · {t("HCI prototype")}
       </footer>
     </div>
   );
 }
 
+// Stored score keys stay as-is (the database validates them); only the shown wording is softened.
+export const TENDENCY: Record<string, string> = {
+  "Impulsive Decision Maker": "Quick decisions",
+  "Planned Spender": "Planning ahead",
+  "Bargain Hunter": "Drawn to discounts",
+  "Reward-Driven Spender": "Treating yourself",
+  "Social Spender": "Influenced by friends",
+};
 const HABITS: [string, string[]][] = [
   ["When you see something you like…", ["Buy it soon", "Think it over", "Compare prices"]],
   ["How often do discounts tempt you?", ["Often", "Sometimes", "Rarely"]],
@@ -291,7 +311,9 @@ export function Onboarding({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
-  const total = 9;
+  // Signed-out users only see the welcome/account steps; the rest follow sign-in.
+  const last = authenticated ? 8 : 1;
+  const total = last - startAt + 1;
   const next = async () => {
     if (busy || submitting.current) return;
     if (s === 1) {
@@ -352,22 +374,26 @@ export function Onboarding({
   return (
     <div className="onboarding-safe max-w-xl mx-auto px-5 py-6 grid gap-5">
       <div className="flex items-center gap-3">
-        <button aria-label={t("Back")} onClick={back} className="btn clay-cream w-11 px-0!">
-          <ArrowLeft size={20} />
-        </button>
         <div className="flex-1">
-          <p className="f-ui text-sm m-0 mb-1">{t("Step {n} of {t}", { n: s + 1, t: total })}</p>
-          <div className="h-2.5 rounded-full bg-track">
-            <div
-              className="h-full rounded-full bg-sun transition-all"
-              style={{ width: `${((s + 1) / total) * 100}%` }}
-            />
-          </div>
+          {total > 1 && (
+            <>
+              <p className="f-ui text-sm m-0 mb-1">
+                {t("Step {n} of {t}", { n: s - startAt + 1, t: total })}
+              </p>
+              <div className="h-2.5 rounded-full bg-track">
+                <div
+                  className="h-full rounded-full bg-sun transition-all"
+                  style={{ width: `${((s - startAt + 1) / total) * 100}%` }}
+                />
+              </div>
+            </>
+          )}
         </div>
         <LangToggle />
       </div>
       <Say
         key={s}
+        live
         expr={s === 0 ? "wave" : s === 8 ? "calm" : "thinking"}
         size={s === 0 ? 120 : 64}
       >
@@ -446,11 +472,21 @@ export function Onboarding({
           </button>
         )}
         {(s === 2 || s === 3) && (
+          <p className="m-0 text-sm text-soft">
+            {t(
+              s === 2
+                ? "Used only to estimate budget fit until you add this month's income."
+                : "Used only to estimate how a purchase could delay your goal.",
+            )}{" "}
+            {t("Not sure? Keep the selected range and change it later in Settings.")}
+          </p>
+        )}
+        {(s === 2 || s === 3) && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {(s === 2 ? INCOME_RANGES : SAVINGS_RANGES).map((r, i) => (
               <Tile
                 key={r}
-                label={t(r)}
+                label={rangeLabel(t(r))}
                 on={(s === 2 ? p.income : p.savings) === i}
                 onClick={() => setP({ ...p, [s === 2 ? "income" : "savings"]: i })}
               />
@@ -477,7 +513,7 @@ export function Onboarding({
           <>
             <h1 className="text-2xl font-bold m-0">{t("Your spending style")}</h1>
             {profileTubes(p.habits).map(([l, v]) => (
-              <Tube key={l} label={t(l)} value={v} color="bg-violet" />
+              <Tube key={l} label={t(TENDENCY[l])} value={v} color="bg-violet" />
             ))}
           </>
         )}
@@ -516,7 +552,7 @@ export function Onboarding({
           }
         >
           {busy
-            ? t("Saving...")
+            ? t(s === 1 ? "Signing in..." : "Saving...")
             : s === 8
               ? t("Let's go")
               : s === 1

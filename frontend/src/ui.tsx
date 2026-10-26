@@ -126,11 +126,11 @@ const TR: Record<string, string> = {
   "Your spending style": "Harcama tarzın",
   "A reflection of your answers, not a label. It can change anytime.":
     "Cevaplarının bir yansıması, bir etiket değil. Her zaman değişebilir.",
-  "Impulsive Decision Maker": "Anlık Karar Veren",
-  "Planned Spender": "Planlı Harcayan",
-  "Bargain Hunter": "Fırsat Avcısı",
-  "Reward-Driven Spender": "Ödül Odaklı",
-  "Social Spender": "Sosyal Harcayan",
+  "Quick decisions": "Hızlı karar verme",
+  "Planning ahead": "Önceden planlama",
+  "Drawn to discounts": "İndirimlere ilgi",
+  "Treating yourself": "Kendini ödüllendirme",
+  "Influenced by friends": "Arkadaş etkisi",
   "Pick one to continue.": "Devam etmek için birini seç.",
   "Step {n} of {t}": "Adım {n} / {t}",
   "Let's go": "Hadi başlayalım",
@@ -298,6 +298,149 @@ const TR: Record<string, string> = {
   "Add to waiting list": "Bekleme listesine ekle",
   "Saved: Buy.": "Kaydedildi: Al.",
   "Saved: Skip.": "Kaydedildi: Atla.",
+  "Your analysis could not be saved. Please try again.":
+    "Analizin kaydedilemedi. Lütfen tekrar dene.",
+  "Discard this purchase?": "Bu alım silinsin mi?",
+  "Your answers for this purchase will not be saved.":
+    "Bu alım için verdiğin cevaplar kaydedilmeyecek.",
+  Discard: "Sil",
+  "The bigger the share of what's left this month, the lower this score. This purchase uses {n}% of it.":
+    "Bu ay kalan paradan aldığı pay büyüdükçe bu puan düşer. Bu alım kalanın %{n}'ini kullanıyor.",
+  "Nothing is left this month, so this score is 0.": "Bu ay para kalmadığı için bu puan 0.",
+  "Saying you need it, that it makes something easier, or that you don't own something similar raises this score. Owning a usable one lowers it.":
+    "İhtiyacın olduğunu, bir şeyi kolaylaştırdığını ya da benzerine sahip olmadığını söylemen bu puanı artırır. Kullanılabilir bir benzerine sahip olmak düşürür.",
+  "The bigger the share of what's left for {g}, the higher this score.":
+    "{g} için kalan tutardan aldığı pay büyüdükçe bu puan artar.",
+  "No active goal, so this score is 0.": "Aktif hedef olmadığı için bu puan 0.",
+  "Sale, catching your eye, treating yourself, friends, and feeling excited, stressed, bored or tired each raise this score. So do a 24-hour wait and matching answers from your spending style.":
+    "İndirim, gözüne çarpması, kendini ödüllendirme, arkadaş etkisi ve heyecanlı, stresli, sıkılmış ya da yorgun hissetmek bu puanı artırır. 24 saatlik bekleme ve harcama tarzındaki eşleşen cevaplar da artırır.",
+  "Compare with goal": "Karşılaştırılacak hedef",
+  "Overall fit adds budget fit and need level, plus the room left after goal impact and impulse signals: {a} + {b} + {c} + {d} = {f}. Each factor is 0–25. A simple heuristic for reflection, not financial advice.":
+    "Genel uyum; bütçe uyumu ve ihtiyaç düzeyini, hedef etkisi ve anlık alım işaretlerinden sonra kalan payla toplar: {a} + {b} + {c} + {d} = {f}. Her etken 0–25 arasıdır. Düşünmeye yardımcı basit bir hesap, finansal tavsiye değildir.",
+  "Wait adds it to your waiting list for {w}. Use Edit to change this.":
+    "Bekle, bunu {w} boyunca bekleme listene ekler. Değiştirmek için Düzenle'yi kullan.",
+  Type: "Tür",
+  "Pick today or an earlier date.": "Bugünü ya da daha önceki bir tarihi seç.",
+  "Delete last digit": "Son rakamı sil",
+  Date: "Tarih",
+  "Example preview": "Örnek önizleme",
+  "HCI prototype": "HCI prototipi",
+  "Used only to estimate budget fit until you add this month's income.":
+    "Sadece bu ayın gelirini ekleyene kadar bütçe uyumunu tahmin etmek için kullanılır.",
+  "Used only to estimate how a purchase could delay your goal.":
+    "Sadece bir alımın hedefini ne kadar geciktirebileceğini tahmin etmek için kullanılır.",
+  "Not sure? Keep the selected range and change it later in Settings.":
+    "Emin değil misin? Seçili aralığı bırakıp sonra Ayarlar'dan değiştirebilirsin.",
+  "You bought {p} {n} days ago. How do you feel about it now?":
+    "{p} ürününü {n} gün önce aldın. Şimdi bu konuda ne hissediyorsun?",
+  Status: "Durum",
+  "No expenses this month yet.": "Bu ay henüz harcama yok.",
+  "Counts of feelings and reasons across {n} decisions and waiting items. Observations only — not a judgment.":
+    "{n} karar ve bekleyen öğedeki duygu ve gerekçelerin sayımı. Sadece gözlem, yargı değil.",
+  "How decisions felt later": "Kararlar sonradan nasıl hissettirdi",
+  "Rate a few past decisions in History and patterns will appear here.":
+    "Geçmiş'te birkaç kararını puanlarsan örüntüler burada görünecek.",
+  "Decisions made while feeling {f} got your lowest later ratings ({n}/5). Just something to notice.":
+    "{f} hissederken verdiğin kararlar sonradan en düşük puanları aldı ({n}/5). Sadece fark etmen için.",
+  "{n} rated": "{n} puanlı",
+  "{n} ready to revisit": "{n} öğe incelemeye hazır",
+  Tour: "Tur",
+  "Log out?": "Çıkış yapılsın mı?",
+  "You can finish these questions the next time you log in.":
+    "Bu soruları bir sonraki girişinde tamamlayabilirsin.",
+  "More info": "Daha fazla bilgi",
+  "Example fit {n}": "Örnek uyum {n}",
+  "Give your goal a name.": "Hedefine bir ad ver.",
+  "Enter a target above zero.": "Sıfırdan büyük bir hedef tutarı gir.",
+  "Pick a date after today, or leave it empty.": "Bugünden sonraki bir tarih seç ya da boş bırak.",
+  "Your goal": "Hedefin",
+  "Starting from zero is fine too.": "Sıfırdan başlamak da gayet olur.",
+  "No deadline": "Tarih yok",
+  "You've already reached this amount.": "Bu tutara zaten ulaşmışsın.",
+  "Setting aside about {m} a month gets you there.":
+    "Ayda yaklaşık {m} ayırırsan hedefine ulaşırsın.",
+  "No deadline is fine too. You can add one later.":
+    "Tarih koymamak da olur. Sonra ekleyebilirsin.",
+  "Save goal": "Hedefi kaydet",
+  "Discard this goal?": "Bu hedef silinsin mi?",
+  "What you entered for this goal will not be saved.": "Bu hedef için girdiklerin kaydedilmeyecek.",
+  "What are you saving for?": "Ne için biriktiriyorsun?",
+  "How much do you need?": "Ne kadar paraya ihtiyacın var?",
+  "How much have you already set aside?": "Şimdiye kadar ne kadar ayırdın?",
+  "When would you like to reach it?": "Hedefine ne zaman ulaşmak istersin?",
+  Laptop: "Dizüstü bilgisayar",
+  Vacation: "Tatil",
+  "Emergency fund": "Acil durum fonu",
+  "New phone": "Yeni telefon",
+  "3 months": "3 ay",
+  "6 months": "6 ay",
+  "1 year": "1 yıl",
+  "Yes, still usable": "Evet, hâlâ kullanılabilir",
+  "Yes, not usable": "Evet, kullanılamaz",
+  "New purchase": "Yeni alım",
+  "Purchase receipt": "Alım fişi",
+  "That's {n}% of what's left this month.": "Bu ay kalan paranın %{n} kadarı.",
+  Reasons: "Gerekçeler",
+  "Similar item": "Benzeri",
+  "Wait time": "Bekleme süresi",
+  Groceries: "Market",
+  Education: "Eğitim",
+  Subscriptions: "Abonelikler",
+  Clothing: "Giyim",
+  "Personal care": "Kişisel bakım",
+  Scholarship: "Burs",
+  Freelance: "Freelance",
+  Investment: "Yatırım",
+  Refund: "İade",
+  "The passwords don't match.": "Şifreler eşleşmiyor.",
+  "Your password could not be changed. Log in again and retry.":
+    "Şifren değiştirilemedi. Tekrar giriş yapıp yeniden dene.",
+  "Password changed.": "Şifren değiştirildi.",
+  "You are offline. Reconnect before changing your password.":
+    "Çevrimdışısın. Şifreni değiştirmeden önce bağlantını kontrol et.",
+  "Change password": "Şifreyi değiştir",
+  "New password": "Yeni şifre",
+  "Repeat new password": "Yeni şifreyi tekrar gir",
+  Account: "Hesap",
+  "Use at least 8 characters.": "En az 8 karakter kullan.",
+  "Your data stays in your account.": "Verilerin hesabında kalır.",
+  Preferences: "Tercihler",
+  "Budget basics": "Bütçe bilgileri",
+  "Used until you add this month's income.": "Bu ayın gelirini ekleyene kadar kullanılır.",
+  "Used to estimate how purchases delay your goals.":
+    "Alımların hedeflerini ne kadar geciktireceğini tahmin etmek için kullanılır.",
+  "Retake the questions": "Soruları yeniden cevapla",
+  "Your data": "Verilerin",
+  "Export entries": "Kayıtları dışa aktar",
+  "Income and expenses as a spreadsheet (CSV).": "Gelir ve giderlerin tablo dosyası olarak (CSV).",
+  "Download CSV": "CSV indir",
+  "Full backup": "Tam yedek",
+  "Everything you saved, including goals and decisions (JSON).":
+    "Hedefler ve kararlar dahil kaydettiğin her şey (JSON).",
+  "Download JSON": "JSON indir",
+  "Deletes entries, goals, analyses and decisions. Your account stays.":
+    "Kayıtları, hedefleri, analizleri ve kararları siler. Hesabın kalır.",
+  Help: "Yardım",
+  "A short walkthrough of the main features.": "Ana özelliklerin kısa bir turu.",
+  Start: "Başlat",
+  Install: "Yükle",
+  Privacy: "Gizlilik",
+  "Your financial data is saved to your account and visible only to you.":
+    "Finansal verilerin hesabına kaydedilir ve sadece sen görebilirsin.",
+  Version: "Sürüm",
+  Note: "Not",
+  "Saved: Buy. Added to your expenses.": "Kaydedildi: Al. Harcamalarına eklendi.",
+  "It would use {n}% of what's left this month.": "Bu ay kalan paranın %{n}'ini kullanır.",
+  "Nothing is left this month after your expenses.": "Harcamalarından sonra bu ay para kalmadı.",
+  "Based on this month's entries.": "Bu ayki kayıtlarına dayalı.",
+  "Add money to this goal whenever you're ready.": "Hazır olduğunda bu hedefe para ekleyebilirsin.",
+  "You said you tend to buy soon after seeing something.":
+    "Beğendiğin bir şeyi genelde hemen aldığını söylemiştin.",
+  "You said discounts often tempt you.": "İndirimlerin seni sık sık cezbettiğini söylemiştin.",
+  "You said you usually treat yourself after a hard day.":
+    "Zor bir günün ardından genelde kendini ödüllendirdiğini söylemiştin.",
+  "You said friends shape what you buy quite a bit.":
+    "Arkadaşlarının aldıklarını epey etkilediğini söylemiştin.",
   "Added to your waiting list.": "Bekleme listene eklendi.",
   "Estimate based on your onboarding ranges.": "Başlangıçtaki aralıklarına dayalı tahmin.",
   "Add goal": "Hedef ekle",
@@ -362,10 +505,21 @@ const TR: Record<string, string> = {
   "SpendSense is an HCI course prototype. Scores are simple heuristics, not financial advice.":
     "SpendSense bir HCI ders prototipidir. Puanlar basit sezgilerdir, finansal tavsiye değildir.",
 };
+// English display text for values stored as short keys.
+const EN: Record<string, string> = {
+  need: "I need it",
+  wanted: "Wanted it for a while",
+  sale: "It's on sale",
+  easier: "Makes something easier",
+  social: "Friends have it",
+  reward: "Treating myself",
+  attention: "It caught my eye",
+  other: "Other",
+};
 export function useT() {
   const { lang } = useContext(LangCtx);
   return (s: string, v?: Record<string, string | number>) => {
-    let r = lang === "tr" ? (TR[s] ?? s) : s;
+    let r = lang === "tr" ? (TR[s] ?? s) : (EN[s] ?? s);
     if (v) for (const k in v) r = r.replace(`{${k}}`, String(v[k]));
     return r;
   };
@@ -374,6 +528,10 @@ let curMode: "symbol" | "code" = "symbol";
 export const setCurrencyMode = (m: "symbol" | "code") => {
   curMode = m;
 };
+export const curLabel = () => (curMode === "symbol" ? "₺" : "TRY");
+// Range labels are written with ₺; show them in the chosen display mode.
+export const rangeLabel = (r: string) =>
+  curMode === "symbol" || !r.includes("₺") ? r : `${r.replace("₺", "")} TRY`;
 export const fmt = (n: number) => {
   const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
   return (n < 0 ? "−" : "") + (curMode === "symbol" ? "₺" + s : s + " TRY");
@@ -470,15 +628,17 @@ export const Bubble = ({ children }: { children: ReactNode }) => (
 export const Say = ({
   expr,
   size = 64,
+  live,
   children,
 }: {
   expr?: Expr;
   size?: number;
+  live?: boolean;
   children: ReactNode;
 }) => (
   <div className="flex items-center gap-3 rise">
     <Blob expr={expr} size={size} />
-    <div role="status">
+    <div role={live ? "status" : undefined}>
       <Bubble>{children}</Bubble>
     </div>
   </div>
@@ -573,17 +733,19 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  full,
 }: {
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
   label: string;
+  full?: boolean;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex flex-wrap gap-1 p-1 rounded-full bg-track"
+      className={`${full ? "flex w-full" : "inline-flex flex-wrap"} gap-1 p-1 rounded-full bg-track`}
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
           return;
@@ -607,7 +769,7 @@ export function Segmented<T extends string>({
           aria-checked={value === v}
           tabIndex={value === v ? 0 : -1}
           onClick={() => onChange(v)}
-          className={`f-ui min-h-11 px-4 rounded-full transition ${value === v ? "clay-sun" : "hover:bg-peach"}`}
+          className={`f-ui min-h-11 px-4 rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : "hover:bg-peach"}`}
         >
           {l}
         </button>
@@ -635,7 +797,7 @@ export const Tile = ({
   >
     {on && <Check size={16} className="absolute top-2 right-2" aria-hidden />}
     {icon}
-    <span>{label}</span>
+    <span className="[overflow-wrap:normal]">{label}</span>
     {sub && <span className="text-xs text-soft">{sub}</span>}
   </button>
 );
@@ -723,10 +885,11 @@ export const Tube = ({
 export function Tip({ text }: { text: string }) {
   const [o, setO] = useState(false);
   const id = useId();
+  const t = useT();
   return (
     <span className="relative inline-flex">
       <button
-        aria-label="More info"
+        aria-label={t("More info")}
         aria-expanded={o}
         aria-describedby={o ? id : undefined}
         onClick={() => setO(!o)}
@@ -882,7 +1045,7 @@ function useModal(onClose: () => void) {
     window.visualViewport?.addEventListener("resize", resize);
     ref.current
       ?.querySelector<HTMLElement>(
-        "input:not(:disabled),button:not([data-modal-close]):not(:disabled),select:not(:disabled),textarea:not(:disabled)",
+        "input:not(:disabled),button:not([data-modal-close]):not(:disabled):not([tabindex='-1']),select:not(:disabled),textarea:not(:disabled)",
       )
       ?.focus();
     const k = (e: KeyboardEvent) => {

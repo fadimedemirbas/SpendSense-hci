@@ -14,14 +14,6 @@ import {
   ShoppingBag,
   X,
   Hourglass,
-  Globe,
-  User,
-  Repeat,
-  Coins,
-  Map,
-  RefreshCw,
-  LogOut,
-  Info,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
@@ -29,6 +21,7 @@ import { useApp } from "./context";
 import {
   Button,
   Card,
+  Chip,
   CountUp,
   Dialog,
   Empty,
@@ -40,24 +33,23 @@ import {
   Segmented,
   Sheet,
   Tube,
-  Tile,
   useT,
   useToast,
   fmt,
-  LangCtx,
+  curLabel,
 } from "./ui";
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
 import {
-  INCOME_RANGES,
-  SAVINGS_RANGES,
   uid,
   today,
+  monthTotals,
+  purchaseEntry,
   type Goal,
   type GStatus,
+  type Decision,
   type DecisionKind,
 } from "./store";
-import { useContext } from "react";
 
 const daysUntil = (iso: string) =>
   Math.ceil((new Date(iso).getTime() - new Date(today()).getTime()) / 864e5);
@@ -66,10 +58,17 @@ const thisMonth = (d: string) => d.slice(0, 7) === today().slice(0, 7);
 export function HomePage() {
   const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide } = useApp();
   const t = useT();
-  const m = entries.filter((e) => thisMonth(e.date));
-  const inc = m.filter((e) => e.type === "income").reduce((a, b) => a + b.amount, 0),
-    sp = m.filter((e) => e.type === "expense").reduce((a, b) => a + b.amount, 0);
+  const { income: inc, spent: sp } = monthTotals(entries);
   const goal = goals.find((g) => g.status === "Active");
+  const avgPrice = (k: DecisionKind) => {
+    const xs = decisions.filter((d) => d.decision === k);
+    return xs.length ? xs.reduce((a, b) => a + b.price, 0) / xs.length : null;
+  };
+  const waitedAvg = avgPrice("Wait"),
+    boughtAvg = avgPrice("Buy");
+  const reflect = decisions.find(
+    (d) => d.decision === "Buy" && !d.reflection && daysUntil(d.date) <= -2,
+  );
   const recent = [...entries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
   const due = [...waiting].sort((a, b) => a.review.localeCompare(b.review)).slice(0, 2);
   return (
@@ -120,7 +119,8 @@ export function HomePage() {
         </Button>
       </div>
       <Checklist />
-      <div className="grid md:grid-cols-2 gap-5">
+      {reflect && <ReflectCard d={reflect} />}
+      <div className={`grid gap-5 ${goal ? "md:grid-cols-2" : ""}`}>
         {goal && (
           <Card className="flex gap-4 items-center">
             <Ring
@@ -132,7 +132,13 @@ export function HomePage() {
               <p className="f-num m-0">
                 {fmt(goal.saved)} / {fmt(goal.target)}
               </p>
-              <p className="f-voice m-0 mt-1">{t("You're getting closer to your goal.")}</p>
+              <p className="f-voice m-0 mt-1">
+                {t(
+                  goal.saved > 0
+                    ? "You're getting closer to your goal."
+                    : "Add money to this goal whenever you're ready.",
+                )}
+              </p>
             </div>
           </Card>
         )}
@@ -161,7 +167,7 @@ export function HomePage() {
           )}
         </Card>
       </div>
-      {decisions.length + waiting.length >= 3 && (
+      {waitedAvg !== null && boughtAvg !== null && waitedAvg > boughtAvg && (
         <section className="clay-butter rounded-card p-5 flex gap-3 items-center rise">
           <Lightbulb className="text-violet shrink-0" aria-hidden />
           <p className="f-voice text-lg m-0">
@@ -185,6 +191,42 @@ export function HomePage() {
         )}
       </Card>
     </>
+  );
+}
+
+function ReflectCard({ d }: { d: Decision }) {
+  const { decisions, setDecisions } = useApp();
+  const t = useT();
+  const toast = useToast();
+  return (
+    <Card className="grid gap-3">
+      <h2 className="text-lg font-bold m-0">
+        {t("You bought {p} {n} days ago. How do you feel about it now?", {
+          p: d.name,
+          n: -daysUntil(d.date),
+        })}
+      </h2>
+      <div className="grid grid-cols-5 gap-1.5">
+        {REFL.map((r, i) => (
+          <button
+            key={r}
+            onClick={async () => {
+              if (
+                !(await setDecisions(
+                  decisions.map((x) => (x.id === d.id ? { ...x, reflection: i + 1 } : x)),
+                ))
+              )
+                return;
+              toast(t("Reflection saved."));
+            }}
+            className="f-ui text-xs sm:text-sm min-h-14 rounded-inner px-1 clay-cream"
+          >
+            <span className="f-num block">{i + 1}</span>
+            {t(r)}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -234,7 +276,7 @@ function Checklist() {
             className="flex items-center gap-2 min-h-11 text-left f-ui disabled:opacity-100"
           >
             {done ? (
-              <CheckCircle2 size={20} className="text-leaf" aria-label="done" />
+              <CheckCircle2 size={20} className="text-leaf" aria-label={t("Done")} />
             ) : (
               <CircleI size={20} className="text-soft" aria-hidden />
             )}
@@ -243,6 +285,217 @@ function Checklist() {
         ))
       )}
     </Card>
+  );
+}
+
+const GOAL_IDEAS = ["Laptop", "Vacation", "Emergency fund", "New phone"];
+const TARGET_IDEAS = [5000, 10000, 25000, 50000];
+const inMonths = (n: number) => {
+  const d = new Date(today());
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+// One question per step, with a live preview of the goal filling up.
+function GoalFlow({
+  initial,
+  editing,
+  onCancel,
+  onSave,
+}: {
+  initial: Goal;
+  editing: boolean;
+  onCancel: () => void;
+  onSave: (g: Goal) => Promise<void>;
+}) {
+  const t = useT();
+  const [g, setG] = useState(initial);
+  const [step, setStep] = useState(0);
+  const [err, setErr] = useState("");
+  const [discard, setDiscard] = useState(false);
+  const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+  const remaining = Math.max(0, g.target - g.saved);
+  const months = g.date ? Math.max(1, Math.round(daysUntil(g.date) / 30.44)) : 0;
+  const questions = [
+    "What are you saving for?",
+    "How much do you need?",
+    "How much have you already set aside?",
+    "When would you like to reach it?",
+  ];
+  const next = async () => {
+    if (step === 0 && !g.name.trim()) return setErr(t("Give your goal a name."));
+    if (step === 1 && g.target <= 0) return setErr(t("Enter a target above zero."));
+    if (step === 3 && g.date && g.date <= today())
+      return setErr(t("Pick a date after today, or leave it empty."));
+    setErr("");
+    if (step < 3) setStep(step + 1);
+    else await onSave({ ...g, name: g.name.trim() });
+  };
+  const back = () => {
+    setErr("");
+    if (step > 0) setStep(step - 1);
+    else if (!editing && (g.name || g.target)) setDiscard(true);
+    else onCancel();
+  };
+  const amount = (k: "target" | "saved") => (
+    <label className="f-ui grid gap-1">
+      {t(k === "target" ? "Target" : "Saved")} ({curLabel()})
+      <input
+        autoFocus
+        inputMode="numeric"
+        placeholder="0"
+        value={g[k] || ""}
+        aria-invalid={!!err}
+        aria-describedby={err ? "goal-flow-error" : undefined}
+        onChange={(e) => /^\d{0,8}$/.test(e.target.value) && setG({ ...g, [k]: +e.target.value })}
+        onKeyDown={(e) => e.key === "Enter" && void next()}
+        className="h-14 rounded-tile border border-line bg-white px-4 f-num text-2xl"
+      />
+    </label>
+  );
+  return (
+    <>
+      <PageHead title={t(editing ? "Edit goal" : "Add goal")} />
+      <div>
+        <p className="f-ui text-sm m-0 mb-1">{t("Step {n} of {t}", { n: step + 1, t: 4 })}</p>
+        <div className="h-2.5 rounded-full bg-track">
+          <div
+            className="h-full rounded-full bg-sun transition-all"
+            style={{ width: `${((step + 1) / 4) * 100}%` }}
+          />
+        </div>
+      </div>
+      <Card className="flex gap-4 items-center">
+        <Ring value={pct} size={88} label={`${g.name || t("Your goal")} ${pct}%`} />
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold m-0 truncate">{g.name || t("Your goal")}</h2>
+          <p className="f-num m-0">
+            {fmt(g.saved)} / {fmt(g.target)}
+          </p>
+          <p className="text-sm text-soft m-0">
+            {t("Remaining")} {fmt(remaining)}
+            {g.date && ` · ${new Date(g.date).toLocaleDateString()}`}
+          </p>
+        </div>
+      </Card>
+      <Say key={step} expr={step === 3 ? "calm" : "thinking"} size={56} live>
+        {t(questions[step])}
+      </Say>
+      <Card key={"s" + step} className="grid gap-3 rise">
+        {step === 0 && (
+          <>
+            <label className="f-ui grid gap-1">
+              {t("Goal name")}
+              <input
+                autoFocus
+                value={g.name}
+                aria-invalid={!!err}
+                aria-describedby={err ? "goal-flow-error" : undefined}
+                onChange={(e) => setG({ ...g, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && void next()}
+                className="h-14 rounded-tile border border-line bg-white px-4 font-sans text-lg"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {GOAL_IDEAS.map((n) => (
+                <Chip key={n} on={g.name === t(n)} onClick={() => setG({ ...g, name: t(n) })}>
+                  {t(n)}
+                </Chip>
+              ))}
+            </div>
+          </>
+        )}
+        {step === 1 && (
+          <>
+            {amount("target")}
+            <div className="flex flex-wrap gap-2">
+              {TARGET_IDEAS.map((n) => (
+                <Chip key={n} on={g.target === n} onClick={() => setG({ ...g, target: n })}>
+                  {fmt(n)}
+                </Chip>
+              ))}
+            </div>
+          </>
+        )}
+        {step === 2 && (
+          <>
+            {amount("saved")}
+            <p className="m-0 text-sm text-soft">{t("Starting from zero is fine too.")}</p>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <label className="f-ui grid gap-1">
+              {t("Target date (optional)")}
+              <input
+                autoFocus
+                type="date"
+                min={today()}
+                value={g.date ?? ""}
+                aria-invalid={!!err}
+                aria-describedby={err ? "goal-flow-error" : undefined}
+                onChange={(e) => setG({ ...g, date: e.target.value || undefined })}
+                className="h-14 rounded-tile border border-line bg-white px-4 font-sans"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  [3, "3 months"],
+                  [6, "6 months"],
+                  [12, "1 year"],
+                ] as const
+              ).map(([n, l]) => (
+                <Chip
+                  key={n}
+                  on={g.date === inMonths(n)}
+                  onClick={() => setG({ ...g, date: inMonths(n) })}
+                >
+                  {t(l)}
+                </Chip>
+              ))}
+              {g.date && (
+                <Chip on={false} onClick={() => setG({ ...g, date: undefined })}>
+                  {t("No deadline")}
+                </Chip>
+              )}
+            </div>
+            <p className="m-0 f-voice text-lg" aria-live="polite">
+              {remaining === 0
+                ? t("You've already reached this amount.")
+                : g.date
+                  ? t("Setting aside about {m} a month gets you there.", {
+                      m: fmt(Math.ceil(remaining / months)),
+                    })
+                  : t("No deadline is fine too. You can add one later.")}
+            </p>
+          </>
+        )}
+        {err && (
+          <p
+            id="goal-flow-error"
+            role="alert"
+            className="m-0 text-attn bg-butter rounded-inner px-3 py-2"
+          >
+            {err}
+          </p>
+        )}
+      </Card>
+      <div className="flex justify-between gap-2">
+        <Button onClick={back}>{t(step === 0 ? "Cancel" : "Back")}</Button>
+        <Button variant="coral" big onClick={() => void next()}>
+          {t(step === 3 ? "Save goal" : "Next")}
+        </Button>
+      </div>
+      {discard && (
+        <Dialog
+          title={t("Discard this goal?")}
+          body={t("What you entered for this goal will not be saved.")}
+          confirm={t("Discard")}
+          onClose={() => setDiscard(false)}
+          onConfirm={onCancel}
+        />
+      )}
+    </>
   );
 }
 
@@ -267,6 +520,19 @@ export function Goals() {
     return saved;
   };
   const list = goals.filter((g) => g.status === f);
+  if (form)
+    return (
+      <GoalFlow
+        initial={form}
+        editing={goals.some((g) => g.id === form.id)}
+        onCancel={() => setForm(null)}
+        onSave={async (g) => {
+          if (!(await upd(g))) return;
+          setForm(null);
+          toast(t("Goal saved."));
+        }}
+      />
+    );
   return (
     <>
       <PageHead
@@ -285,13 +551,13 @@ export function Goals() {
         }
       />
       <Segmented
-        label="Status"
+        label={t("Status")}
         value={f}
         onChange={setF}
         options={(["Active", "Completed", "Archived"] as GStatus[]).map((s) => [s, t(s)])}
       />
       {note && (
-        <Say expr="calm" size={56}>
+        <Say expr="calm" size={56} live>
           {note}
         </Say>
       )}
@@ -390,78 +656,11 @@ export function Goals() {
           })}
         </div>
       )}
-      {form && (
-        <Sheet
-          title={goals.some((g) => g.id === form.id) ? t("Edit goal") : t("Add goal")}
-          onClose={() => setForm(null)}
-        >
-          <div className="grid gap-3">
-            <label className="f-ui grid gap-1">
-              {t("Goal name")}
-              <input
-                value={form.name}
-                aria-invalid={!!err && !form.name.trim()}
-                aria-describedby={err ? "goal-form-error" : undefined}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
-              />
-            </label>
-            {(["target", "saved"] as const).map((k) => (
-              <label key={k} className="f-ui grid gap-1">
-                {t(k === "target" ? "Target" : "Saved")} (₺)
-                <input
-                  inputMode="numeric"
-                  aria-invalid={!!err && k === "target" && form.target <= 0}
-                  aria-describedby={err ? "goal-form-error" : undefined}
-                  value={form[k] || ""}
-                  onChange={(e) =>
-                    /^\d{0,8}$/.test(e.target.value) && setForm({ ...form, [k]: +e.target.value })
-                  }
-                  className="h-13 rounded-tile border border-line bg-white px-4 f-num text-lg"
-                />
-              </label>
-            ))}
-            <label className="f-ui grid gap-1">
-              {t("Target date (optional)")}
-              <input
-                type="date"
-                value={form.date ?? ""}
-                onChange={(e) => setForm({ ...form, date: e.target.value || undefined })}
-                className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
-              />
-            </label>
-            {err && (
-              <p
-                id="goal-form-error"
-                role="alert"
-                className="m-0 text-attn bg-butter rounded-inner px-3 py-2"
-              >
-                {err}
-              </p>
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button onClick={() => setForm(null)}>{t("Cancel")}</Button>
-              <Button
-                variant="coral"
-                onClick={async () => {
-                  if (!form.name.trim() || form.target <= 0)
-                    return setErr(t("Give the goal a name and a target above zero."));
-                  if (!(await upd(form))) return;
-                  setForm(null);
-                  toast(t("Goal saved."));
-                }}
-              >
-                {t("Save")}
-              </Button>
-            </div>
-          </div>
-        </Sheet>
-      )}
       {add && (
         <Sheet title={`${t("Add money")} · ${add.name}`} onClose={() => setAdd(null)}>
           <div className="grid gap-3">
             <label className="f-ui grid gap-1">
-              {t("Amount")} (₺)
+              {t("Amount")} ({curLabel()})
               <input
                 autoFocus
                 inputMode="numeric"
@@ -511,23 +710,30 @@ export function Goals() {
 }
 
 export function WaitingPage() {
-  const { waiting, decisions, updateWorkspace, setTab, openDecide } = useApp();
+  const { waiting, decisions, entries, updateWorkspace, setTab, openDecide } = useApp();
   const t = useT();
   const toast = useToast();
   const act = async (id: string, d: DecisionKind) => {
     const w = waiting.find((x) => x.id === id)!;
     const pw = waiting,
-      pd = decisions;
+      pd = decisions,
+      pe = entries;
     if (
       !(await updateWorkspace((previous) => ({
         ...previous,
         waiting: waiting.filter((x) => x.id !== id),
         decisions: [{ ...w, id: uid(), decision: d, date: today() }, ...decisions],
+        entries: d === "Buy" ? [purchaseEntry(w), ...entries] : entries,
       })))
     )
       return;
-    toast(t(`Saved: ${d}.`), () => {
-      void updateWorkspace((previous) => ({ ...previous, waiting: pw, decisions: pd }));
+    toast(t(d === "Buy" ? "Saved: Buy. Added to your expenses." : `Saved: ${d}.`), () => {
+      void updateWorkspace((previous) => ({
+        ...previous,
+        waiting: pw,
+        decisions: pd,
+        entries: pe,
+      }));
     });
   };
   return (
@@ -599,7 +805,7 @@ export function HistoryPage() {
     <>
       <PageHead title={t("History")} />
       <Segmented
-        label="Filter"
+        label={t("Filter")}
         value={f}
         onChange={setF}
         options={[
@@ -660,7 +866,6 @@ export function HistoryPage() {
                             buttons.length) %
                           buttons.length;
                   buttons[next]?.focus();
-                  buttons[next]?.click();
                 }}
               >
                 {REFL.map((r, i) => (
@@ -713,6 +918,14 @@ export function Insights() {
     ).sort((a, b) => b[1] - a[1]);
   const feels = count(all.map((d) => d.feeling)),
     reasons = count(all.flatMap((d) => d.reasons));
+  // Average later rating per feeling at decision time, lowest first.
+  const rated = decisions.filter((d) => d.reflection);
+  const byFeeling = [...new Set(rated.map((d) => d.feeling))]
+    .map((f) => {
+      const xs = rated.filter((d) => d.feeling === f);
+      return [f, xs.reduce((a, b) => a + b.reflection!, 0) / xs.length, xs.length] as const;
+    })
+    .sort((a, b) => a[1] - b[1]);
   return (
     <>
       <PageHead title={t("Insights")} />
@@ -725,7 +938,7 @@ export function Insights() {
             </div>
           ))
         ) : (
-          <Empty text={t("A few more decisions and patterns will appear.")} />
+          <Empty text={t("No expenses this month yet.")} />
         )}
       </Card>
       <Card className="grid gap-3">
@@ -779,136 +992,41 @@ export function Insights() {
               })}
             </div>
             <Expand title={t("How was this calculated?")}>
-              Counts of feelings and reasons across {all.length} decisions and waiting items.
-              Observations only — not a judgment.
+              {t(
+                "Counts of feelings and reasons across {n} decisions and waiting items. Observations only — not a judgment.",
+                { n: all.length },
+              )}
             </Expand>
           </>
         )}
       </Card>
-    </>
-  );
-}
-
-export function SettingsPage({
-  reset,
-  logout,
-  retake,
-}: {
-  reset: () => Promise<boolean>;
-  logout: () => void;
-  retake: () => void;
-}) {
-  const { profile, setProfile, setTour, setTab } = useApp();
-  const t = useT();
-  const { lang, setLang } = useContext(LangCtx);
-  const [confirm, setConfirm] = useState(false);
-  const Row = ({
-    icon,
-    title,
-    children,
-  }: {
-    icon: React.ReactNode;
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <Card className="grid gap-3">
-      <h2 className="text-lg font-bold m-0 flex items-center gap-2">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </Card>
-  );
-  return (
-    <>
-      <PageHead title={t("Settings")} />
-      <Row icon={<Globe size={18} />} title={t("Language")}>
-        <Segmented
-          label={t("Language")}
-          value={lang}
-          onChange={setLang}
-          options={[
-            ["en", "English"],
-            ["tr", "Türkçe"],
-          ]}
-        />
-      </Row>
-      <Row icon={<User size={18} />} title={t("Profile")}>
-        <p className="m-0 text-soft">{profile.email}</p>
-        <p className="f-ui m-0">{t("Monthly income")}</p>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {INCOME_RANGES.map((r, i) => (
-            <Tile
-              key={r}
-              label={r}
-              on={profile.income === i}
-              onClick={() => setProfile({ ...profile, income: i })}
-            />
-          ))}
-        </div>
-        <p className="f-ui m-0">{t("Monthly savings")}</p>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {SAVINGS_RANGES.map((r, i) => (
-            <Tile
-              key={r}
-              label={t(r)}
-              on={profile.savings === i}
-              onClick={() => setProfile({ ...profile, savings: i })}
-            />
-          ))}
-        </div>
-      </Row>
-      <Row icon={<Coins size={18} />} title={t("Currency display")}>
-        <Segmented
-          label={t("Currency display")}
-          value={profile.currency}
-          onChange={(c) => setProfile({ ...profile, currency: c })}
-          options={[
-            ["symbol", "₺ 1.000"],
-            ["code", "1.000 TRY"],
-          ]}
-        />
-        <p className="text-sm text-soft m-0">{t("Display only — amounts are not converted.")}</p>
-      </Row>
-      <Card className="grid sm:grid-cols-2 gap-2">
-        <Button icon={<Repeat size={16} />} onClick={retake}>
-          {t("Retake spending style questions")}
-        </Button>
-        <Button
-          icon={<Map size={16} />}
-          onClick={() => {
-            setTab("home");
-            setTour(0);
-          }}
-        >
-          {t("Restart tour")}
-        </Button>
-        <Button icon={<RefreshCw size={16} />} onClick={() => setConfirm(true)}>
-          {t("Reset data")}
-        </Button>
-        <Button icon={<LogOut size={16} />} onClick={logout}>
-          {t("Log out")}
-        </Button>
+      <Card className="grid gap-3">
+        <h2 className="text-xl font-bold m-0">{t("How decisions felt later")}</h2>
+        {byFeeling.length < 2 ? (
+          <Empty
+            expr="thinking"
+            text={t("Rate a few past decisions in History and patterns will appear here.")}
+          />
+        ) : (
+          <>
+            <Say expr="thinking" size={48}>
+              {t(
+                "Decisions made while feeling {f} got your lowest later ratings ({n}/5). Just something to notice.",
+                { f: t(byFeeling[0][0]).toLowerCase(), n: byFeeling[0][1].toFixed(1) },
+              )}
+            </Say>
+            {byFeeling.map(([f, avg, n]) => (
+              <Tube
+                key={f}
+                label={`${t(f)} · ${avg.toFixed(1)}/5 · ${t("{n} rated", { n })}`}
+                value={(avg / 5) * 100}
+                color="bg-violet"
+                showPct={false}
+              />
+            ))}
+          </>
+        )}
       </Card>
-      <Row icon={<Info size={18} />} title={t("About")}>
-        <p className="m-0 text-soft">
-          {t(
-            "SpendSense is an HCI course prototype. Scores are simple heuristics, not financial advice.",
-          )}
-        </p>
-      </Row>
-      {confirm && (
-        <Dialog
-          danger
-          title={t("Reset all data?")}
-          body={t(
-            "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.",
-          )}
-          confirm={t("Reset data")}
-          onClose={() => setConfirm(false)}
-          onConfirm={reset}
-        />
-      )}
     </>
   );
 }

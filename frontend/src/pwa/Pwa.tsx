@@ -38,6 +38,7 @@ const copy = {
       "Reload SpendSense? Unsaved inputs in this tab will be lost. Finish or save your work first.",
     busy: "Please wait until the current request finishes.",
     checking: "Updating…",
+    dismiss: "Dismiss",
   },
   tr: {
     offline: "Çevrimdışısınız",
@@ -56,6 +57,7 @@ const copy = {
       "SpendSense yeniden yüklensin mi? Bu sekmedeki kaydedilmemiş girişler kaybolacak. Önce işleminizi tamamlayın veya kaydedin.",
     busy: "Lütfen mevcut istek tamamlanana kadar bekleyin.",
     checking: "Güncelleniyor…",
+    dismiss: "Kapat",
   },
 };
 
@@ -243,6 +245,12 @@ export function Pwa({ children }: { children: ReactNode }) {
           </div>
         </section>
       )}
+      {failure && !blocked && (
+        <aside className="pwa-update-error" aria-label={t.failed}>
+          <p role="status">{t.failed}</p>
+          <Button onClick={() => setFailure(false)}>{t.dismiss}</Button>
+        </aside>
+      )}
       <div hidden={blocked} inert={blocked || undefined}>
         {children}
       </div>
@@ -258,11 +266,6 @@ export function Pwa({ children }: { children: ReactNode }) {
           </div>
           {busy > 0 && <p role="status">{t.busy}</p>}
         </aside>
-      )}
-      {failure && (
-        <p role="status" className="pwa-update-error">
-          {t.failed}
-        </p>
       )}
     </InstallContext.Provider>
   );
