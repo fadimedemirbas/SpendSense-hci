@@ -12,7 +12,6 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Logo, Sheet, Button, Blob, useT } from "./ui";
-import { LangToggle } from "./Onboarding";
 import { useApp, type Tab } from "./context";
 import { today } from "./store";
 
@@ -110,11 +109,11 @@ export function Shell({ children }: { children: ReactNode }) {
         <Logo />
         <b className="text-xl">SpendSense</b>
         <span className="flex-1" />
-        <LangToggle />
         <button
           aria-label={t("Settings")}
+          aria-current={tab === "settings" ? "page" : undefined}
           onClick={() => go("settings")}
-          className="btn clay-cream w-11 px-0!"
+          className={`btn w-11 px-0! ${tab === "settings" ? "clay-sun" : "clay-cream"}`}
         >
           <Settings size={18} />
         </button>
