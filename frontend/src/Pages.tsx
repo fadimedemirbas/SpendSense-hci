@@ -120,7 +120,7 @@ export function HomePage() {
       </div>
       <Checklist />
       {reflect && <ReflectCard d={reflect} />}
-      <div className="grid md:grid-cols-2 gap-5">
+      <div className={`grid gap-5 ${goal ? "md:grid-cols-2" : ""}`}>
         {goal && (
           <Card className="flex gap-4 items-center">
             <Ring
