@@ -231,9 +231,10 @@ export function QuickAdd() {
     );
   return (
     <Sheet title={edit ? t("Edit entry") : t("Quick add")} onClose={close}>
-      <div className="grid md:grid-cols-2 gap-5">
+      <div className="grid md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-5">
         <div className="grid gap-3 content-start">
           <Segmented
+            full
             label={t("Type")}
             value={type}
             onChange={(x) => {
@@ -296,7 +297,7 @@ export function QuickAdd() {
         </div>
         <div className="grid gap-2 content-start">
           <p className="f-ui m-0">{t("Category")}</p>
-          <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-3">
             {(type === "expense" ? EXP_CATS : INC_CATS).map(([c, I]) => (
               <Tile
                 key={c}

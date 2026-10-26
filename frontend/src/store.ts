@@ -10,6 +10,15 @@ import {
   Briefcase,
   Laptop,
   Gift,
+  ShoppingCart,
+  GraduationCap,
+  Repeat,
+  Shirt,
+  Bath,
+  Award,
+  PenTool,
+  TrendingUp,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 export type EType = "income" | "expense";
@@ -74,12 +83,21 @@ export const EXP_CATS: [string, LucideIcon][] = [
   ["Fun", Ticket],
   ["Health", HeartPulse],
   ["Home", Home],
+  ["Groceries", ShoppingCart],
+  ["Education", GraduationCap],
+  ["Subscriptions", Repeat],
+  ["Clothing", Shirt],
+  ["Personal care", Bath],
   ["Other", CircleDot],
 ];
 export const INC_CATS: [string, LucideIcon][] = [
   ["Salary", Briefcase],
   ["Side income", Laptop],
   ["Gift", Gift],
+  ["Scholarship", Award],
+  ["Freelance", PenTool],
+  ["Investment", TrendingUp],
+  ["Refund", Undo2],
   ["Other", CircleDot],
 ];
 export const catIcon = (t: EType, c: string) =>

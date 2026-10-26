@@ -383,6 +383,15 @@ const TR: Record<string, string> = {
   Reasons: "Gerekçeler",
   "Similar item": "Benzeri",
   "Wait time": "Bekleme süresi",
+  Groceries: "Market",
+  Education: "Eğitim",
+  Subscriptions: "Abonelikler",
+  Clothing: "Giyim",
+  "Personal care": "Kişisel bakım",
+  Scholarship: "Burs",
+  Freelance: "Freelance",
+  Investment: "Yatırım",
+  Refund: "İade",
   "Saved: Buy. Added to your expenses.": "Kaydedildi: Al. Harcamalarına eklendi.",
   "It would use {n}% of what's left this month.": "Bu ay kalan paranın %{n}'ini kullanır.",
   "Nothing is left this month after your expenses.": "Harcamalarından sonra bu ay para kalmadı.",
@@ -687,17 +696,19 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  full,
 }: {
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
   label: string;
+  full?: boolean;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex flex-wrap gap-1 p-1 rounded-full bg-track"
+      className={`${full ? "flex w-full" : "inline-flex flex-wrap"} gap-1 p-1 rounded-full bg-track`}
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
           return;
@@ -721,7 +732,7 @@ export function Segmented<T extends string>({
           aria-checked={value === v}
           tabIndex={value === v ? 0 : -1}
           onClick={() => onChange(v)}
-          className={`f-ui min-h-11 px-4 rounded-full transition ${value === v ? "clay-sun" : "hover:bg-peach"}`}
+          className={`f-ui min-h-11 px-4 rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : "hover:bg-peach"}`}
         >
           {l}
         </button>
@@ -749,7 +760,7 @@ export const Tile = ({
   >
     {on && <Check size={16} className="absolute top-2 right-2" aria-hidden />}
     {icon}
-    <span>{label}</span>
+    <span className="[overflow-wrap:normal]">{label}</span>
     {sub && <span className="text-xs text-soft">{sub}</span>}
   </button>
 );
@@ -997,7 +1008,7 @@ function useModal(onClose: () => void) {
     window.visualViewport?.addEventListener("resize", resize);
     ref.current
       ?.querySelector<HTMLElement>(
-        "input:not(:disabled),button:not([data-modal-close]):not(:disabled),select:not(:disabled),textarea:not(:disabled)",
+        "input:not(:disabled),button:not([data-modal-close]):not(:disabled):not([tabindex='-1']),select:not(:disabled),textarea:not(:disabled)",
       )
       ?.focus();
     const k = (e: KeyboardEvent) => {
