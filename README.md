@@ -25,3 +25,14 @@ that migration; the Supabase setup describes the current data integration.
 Before publishing, follow the [GitHub upload checklist](docs/github-upload-readiness.md).
 The [responsive PWA release guide](docs/mobile-production-readiness.md) covers
 Vercel configuration, mobile installation, and device acceptance checks.
+
+## Netlify deployment
+
+`netlify.toml` (repository root) configures the build: base directory `frontend`,
+command `npm run build`, publish directory `dist` (that is, `frontend/dist`),
+Node 22, service-worker cache headers and the SPA fallback to `index.html`.
+Missing files under `/assets/` and `/icons/` return 404 instead of HTML.
+
+In Netlify, add the environment variables `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_PUBLISHABLE_KEY` (browser-safe values only). Then add the Netlify
+site URL to Supabase Auth > URL Configuration (Site URL and Redirect URLs).

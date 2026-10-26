@@ -17,6 +17,7 @@ import {
   EyeOff,
   Wallet,
   ShieldCheck,
+  Smartphone,
 } from "lucide-react";
 import {
   Blob,
@@ -53,25 +54,34 @@ export function LangToggle() {
   );
 }
 
-function InstallHelp({ onClose }: { onClose: () => void }) {
-  const t = useT();
-  const [os, setOs] = useState<"ios" | "other">(
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-      ? "ios"
-      : "other",
+// Platform hints for install guidance only; never used to block features.
+const isIos = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// Embedded browsers (Instagram, Facebook, LinkedIn, Android WebView…) cannot
+// install web apps, which testers often hit when opening a shared link.
+const inAppBrowser = () =>
+  /FBAN|FBAV|Instagram|LinkedInApp|Snapchat|TikTok|musical_ly|Line\/|; wv\)/i.test(
+    navigator.userAgent,
   );
+
+export function InstallHelp({ onClose }: { onClose: () => void }) {
+  const t = useT();
+  const [os, setOs] = useState<"ios" | "other">(isIos() ? "ios" : "other");
+  const embedded = inAppBrowser();
   const steps =
     os === "ios"
       ? ([
           ["Open SpendSense in Safari.", null],
-          ["Tap the Share button.", Share],
+          ["Tap the Share button (in the toolbar or the ••• menu).", Share],
           ["Select “Add to Home Screen”.", SquarePlus],
-          ["Tap “Add” to finish.", CheckI],
+          ["Keep “Open as Web App” on if shown, then tap “Add”.", CheckI],
+          ["Open SpendSense from its new home screen icon.", null],
         ] as const)
       : ([
-          ["Open SpendSense in a supported browser.", null],
-          ["Select “Install app” when the browser offers the option.", Download],
+          ["Open SpendSense in Chrome, Edge or Samsung Internet.", null],
+          ["Open the browser menu (⋮).", null],
+          ["Tap “Install app” or “Add to Home screen”.", Download],
           ["Confirm installation.", CheckI],
         ] as const);
   return (
@@ -80,6 +90,13 @@ function InstallHelp({ onClose }: { onClose: () => void }) {
         <p className="m-0 text-soft">
           {t("Add SpendSense to your device for quick access from your home screen.")}
         </p>
+        {embedded && (
+          <p role="note" className="m-0 clay-butter rounded-tile p-3 font-semibold">
+            {t(
+              "You seem to be in an app’s built-in browser, which can’t install apps. Open this page in Safari or Chrome first.",
+            )}
+          </p>
+        )}
         <Segmented
           label={t("Device")}
           value={os}
@@ -108,8 +125,8 @@ function InstallHelp({ onClose }: { onClose: () => void }) {
         <p className="m-0 text-sm text-soft">
           {t(
             os === "ios"
-              ? "Other iOS browsers may not offer this option."
-              : "The install dialog is shown by your browser or operating system.",
+              ? "Don’t see it? Scroll down in the Share menu. On iOS 16.4 or later, Chrome and Edge offer it in their Share menu too."
+              : "On a computer, use the install icon in the address bar. The install dialog is shown by your browser or operating system.",
           )}
         </p>
         <div className="flex justify-end">
@@ -126,7 +143,11 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
   const t = useT();
   const pwa = usePwa();
   const [help, setHelp] = useState(false);
-  const H2 = ({ children }: { children: string }) => (
+  // Native prompt where the browser offers one; otherwise step-by-step help.
+  const openInstall = async () => {
+    if (!(await pwa.install())) setHelp(true);
+  };
+  const H2 =({ children }: { children: string }) => (
     <h2 className="text-2xl font-semibold m-0 mb-4">{t(children)}</h2>
   );
   return (
@@ -139,9 +160,7 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
           <Button
             className="px-3! sm:px-5!"
             aria-label={t(pwa.mode === "prompt" ? "Install app" : "How to install")}
-            onClick={async () => {
-              if (!(await pwa.install())) setHelp(true);
-            }}
+            onClick={openInstall}
             icon={
               pwa.mode === "prompt" ? (
                 <Download size={18} aria-hidden />
@@ -183,6 +202,39 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
               {t("See how it works")}
             </Button>
           </div>
+          {pwa.mode !== "installed" && (
+            // On phones the header install control is icon-only, so testers
+            // missed it. This labelled card makes installation visible there.
+            <section
+              aria-label={t("Use SpendSense like an app")}
+              className="sm:hidden mt-6 clay-cream rounded-tile p-4 grid gap-3"
+            >
+              <div className="flex items-start gap-3">
+                <span className="w-10 h-10 rounded-inner clay-sun flex items-center justify-center shrink-0">
+                  <Smartphone size={20} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <b className="f-ui block">{t("Use SpendSense like an app")}</b>
+                  <p className="m-0 text-sm text-soft">
+                    {t("Add it to your home screen for one-tap, full-screen access.")}
+                  </p>
+                </div>
+              </div>
+              <Button
+                className="w-full justify-center"
+                onClick={openInstall}
+                icon={
+                  pwa.mode === "prompt" ? (
+                    <Download size={18} aria-hidden />
+                  ) : (
+                    <HelpCircle size={18} aria-hidden />
+                  )
+                }
+              >
+                {t(pwa.mode === "prompt" ? "Install app" : "How to install")}
+              </Button>
+            </section>
+          )}
         </div>
         <Card className="flex flex-col gap-4">
           <Say expr="wave" size={96}>
