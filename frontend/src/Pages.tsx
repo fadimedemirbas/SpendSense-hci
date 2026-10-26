@@ -29,6 +29,7 @@ import { useApp } from "./context";
 import {
   Button,
   Card,
+  Chip,
   CountUp,
   Dialog,
   Empty,
@@ -301,6 +302,217 @@ function Checklist() {
   );
 }
 
+const GOAL_IDEAS = ["Laptop", "Vacation", "Emergency fund", "New phone"];
+const TARGET_IDEAS = [5000, 10000, 25000, 50000];
+const inMonths = (n: number) => {
+  const d = new Date(today());
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+// One question per step, with a live preview of the goal filling up.
+function GoalFlow({
+  initial,
+  editing,
+  onCancel,
+  onSave,
+}: {
+  initial: Goal;
+  editing: boolean;
+  onCancel: () => void;
+  onSave: (g: Goal) => Promise<void>;
+}) {
+  const t = useT();
+  const [g, setG] = useState(initial);
+  const [step, setStep] = useState(0);
+  const [err, setErr] = useState("");
+  const [discard, setDiscard] = useState(false);
+  const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+  const remaining = Math.max(0, g.target - g.saved);
+  const months = g.date ? Math.max(1, Math.round(daysUntil(g.date) / 30.44)) : 0;
+  const questions = [
+    "What are you saving for?",
+    "How much do you need?",
+    "How much have you already set aside?",
+    "When would you like to reach it?",
+  ];
+  const next = async () => {
+    if (step === 0 && !g.name.trim()) return setErr(t("Give your goal a name."));
+    if (step === 1 && g.target <= 0) return setErr(t("Enter a target above zero."));
+    if (step === 3 && g.date && g.date <= today())
+      return setErr(t("Pick a date after today, or leave it empty."));
+    setErr("");
+    if (step < 3) setStep(step + 1);
+    else await onSave({ ...g, name: g.name.trim() });
+  };
+  const back = () => {
+    setErr("");
+    if (step > 0) setStep(step - 1);
+    else if (!editing && (g.name || g.target)) setDiscard(true);
+    else onCancel();
+  };
+  const amount = (k: "target" | "saved") => (
+    <label className="f-ui grid gap-1">
+      {t(k === "target" ? "Target" : "Saved")} ({curLabel()})
+      <input
+        autoFocus
+        inputMode="numeric"
+        placeholder="0"
+        value={g[k] || ""}
+        aria-invalid={!!err}
+        aria-describedby={err ? "goal-flow-error" : undefined}
+        onChange={(e) => /^\d{0,8}$/.test(e.target.value) && setG({ ...g, [k]: +e.target.value })}
+        onKeyDown={(e) => e.key === "Enter" && void next()}
+        className="h-14 rounded-tile border border-line bg-white px-4 f-num text-2xl"
+      />
+    </label>
+  );
+  return (
+    <>
+      <PageHead title={t(editing ? "Edit goal" : "Add goal")} />
+      <div>
+        <p className="f-ui text-sm m-0 mb-1">{t("Step {n} of {t}", { n: step + 1, t: 4 })}</p>
+        <div className="h-2.5 rounded-full bg-track">
+          <div
+            className="h-full rounded-full bg-sun transition-all"
+            style={{ width: `${((step + 1) / 4) * 100}%` }}
+          />
+        </div>
+      </div>
+      <Card className="flex gap-4 items-center">
+        <Ring value={pct} size={88} label={`${g.name || t("Your goal")} ${pct}%`} />
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold m-0 truncate">{g.name || t("Your goal")}</h2>
+          <p className="f-num m-0">
+            {fmt(g.saved)} / {fmt(g.target)}
+          </p>
+          <p className="text-sm text-soft m-0">
+            {t("Remaining")} {fmt(remaining)}
+            {g.date && ` · ${new Date(g.date).toLocaleDateString()}`}
+          </p>
+        </div>
+      </Card>
+      <Say key={step} expr={step === 3 ? "calm" : "thinking"} size={56} live>
+        {t(questions[step])}
+      </Say>
+      <Card key={"s" + step} className="grid gap-3 rise">
+        {step === 0 && (
+          <>
+            <label className="f-ui grid gap-1">
+              {t("Goal name")}
+              <input
+                autoFocus
+                value={g.name}
+                aria-invalid={!!err}
+                aria-describedby={err ? "goal-flow-error" : undefined}
+                onChange={(e) => setG({ ...g, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && void next()}
+                className="h-14 rounded-tile border border-line bg-white px-4 font-sans text-lg"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {GOAL_IDEAS.map((n) => (
+                <Chip key={n} on={g.name === t(n)} onClick={() => setG({ ...g, name: t(n) })}>
+                  {t(n)}
+                </Chip>
+              ))}
+            </div>
+          </>
+        )}
+        {step === 1 && (
+          <>
+            {amount("target")}
+            <div className="flex flex-wrap gap-2">
+              {TARGET_IDEAS.map((n) => (
+                <Chip key={n} on={g.target === n} onClick={() => setG({ ...g, target: n })}>
+                  {fmt(n)}
+                </Chip>
+              ))}
+            </div>
+          </>
+        )}
+        {step === 2 && (
+          <>
+            {amount("saved")}
+            <p className="m-0 text-sm text-soft">{t("Starting from zero is fine too.")}</p>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <label className="f-ui grid gap-1">
+              {t("Target date (optional)")}
+              <input
+                autoFocus
+                type="date"
+                min={today()}
+                value={g.date ?? ""}
+                aria-invalid={!!err}
+                aria-describedby={err ? "goal-flow-error" : undefined}
+                onChange={(e) => setG({ ...g, date: e.target.value || undefined })}
+                className="h-14 rounded-tile border border-line bg-white px-4 font-sans"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  [3, "3 months"],
+                  [6, "6 months"],
+                  [12, "1 year"],
+                ] as const
+              ).map(([n, l]) => (
+                <Chip
+                  key={n}
+                  on={g.date === inMonths(n)}
+                  onClick={() => setG({ ...g, date: inMonths(n) })}
+                >
+                  {t(l)}
+                </Chip>
+              ))}
+              {g.date && (
+                <Chip on={false} onClick={() => setG({ ...g, date: undefined })}>
+                  {t("No deadline")}
+                </Chip>
+              )}
+            </div>
+            <p className="m-0 f-voice text-lg" aria-live="polite">
+              {remaining === 0
+                ? t("You've already reached this amount.")
+                : g.date
+                  ? t("Setting aside about {m} a month gets you there.", {
+                      m: fmt(Math.ceil(remaining / months)),
+                    })
+                  : t("No deadline is fine too. You can add one later.")}
+            </p>
+          </>
+        )}
+        {err && (
+          <p
+            id="goal-flow-error"
+            role="alert"
+            className="m-0 text-attn bg-butter rounded-inner px-3 py-2"
+          >
+            {err}
+          </p>
+        )}
+      </Card>
+      <div className="flex justify-between gap-2">
+        <Button onClick={back}>{t(step === 0 ? "Cancel" : "Back")}</Button>
+        <Button variant="coral" big onClick={() => void next()}>
+          {t(step === 3 ? "Save goal" : "Next")}
+        </Button>
+      </div>
+      {discard && (
+        <Dialog
+          title={t("Discard this goal?")}
+          body={t("What you entered for this goal will not be saved.")}
+          confirm={t("Discard")}
+          onClose={() => setDiscard(false)}
+          onConfirm={onCancel}
+        />
+      )}
+    </>
+  );
+}
+
 export function Goals() {
   const { goals, setGoals } = useApp();
   const t = useT();
@@ -322,6 +534,19 @@ export function Goals() {
     return saved;
   };
   const list = goals.filter((g) => g.status === f);
+  if (form)
+    return (
+      <GoalFlow
+        initial={form}
+        editing={goals.some((g) => g.id === form.id)}
+        onCancel={() => setForm(null)}
+        onSave={async (g) => {
+          if (!(await upd(g))) return;
+          setForm(null);
+          toast(t("Goal saved."));
+        }}
+      />
+    );
   return (
     <>
       <PageHead
@@ -444,73 +669,6 @@ export function Goals() {
             );
           })}
         </div>
-      )}
-      {form && (
-        <Sheet
-          title={goals.some((g) => g.id === form.id) ? t("Edit goal") : t("Add goal")}
-          onClose={() => setForm(null)}
-        >
-          <div className="grid gap-3">
-            <label className="f-ui grid gap-1">
-              {t("Goal name")}
-              <input
-                value={form.name}
-                aria-invalid={!!err && !form.name.trim()}
-                aria-describedby={err ? "goal-form-error" : undefined}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
-              />
-            </label>
-            {(["target", "saved"] as const).map((k) => (
-              <label key={k} className="f-ui grid gap-1">
-                {t(k === "target" ? "Target" : "Saved")} ({curLabel()})
-                <input
-                  inputMode="numeric"
-                  aria-invalid={!!err && k === "target" && form.target <= 0}
-                  aria-describedby={err ? "goal-form-error" : undefined}
-                  value={form[k] || ""}
-                  onChange={(e) =>
-                    /^\d{0,8}$/.test(e.target.value) && setForm({ ...form, [k]: +e.target.value })
-                  }
-                  className="h-13 rounded-tile border border-line bg-white px-4 f-num text-lg"
-                />
-              </label>
-            ))}
-            <label className="f-ui grid gap-1">
-              {t("Target date (optional)")}
-              <input
-                type="date"
-                value={form.date ?? ""}
-                onChange={(e) => setForm({ ...form, date: e.target.value || undefined })}
-                className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
-              />
-            </label>
-            {err && (
-              <p
-                id="goal-form-error"
-                role="alert"
-                className="m-0 text-attn bg-butter rounded-inner px-3 py-2"
-              >
-                {err}
-              </p>
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button onClick={() => setForm(null)}>{t("Cancel")}</Button>
-              <Button
-                variant="coral"
-                onClick={async () => {
-                  if (!form.name.trim() || form.target <= 0)
-                    return setErr(t("Give the goal a name and a target above zero."));
-                  if (!(await upd(form))) return;
-                  setForm(null);
-                  toast(t("Goal saved."));
-                }}
-              >
-                {t("Save")}
-              </Button>
-            </div>
-          </div>
-        </Sheet>
       )}
       {add && (
         <Sheet title={`${t("Add money")} · ${add.name}`} onClose={() => setAdd(null)}>

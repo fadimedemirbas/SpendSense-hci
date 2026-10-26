@@ -226,19 +226,23 @@ for (const [width, height] of [
     await page.getByRole("radio", { name: "5 Very good", exact: true }).first().click();
     await visit(page, "Goals", width);
     await page.getByRole("button", { name: "Add goal", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Add goal" });
-    await expect(dialog.getByLabel("Goal name")).toBeFocused();
-    await dialog.getByLabel("Goal name").fill("Mobile savings");
-    await dialog.getByLabel("Target (₺)", { exact: true }).fill("5000");
+    await expect(page.getByLabel("Goal name")).toBeFocused();
+    await page.getByLabel("Goal name").fill("Mobile savings");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByLabel("Target (₺)", { exact: true }).fill("5000");
+    await expect(page.getByRole("img", { name: "Mobile savings 0%" })).toBeVisible();
     await layout(page);
-    const bounds = await dialog.boundingBox();
-    expect(bounds!.y).toBeGreaterThanOrEqual(0);
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height + 1);
-    await dialog.getByRole("button", { name: "Save", exact: true }).evaluate((button) => {
+    await page.getByLabel("Target (₺)", { exact: true }).press("Enter");
+    await page.getByLabel("Saved (₺)", { exact: true }).fill("1000");
+    await expect(page.getByRole("img", { name: "Mobile savings 20%" })).toBeVisible();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByRole("button", { name: "6 months", exact: true }).click();
+    await layout(page);
+    await page.getByRole("button", { name: "Save goal", exact: true }).evaluate((button) => {
       (button as HTMLButtonElement).click();
       (button as HTMLButtonElement).click();
     });
-    await expect(dialog).not.toBeVisible();
+    await expect(page.getByRole("heading", { name: "Goals", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Mobile savings", exact: true })).toHaveCount(1);
     await visit(page, "Settings", width);
     await page.getByRole("button", { name: "Retake spending style questions" }).click();
