@@ -1,0 +1,18 @@
+/.migration-backups/
+# Local configuration and generated files at any level of the repository.
+node_modules/
+dist/
+dist-ssr/
+.env
+.env.*
+!.env.example
+!.env.template
+*.local
+.vercel/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
+frontend/test-results/
+frontend/playwright-report/
+frontend/.pwa-test-dist/

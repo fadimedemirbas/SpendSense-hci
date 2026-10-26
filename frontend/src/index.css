@@ -1,34 +1,310 @@
-@layer theme, base, components, utilities;
-
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-
-@custom-variant dark (&:is(.dark *));
-
-/* Theme values and global styling will be defined from the Figma design. */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+@import "tailwindcss";
+.pwa-update {
+  position: fixed;
+  z-index: 60;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  border: 2px solid #6b5a66;
+  border-radius: 20px;
+  background: #fff6ec;
+  color: #2a1a2c;
+  box-shadow: 0 8px 24px #2a1a2c26;
+  max-height: calc(100dvh - 112px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+.pwa-update p {
+  margin: 0 0 12px;
+}
+/* In page flow (not an overlay) so it never covers the action the user needs. */
+.pwa-update-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  max-width: 880px;
+  margin: max(8px, env(safe-area-inset-top)) auto 0;
+  margin-inline: max(16px, env(safe-area-inset-left));
+  padding: 12px 16px;
+  border: 2px solid #6b5a66;
+  border-radius: 20px;
+  background: #fff6ec;
+  color: #2a1a2c;
+}
+@media (min-width: 912px) {
+  .pwa-update-error {
+    margin-inline: auto;
+  }
+}
+.pwa-update-error p {
+  margin: 0;
+}
+.pwa-offline {
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+@theme {
+  --color-cream: #fff6ec;
+  --color-card: #fffdf9;
+  --color-ink: #2a1a2c;
+  --color-soft: #6b5a66;
+  --color-line: #ebd9c8;
+  --color-cardline: #f1dfcc;
+  --color-track: #fbe3cf;
+  --color-coral: #ff6b4a;
+  --color-sun: #ffc93c;
+  --color-peach: #ffe1d1;
+  --color-butter: #ffefb8;
+  --color-leaf: #1f7a58;
+  --color-leaftint: #d9f0e4;
+  --color-info: #3c62b3;
+  --color-attn: #8a5a00;
+  --color-violet: #6b4fa3;
+  --color-violettint: #efe8fa;
+  --color-danger: #b3261e;
+  --font-sans: "Bricolage Grotesque", system-ui, sans-serif;
+  --radius-card: 28px;
+  --radius-tile: 20px;
+  --radius-inner: 16px;
+  --ease-clay: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+html {
+  scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+body {
+  margin: 0;
+  min-width: 0;
+}
+/* Let real content wrap rather than masking overflow with overflow-x:hidden. */
+:where(.grid, .flex) > * {
+  min-width: 0;
+}
+:where(h1, h2, h3, p, label, button, span) {
+  overflow-wrap: anywhere;
+}
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+svg {
+  flex-shrink: 0;
+}
+.app-safe {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.onboarding-safe {
+  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+@media (min-width: 768px) {
+  .sheet-panel {
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+}
+.mobile-nav {
+  padding-left: max(4px, env(safe-area-inset-left));
+  padding-right: max(4px, env(safe-area-inset-right));
+}
+.sheet-panel {
+  max-height: min(
+    94dvh,
+    calc(var(--visual-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top)))
+  );
+  overscroll-behavior: contain;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+.modal-panel {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.skip-link {
+  position: fixed;
+  left: 12px;
+  top: -100px;
+  z-index: 100;
+  background: #fff6ec;
+  padding: 12px;
+  color: #2a1a2c;
+}
+.skip-link:focus {
+  top: max(12px, env(safe-area-inset-top));
+}
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+  .entry-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .entry-row > .entry-actions {
+    grid-column: 2 / -1;
+    justify-self: end;
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    white-space: normal;
+  }
+}
+.f-voice {
+  font-family: Fraunces, serif;
+  font-style: italic;
+  font-weight: 500;
+}
+.f-num {
+  font-family: Gabarito, sans-serif;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.f-ui {
+  font-family: Fredoka, sans-serif;
+  font-weight: 500;
+}
+/* Darker ink from the same green palette meets AA on pale green badges/steps. */
+.bg-leaftint.text-leaf {
+  color: #176044;
+}
+.clay {
+  background: var(--color-card);
+  border: 1px solid var(--color-cardline);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 2px 0 #fff,
+    inset 0 -3px 0 #f1dfcc80,
+    0 8px 24px -10px #2a1a2c26;
+}
+.clay-coral {
+  background: var(--color-coral);
+  box-shadow:
+    inset 0 2px 0 #ffffff66,
+    inset 0 -3px 0 #c9452a,
+    0 6px 14px -6px #ff6b4a99;
+}
+.clay-sun {
+  background: var(--color-sun);
+  box-shadow:
+    inset 0 2px 0 #ffffff80,
+    inset 0 -3px 0 #d9a21a,
+    0 6px 14px -6px #ffc93c99;
+}
+.clay-butter {
+  background: var(--color-butter);
+  box-shadow:
+    inset 0 2px 0 #fff,
+    inset 0 -3px 0 #ecd585,
+    0 4px 10px -6px #8a5a0055;
+}
+.clay-leaf {
+  background: var(--color-leaftint);
+  box-shadow:
+    inset 0 2px 0 #fff,
+    inset 0 -3px 0 #a9d6bf,
+    0 4px 10px -6px #1f7a5855;
+}
+.clay-cream {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  box-shadow:
+    inset 0 2px 0 #fff,
+    inset 0 -3px 0 #ebd9c8,
+    0 4px 10px -6px #2a1a2c33;
+}
+.btn {
+  font-family: Fredoka, sans-serif;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition:
+    transform 0.15s var(--ease-clay),
+    filter 0.15s;
+}
+.btn:hover {
+  filter: brightness(1.04);
+}
+.btn:active {
+  transform: translateY(2px) scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 3px;
+}
+/* Main only receives programmatic focus for screen readers; its controls keep their own ring. */
+#main-content:focus-visible {
+  outline: none;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.rise {
+  animation: rise 0.45s var(--ease-clay) both;
+}
+@keyframes breathe {
+  50% {
+    transform: scale(1.03, 0.97);
+  }
+}
+.breathe {
+  animation: breathe 4.5s ease-in-out infinite;
+  transform-origin: bottom;
+}
+@keyframes wave {
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+.wave {
+  animation: wave 1.6s ease-in-out 2;
+}
+body[data-tour="quick"] [data-tour-id="quick"],
+body[data-tour="decide"] [data-tour-id="decide"],
+body[data-tour="goals"] [data-tour-id="goals"] {
+  outline: 4px solid var(--color-sun);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  html {
+    scroll-behavior: auto !important;
+  }
 }
