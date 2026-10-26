@@ -748,11 +748,12 @@ export function WaitingPage() {
           const left = daysUntil(w.review);
           return (
             <Card key={w.id} className="grid gap-3">
-              <div className="flex items-start gap-3">
+              {/* The status pill wraps below on narrow phones instead of squeezing the title. */}
+              <div className="flex flex-wrap items-start gap-3">
                 <span className="w-11 h-11 rounded-inner bg-violettint text-violet flex items-center justify-center">
                   <Clock size={20} aria-hidden />
                 </span>
-                <div className="flex-1">
+                <div className="flex-1 basis-40">
                   <h2 className="text-xl font-bold m-0">{w.name}</h2>
                   <p className="f-num m-0">
                     {fmt(w.price)}{" "}

@@ -39,12 +39,14 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
         <I size={20} aria-hidden />
       </span>
       <span className="flex-1 min-w-0">
-        <span className="block truncate font-medium">{e.name}</span>
+        <span className="line-clamp-2 font-medium">{e.name}</span>
         <span className="text-sm text-soft">
           {t(e.cat)} · {dayLabel(e.date, t)}
         </span>
       </span>
-      <span className={`f-num text-lg ${e.type === "income" ? "text-leaf" : ""}`}>
+      <span
+        className={`f-num text-lg shrink-0 whitespace-nowrap ${e.type === "income" ? "text-leaf" : ""}`}
+      >
         {e.type === "income" ? "+" : "−"}
         {fmt(e.amount)}
       </span>
@@ -297,9 +299,12 @@ export function QuickAdd() {
         </div>
         <div className="grid gap-2 content-start">
           <p className="f-ui m-0">{t("Category")}</p>
-          <div className="grid grid-cols-2 min-[360px]:grid-cols-3 gap-3">
+          {/* Column count follows the space available: tiles never get narrower
+              than the longest category word (e.g. "Subscriptions", "Abonelikler"). */}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(7.25rem,1fr))] gap-2 sm:gap-3">
             {(type === "expense" ? EXP_CATS : INC_CATS).map(([c, I]) => (
               <Tile
+                dense
                 key={c}
                 on={cat === c}
                 onClick={() => setCat(c)}

@@ -72,33 +72,39 @@
   --radius-inner: 16px;
   --ease-clay: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-body {
-  background: var(--color-cream);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-}
-html {
-  scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom));
-}
-body {
-  margin: 0;
-  min-width: 0;
-}
-/* Let real content wrap rather than masking overflow with overflow-x:hidden. */
-:where(.grid, .flex) > * {
-  min-width: 0;
-}
-:where(h1, h2, h3, p, label, button, span) {
-  overflow-wrap: anywhere;
-}
-input,
-select,
-textarea {
-  min-width: 0;
-  max-width: 100%;
-}
-svg {
-  flex-shrink: 0;
+/* Element defaults live in the base layer so Tailwind utilities on a specific
+   element (min-w-*, text-5xl, [overflow-wrap:normal]…) can still override them.
+   Unlayered, these rules silently beat every utility. */
+@layer base {
+  body {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    margin: 0;
+    min-width: 0;
+  }
+  html {
+    scroll-padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  /* Let real content wrap rather than masking overflow with overflow-x:hidden. */
+  :where(.grid, .flex) > * {
+    min-width: 0;
+  }
+  /* break-word only splits a word that cannot fit on a line by itself (long
+     e-mails/URLs). `anywhere` also let flex/grid squeeze labels until normal
+     words broke mid-word ("Hediy-e", "Subscripti-ons"). */
+  :where(h1, h2, h3, p, label, button, span) {
+    overflow-wrap: break-word;
+  }
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+  svg {
+    flex-shrink: 0;
+  }
 }
 .app-safe {
   padding-top: env(safe-area-inset-top);
@@ -144,10 +150,13 @@ svg {
   top: max(12px, env(safe-area-inset-top));
 }
 @media (max-width: 639px) {
-  input,
-  select,
-  textarea {
-    font-size: max(16px, 1em);
+  /* ≥16px stops iOS Safari zooming on focus; layered so text-xl/text-5xl apply. */
+  @layer base {
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em);
+    }
   }
   .entry-row {
     display: grid;

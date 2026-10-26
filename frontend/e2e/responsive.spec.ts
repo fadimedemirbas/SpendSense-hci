@@ -87,6 +87,27 @@ async function layout(page: Page) {
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth))
     .toBeLessThanOrEqual(1);
 }
+// Labels must wrap between words, never inside one ("Hediy-e", "Subscripti-ons").
+// Horizontal-overflow checks alone miss this because mid-word breaks avoid overflow.
+async function wordsIntact(page: Page) {
+  const broken = await page.evaluate(() => {
+    const found: string[] = [];
+    const range = document.createRange();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement;
+      if (!parent?.getClientRects().length || parent.closest("input,textarea,.sr-only")) continue;
+      for (const match of (node.textContent ?? "").matchAll(/[^\s/–—-]{2,}/g)) {
+        range.setStart(node, match.index!);
+        range.setEnd(node, match.index! + match[0].length);
+        const rects = [...range.getClientRects()].filter((rect) => rect.width > 0.5);
+        if (new Set(rects.map((rect) => Math.round(rect.bottom / 4))).size > 1) found.push(match[0]);
+      }
+    }
+    return found;
+  });
+  expect(broken).toEqual([]);
+}
 async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
@@ -124,21 +145,39 @@ for (const width of widths) {
     await visit(page, "Money", width);
     await page.getByRole("button", { name: "Add expense", exact: true }).click();
     await layout(page);
+    await wordsIntact(page);
+    await page.getByRole("dialog").getByRole("radio", { name: "Income", exact: true }).click();
+    await wordsIntact(page);
     await page.keyboard.press("Escape");
+    await visit(page, "Decide", width);
+    await wordsIntact(page);
     await visit(page, "Goals", width);
     await page.getByRole("button", { name: "Add goal", exact: true }).click();
     await layout(page);
     await page.keyboard.press("Escape");
     await visit(page, "Insights", width);
     await visit(page, "Waiting List", width, true);
+    await wordsIntact(page);
     await visit(page, "History", width, true);
     await visit(page, "Settings", width);
     await page.getByRole("radio", { name: "Türkçe", exact: true }).click();
     await layout(page);
     await visit(page, "Para", width);
+    await page.getByRole("button", { name: "Gider ekle", exact: true }).click();
+    await wordsIntact(page);
+    await page.getByRole("dialog").getByRole("radio", { name: "Gelir", exact: true }).click();
+    await wordsIntact(page);
+    await page.keyboard.press("Escape");
     await visit(page, "Hedefler", width);
     await visit(page, "İçgörüler", width);
     await visit(page, "Karar", width); // Full translated analysis flow is tested separately.
+    await wordsIntact(page);
+    if (width < 768) {
+      // Bottom navigation labels wrap onto two lines instead of being cut off.
+      const labels = page.locator("nav.mobile-nav button > span:last-child");
+      for (const label of await labels.all())
+        expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    }
   });
 }
 

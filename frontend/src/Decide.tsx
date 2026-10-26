@@ -279,9 +279,10 @@ export function Decide() {
                         />
                       </label>
                       <p className="f-ui m-0">{t("Category")}</p>
-                      <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(7.25rem,1fr))] gap-2 sm:gap-3">
                         {EXP_CATS.map(([c, I]) => (
                           <Tile
+                            dense
                             key={c}
                             on={p.cat === c}
                             onClick={() => setP({ ...p, cat: c })}
@@ -467,7 +468,9 @@ function Receipt({
         <span className="text-soft">{step + 1}/5</span>
         <ChevronDown size={18} className={`transition ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
-      <div className={`${open ? "grid" : "hidden"} md:grid gap-2`}>
+      {/* grid-cols-1 = minmax(0,1fr): a long product name truncates instead of
+          widening the receipt past the screen on tablets. */}
+      <div className={`${open ? "grid" : "hidden"} md:grid grid-cols-1 gap-2`}>
         <p className="hidden md:block f-ui text-xs text-soft text-center tracking-widest uppercase m-0">
           {t("Purchase receipt")}
         </p>

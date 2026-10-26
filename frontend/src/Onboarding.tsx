@@ -178,7 +178,8 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
         <Button variant="butter" onClick={() => start(true)}>
           {t("Log in")}
         </Button>
-        <Button variant="coral" className="hidden sm:inline-flex" onClick={() => start(false)}>
+        {/* `!` is needed to beat the unlayered .btn display rule (same as px-0! elsewhere). */}
+        <Button variant="coral" className="hidden! sm:inline-flex!" onClick={() => start(false)}>
           {t("Get started")}
         </Button>
       </header>

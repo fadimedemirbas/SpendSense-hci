@@ -37,6 +37,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const { tab, setTab, goBack, canGoBack, waiting, tour, setTour } = useApp();
   const t = useT();
   const [more, setMore] = useState(false);
+  // When the desktop nav wraps (long Turkish labels at ~768px) "More" can sit at
+  // the left edge; open the menu rightwards then so it stays on screen.
+  const [menuFromLeft, setMenuFromLeft] = useState(false);
   const [mobile, setMobile] = useState(() => !matchMedia("(min-width: 768px)").matches);
   useEffect(() => {
     const query = matchMedia("(min-width: 768px)");
@@ -71,6 +74,11 @@ export function Shell({ children }: { children: ReactNode }) {
     addEventListener("mousedown", f);
     return () => removeEventListener("mousedown", f);
   }, [more]);
+  const openMenu = (open: boolean) => {
+    const r = menu.current?.getBoundingClientRect();
+    if (r) setMenuFromLeft(r.right < 224); // 208px menu + margin
+    setMore(open);
+  };
   const go = (k: Tab) => {
     setTab(k);
     setMore(false);
@@ -132,14 +140,14 @@ export function Shell({ children }: { children: ReactNode }) {
               if (event.key === "Escape") setMore(false);
               if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setMore(true);
+                openMenu(true);
                 requestAnimationFrame(() =>
                   menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus(),
                 );
               }
             }}
             aria-current={inMore ? "page" : undefined}
-            onClick={() => setMore(!more)}
+            onClick={() => openMenu(!more)}
             className={`btn f-ui min-h-11! px-4! ${inMore ? "clay-sun" : "hover:bg-peach"}`}
           >
             <MoreHorizontal size={18} />
@@ -166,7 +174,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   ]?.focus();
                 }
               }}
-              className="absolute right-0 top-13 z-30 clay rounded-tile! p-2 grid min-w-52"
+              className={`absolute ${menuFromLeft ? "left-0" : "right-0"} top-13 z-30 clay rounded-tile! p-2 grid min-w-52`}
             >
               {MORE.map(([k, l, I]) => (
                 <button
@@ -205,7 +213,7 @@ export function Shell({ children }: { children: ReactNode }) {
               data-tour-id={k === "decide" || k === "goals" ? k : undefined}
               aria-current={active ? "page" : undefined}
               onClick={() => (k === "more" ? setMore(true) : go(k as Tab))}
-              className="f-ui text-[11px] min-h-14 flex flex-col items-center justify-center gap-0.5 rounded-inner"
+              className="f-ui text-[11px] min-h-14 pt-1 flex flex-col items-center justify-start gap-0.5 rounded-inner"
             >
               <span className={`px-3 py-1 rounded-full relative ${active ? "bg-sun" : ""}`}>
                 <I size={20} aria-hidden />
@@ -215,7 +223,10 @@ export function Shell({ children }: { children: ReactNode }) {
                   </span>
                 )}
               </span>
-              <span className="truncate max-w-full">{t(l)}</span>
+              {/* Two short lines ("Daha / fazla") instead of an ellipsis on 320px phones. */}
+              <span className="max-w-full text-center leading-tight [overflow-wrap:normal]">
+                {t(l)}
+              </span>
             </button>
           );
         })}

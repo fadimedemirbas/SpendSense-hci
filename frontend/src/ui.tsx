@@ -755,7 +755,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={`${full ? "flex w-full" : "inline-flex flex-wrap"} gap-1 p-1 rounded-full bg-track`}
+      className={`${full ? "flex w-full" : "inline-flex flex-wrap"} gap-1 p-1 rounded-3xl bg-track`}
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
           return;
@@ -779,7 +779,7 @@ export function Segmented<T extends string>({
           aria-checked={value === v}
           tabIndex={value === v ? 0 : -1}
           onClick={() => onChange(v)}
-          className={`f-ui min-h-11 px-4 rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : "hover:bg-peach"}`}
+          className={`f-ui min-h-11 px-3 sm:px-4 leading-tight rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : "hover:bg-peach"}`}
         >
           {l}
         </button>
@@ -793,21 +793,25 @@ export const Tile = ({
   icon,
   label,
   sub,
+  dense,
 }: {
   on: boolean;
   onClick: () => void;
   icon?: ReactNode;
   label: string;
   sub?: string;
+  /** Category grids: 14px labels on phones so 3 columns fit without splitting words. */
+  dense?: boolean;
 }) => (
   <button
     aria-pressed={on}
     onClick={onClick}
-    className={`relative rounded-tile min-h-[88px] p-3 flex flex-col items-center justify-center gap-1.5 text-center transition f-ui ${on ? "clay-sun ring-2 ring-ink" : "clay-cream hover:bg-peach"}`}
+    className={`relative rounded-tile min-h-[88px] px-2 py-3 flex flex-col items-center justify-center gap-1.5 text-center transition f-ui ${dense ? "text-sm sm:text-base" : ""} ${on ? "clay-sun ring-2 ring-ink" : "clay-cream hover:bg-peach"}`}
   >
     {on && <Check size={16} className="absolute top-2 right-2" aria-hidden />}
     {icon}
-    <span className="[overflow-wrap:normal]">{label}</span>
+    {/* Wrap only between words; the grid guarantees room for the longest word. */}
+    <span className="leading-tight [overflow-wrap:normal]">{label}</span>
     {sub && <span className="text-xs text-soft">{sub}</span>}
   </button>
 );
@@ -868,9 +872,11 @@ export const Tube = ({
   showPct?: boolean;
 }) => (
   <div>
-    <div className="flex justify-between f-ui text-sm mb-1">
+    <div className="flex justify-between gap-2 f-ui text-sm mb-1">
       <span>{label}</span>
-      {showPct && <span className="f-num">{Math.round(value)}%</span>}
+      {showPct && (
+        <span className="f-num shrink-0 whitespace-nowrap">{Math.round(value)}%</span>
+      )}
     </div>
     <div
       className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_#2a1a2c1a]"
@@ -942,8 +948,10 @@ export function Expand({ title, children }: { title: string; children: ReactNode
     </div>
   );
 }
+// The label column never gets narrower than its longest word, so a long value
+// can no longer squeeze it into "Goal impac-t".
 export const Rule = ({ k, v }: { k: string; v: ReactNode }) => (
-  <div className="flex justify-between gap-4 py-2 border-t border-cardline text-sm">
+  <div className="grid grid-cols-[minmax(min-content,2fr)_minmax(0,3fr)] gap-4 py-2 border-t border-cardline text-sm">
     <span className="text-soft">{k}</span>
     <span className="text-right">{v}</span>
   </div>
