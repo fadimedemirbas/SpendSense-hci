@@ -113,10 +113,39 @@ export const emptyProfile: Profile = {
 
 const clamp = (v: number) => Math.max(0, Math.min(25, Math.round(v)));
 export const level = (v: number) => (v >= 17 ? "High" : v >= 9 ? "Medium" : "Low");
-export function analyze(p: Purchase, prof: Profile, goal?: Goal) {
-  const income = INCOME_MID[prof.income],
+export const purchaseEntry = (p: Purchase): Entry => ({
+  id: uid(),
+  type: "expense",
+  amount: p.price,
+  cat: p.cat,
+  name: p.name,
+  date: today(),
+});
+export function monthTotals(entries: Entry[]) {
+  const m = entries.filter((e) => e.date.slice(0, 7) === today().slice(0, 7));
+  const sum = (t: EType) => m.filter((e) => e.type === t).reduce((a, b) => a + b.amount, 0);
+  return { income: sum("income"), spent: sum("expense") };
+}
+// Onboarding habits only count when the current purchase shows the matching signal.
+export function habitSignals(p: Purchase, prof: Profile) {
+  const [act, deals, treat, friends] = prof.habits;
+  return [
+    act === 0 && p.wait === "24h" && "You said you tend to buy soon after seeing something.",
+    deals === 0 && p.reasons.includes("sale") && "You said discounts often tempt you.",
+    treat === 0 &&
+      p.reasons.includes("reward") &&
+      "You said you usually treat yourself after a hard day.",
+    friends === 0 &&
+      p.reasons.includes("social") &&
+      "You said friends shape what you buy quite a bit.",
+  ].filter((x): x is string => !!x);
+}
+export function analyze(p: Purchase, prof: Profile, goal?: Goal, entries: Entry[] = []) {
+  const month = monthTotals(entries);
+  const income = month.income > 0 ? month.income : INCOME_MID[prof.income],
     savings = SAVINGS_MID[prof.savings];
-  const budget = clamp(25 - (p.price / income) * 70);
+  const left = income - month.spent;
+  const budget = left > 0 ? clamp(25 - (p.price / left) * 70) : 0;
   const r = (k: string) => p.reasons.includes(k);
   const need = clamp(
     8 +
@@ -132,7 +161,8 @@ export function analyze(p: Purchase, prof: Profile, goal?: Goal) {
     3 +
       ["sale", "attention", "reward", "social"].filter(r).length * 5 +
       (["Excited", "Stressed", "Bored", "Tired"].includes(p.feeling) ? 5 : 0) +
-      (p.wait === "24h" ? 2 : 0),
+      (p.wait === "24h" ? 2 : 0) +
+      habitSignals(p, prof).length * 3,
   );
   const fit = budget + need + (25 - goalImpact) + (25 - impulse);
   return {

@@ -1,15 +1,17 @@
 import { createContext, useContext, type SetStateAction } from "react";
 import type { WorkspaceChange } from "./lib/workspace";
 import type { Entry, Goal, Waiting, Decision, Profile, Purchase } from "./store";
-export type Tab =
-  | "home"
-  | "money"
-  | "decide"
-  | "goals"
-  | "insights"
-  | "waiting"
-  | "history"
-  | "settings";
+export const TABS = [
+  "home",
+  "money",
+  "decide",
+  "goals",
+  "insights",
+  "waiting",
+  "history",
+  "settings",
+] as const;
+export type Tab = (typeof TABS)[number];
 type S<T> = (value: SetStateAction<T>) => Promise<boolean>;
 export type Prefill = Partial<Purchase> & {
   waitId?: string;

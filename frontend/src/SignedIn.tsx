@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { AppCtx, type Tab, type Prefill } from "./context";
-import { setCurrencyMode, Button, Card, useT } from "./ui";
+import { AppCtx, TABS, type Tab, type Prefill } from "./context";
+import { setCurrencyMode, Button, Card, Dialog, useT } from "./ui";
 import { uid, type Entry, type Profile, type Purchase } from "./store";
 import { Onboarding } from "./Onboarding";
 import { Shell } from "./Shell";
@@ -19,16 +19,31 @@ export default function SignedIn({
 }) {
   const t = useT();
   const data = useWorkspace(session.user.id, session.user.email ?? "");
-  const [tab, setTabRaw] = useState<Tab>("home");
-  const history = useRef<Tab[]>([]);
+  // Tabs live in the URL hash so browser/OS back gestures move between screens.
+  const fromHash = (): Tab => TABS.find((x) => `#${x}` === location.hash) ?? "home";
+  const [tab, setTabRaw] = useState<Tab>(fromHash);
+  const depth = useRef(0);
   const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [quickAdd, setQuickAdd] = useState<Entry | "new" | "new-income" | null>(null);
   const [tour, setTour] = useState<number | null>(null);
   const [lastCat, setLastCat] = useState("Shopping");
   const [retaking, setRetaking] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   setCurrencyMode(data.profile.currency);
+  useEffect(() => {
+    const pop = () => {
+      depth.current = Math.max(0, depth.current - 1);
+      setTabRaw(fromHash());
+      scrollTo({ top: 0 });
+    };
+    addEventListener("popstate", pop);
+    return () => removeEventListener("popstate", pop);
+  }, []);
   const setTab = (next: Tab) => {
-    if (next !== tab) history.current.push(tab);
+    if (next !== tab) {
+      history.pushState(null, "", `#${next}`);
+      depth.current++;
+    }
     setTabRaw(next);
     scrollTo({ top: 0 });
   };
@@ -36,11 +51,8 @@ export default function SignedIn({
     ...data,
     tab,
     setTab,
-    canGoBack: history.current.length > 0,
-    goBack: () => {
-      setTabRaw(history.current.pop() ?? "home");
-      scrollTo({ top: 0 });
-    },
+    canGoBack: depth.current > 0,
+    goBack: () => history.back(),
     prefill,
     openDecide: (purchase?: Prefill) => setPrefill(purchase ?? null),
     quickAdd,
@@ -116,7 +128,7 @@ export default function SignedIn({
             startAt={retaking ? 4 : 2}
             authenticated
             done={finish}
-            exit={() => (retaking ? setRetaking(false) : void logout())}
+            exit={() => (retaking ? setRetaking(false) : setConfirmLogout(true))}
           />
         ) : (
           <Shell>
@@ -147,6 +159,15 @@ export default function SignedIn({
           </Shell>
         )}
       </fieldset>
+      {confirmLogout && (
+        <Dialog
+          title={t("Log out?")}
+          body={t("You can finish these questions the next time you log in.")}
+          confirm={t("Log out")}
+          onClose={() => setConfirmLogout(false)}
+          onConfirm={logout}
+        />
+      )}
     </AppCtx.Provider>
   );
 }

@@ -216,7 +216,6 @@ for (const [width, height] of [
     await expect(page.getByRole("heading", { name: "A practical purchase" })).toBeVisible();
     await layout(page);
     await page.getByRole("button", { name: "Wait", exact: true }).click();
-    await page.getByRole("button", { name: "Add to waiting list", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Waiting List", exact: true })).toBeVisible();
     await layout(page);
     await visit(page, "History", width, true);
@@ -275,7 +274,7 @@ test("mobile registration, first onboarding and keyboard language controls", asy
   await page.getByLabel("Email", { exact: true }).fill("pwa-test@example.com");
   await page.getByLabel("Password", { exact: true }).fill("test-only-password");
   await page.getByRole("button", { name: "Log in", exact: true }).last().click();
-  await expect(page.getByText("Step 3 of 9")).toBeVisible();
+  await expect(page.getByText("Step 1 of 7")).toBeVisible();
   await layout(page);
   await page.getByRole("radio", { name: "EN", exact: true }).focus();
   await page.keyboard.press("ArrowRight");

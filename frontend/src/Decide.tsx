@@ -40,6 +40,8 @@ import {
   useToast,
   fmt,
   Tip,
+  Dialog,
+  curLabel,
 } from "./ui";
 import {
   EXP_CATS,
@@ -50,6 +52,9 @@ import {
   addDays,
   WAIT_DAYS,
   type Purchase,
+  monthTotals,
+  habitSignals,
+  purchaseEntry,
   type WaitLen,
   type DecisionKind,
 } from "./store";
@@ -80,8 +85,17 @@ const WAITS: [WaitLen, string][] = [
 ];
 
 export function Decide() {
-  const { prefill, openDecide, lastCat, setLastCat, setTab, recordAnalysis, profile, goals } =
-    useApp();
+  const {
+    prefill,
+    openDecide,
+    lastCat,
+    setLastCat,
+    setTab,
+    recordAnalysis,
+    profile,
+    goals,
+    entries,
+  } = useApp();
   const t = useT();
   const blank = (): Purchase => ({
     name: "",
@@ -133,7 +147,7 @@ export function Decide() {
       setPhase("load");
       const goal = goals.find((g) => g.status === "Active");
       const [id] = await Promise.all([
-        recordAnalysis(p, analyze(p, profile, goal), goal?.id),
+        recordAnalysis(p, analyze(p, profile, goal, entries), goal?.id),
         new Promise((resolve) => setTimeout(resolve, 900)),
       ]);
       if (id) {
@@ -145,14 +159,19 @@ export function Decide() {
       }
     }
   };
-  const cancel = () => {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const dirty = !!(p.name || priceStr || p.reasons.length || p.feeling);
+  const leave = () => {
     openDecide(undefined);
     setTab("home");
   };
+  const cancel = () => (dirty ? setConfirmCancel(true) : leave());
   if (phase === "load")
     return (
       <Card>
-        <Say expr="curious">{t("Looking at your context…")}</Say>
+        <Say expr="curious" live>
+          {t("Looking at your context…")}
+        </Say>
       </Card>
     );
   if (phase === "result")
@@ -190,7 +209,7 @@ export function Decide() {
                 className={`w-full f-ui text-sm min-h-11 rounded-full flex items-center justify-center gap-1 ${i === s ? "clay-sun" : done ? "bg-leaftint text-leaf" : "bg-track text-soft"}`}
               >
                 {done ? (
-                  <Check size={14} aria-label="done" />
+                  <Check size={14} aria-label={t("Done")} />
                 ) : (
                   <span className="f-num">{i + 1}</span>
                 )}
@@ -207,7 +226,7 @@ export function Decide() {
           {p.feeling && " · " + t(p.feeling)}
         </p>
       )}
-      <Say key={s} expr="thinking" size={56}>
+      <Say key={s} expr="thinking" size={56} live>
         {t(
           [
             "What are you thinking of buying?",
@@ -230,7 +249,7 @@ export function Decide() {
               />
             </label>
             <label className="f-ui grid gap-1">
-              {t("Price")} (₺)
+              {t("Price")} ({curLabel()})
               <input
                 inputMode="decimal"
                 value={priceStr}
@@ -374,6 +393,15 @@ export function Decide() {
           {s === 4 ? t("Analyze") : t("Next")}
         </Button>
       </div>
+      {confirmCancel && (
+        <Dialog
+          title={t("Discard this purchase?")}
+          body={t("Your answers for this purchase will not be saved.")}
+          confirm={t("Discard")}
+          onClose={() => setConfirmCancel(false)}
+          onConfirm={leave}
+        />
+      )}
     </>
   );
 }
@@ -396,15 +424,19 @@ function Analysis({
     recordAnalysis,
     decisions,
     waiting,
+    entries,
     setTab,
     openDecide,
   } = useApp();
   const t = useT();
   const toast = useToast();
-  const goal = goals.find((g) => g.status === "Active");
-  const a = analyze(p, profile, goal);
-  const [picker, setPicker] = useState(false);
-  const [wl, setWl] = useState<WaitLen>(p.wait);
+  const active = goals.filter((g) => g.status === "Active");
+  const [goalId, setGoalId] = useState(active[0]?.id);
+  const goal = active.find((g) => g.id === goalId) ?? active[0];
+  const a = analyze(p, profile, goal, entries);
+  const month = monthTotals(entries);
+  const left = a.income - month.spent;
+  const habits = habitSignals(p, profile);
   const factors: [string, number, string, typeof Wallet, boolean, string][] = [
     [
       "Budget fit",
@@ -412,7 +444,12 @@ function Analysis({
       "Higher is better.",
       Wallet,
       true,
-      `25 − (${fmt(p.price)} ÷ ${fmt(a.income)}) × 70`,
+      left > 0
+        ? t(
+            "The bigger the share of what's left this month, the lower this score. This purchase uses {n}% of it.",
+            { n: Math.round((p.price / left) * 100) },
+          )
+        : t("Nothing is left this month, so this score is 0."),
     ],
     [
       "Need level",
@@ -420,7 +457,9 @@ function Analysis({
       "Higher means a stronger stated need.",
       HeartHandshake,
       true,
-      `8 base · need +12 · easier +6 · wanted +3 · not owned +4 · owns usable −7`,
+      t(
+        "Saying you need it, that it makes something easier, or that you don't own something similar raises this score. Owning a usable one lowers it.",
+      ),
     ],
     [
       "Goal impact",
@@ -428,7 +467,9 @@ function Analysis({
       "Lower means less effect on your goal.",
       Target,
       false,
-      goal ? `(${fmt(p.price)} ÷ ${fmt(goal.target - goal.saved)}) × 60` : "No active goal",
+      goal
+        ? t("The bigger the share of what's left for {g}, the higher this score.", { g: goal.name })
+        : t("No active goal, so this score is 0."),
     ],
     [
       "Impulse signals",
@@ -436,15 +477,20 @@ function Analysis({
       "Lower means fewer impulse signals.",
       Zap,
       false,
-      "3 base · +5 each: sale, attention, reward, social · +5 excited/stressed/bored/tired · +2 if 24h",
+      t(
+        "Sale, catching your eye, treating yourself, friends, and feeling excited, stressed, bored or tired each raise this score. So do a 24-hour wait and matching answers from your spending style.",
+      ),
     ],
   ];
   const decide = async (d: DecisionKind, w?: WaitLen) => {
     const prevD = decisions,
-      prevW = waiting;
-    const savedAnalysisId = waitId
-      ? await recordAnalysis(p, a, goal?.id)
-      : (analysisId ?? (await recordAnalysis(p, a, goal?.id)));
+      prevW = waiting,
+      prevE = entries;
+    // A different compared goal or a re-review needs its own analysis snapshot.
+    const savedAnalysisId =
+      waitId || goal?.id !== active[0]?.id
+        ? await recordAnalysis(p, a, goal?.id)
+        : (analysisId ?? (await recordAnalysis(p, a, goal?.id)));
     if (!savedAnalysisId) return;
     const rec = {
       ...p,
@@ -476,12 +522,25 @@ function Analysis({
         ...previous,
         decisions: [rec, ...decisions],
         waiting: nextWaiting,
+        entries: d === "Buy" ? [purchaseEntry(p), ...entries] : entries,
       })))
     )
       return;
-    toast(d === "Wait" ? t("Added to your waiting list.") : t(`Saved: ${d}.`), () => {
-      void updateWorkspace((previous) => ({ ...previous, decisions: prevD, waiting: prevW }));
-    });
+    toast(
+      d === "Wait"
+        ? t("Added to your waiting list.")
+        : d === "Buy"
+          ? t("Saved: Buy. Added to your expenses.")
+          : t(`Saved: ${d}.`),
+      () => {
+        void updateWorkspace((previous) => ({
+          ...previous,
+          decisions: prevD,
+          waiting: prevW,
+          entries: prevE,
+        }));
+      },
+    );
     openDecide(undefined);
     setTab(d === "Wait" ? "waiting" : "history");
   };
@@ -505,6 +564,17 @@ function Analysis({
         </div>
         <Button onClick={edit}>{t("Edit")}</Button>
       </Card>
+      {active.length > 1 && (
+        <Card className="grid gap-2">
+          <p className="f-ui m-0">{t("Compare with goal")}</p>
+          <Segmented
+            label={t("Compare with goal")}
+            value={goal!.id}
+            onChange={setGoalId}
+            options={active.map((g) => [g.id, g.name])}
+          />
+        </Card>
+      )}
       <div className="grid md:grid-cols-2 gap-4">
         {factors.map(([n, v, dir, I, higherGood, calc]) => {
           const lv = level(v);
@@ -544,6 +614,19 @@ function Analysis({
           k={t("Budget fit")}
           v={t("This is {n}% of your monthly income.", { n: a.pctIncome })}
         />
+        <Rule
+          k={t("Left this month")}
+          v={
+            left > 0
+              ? t("It would use {n}% of what's left this month.", {
+                  n: Math.round((p.price / left) * 100),
+                })
+              : t("Nothing is left this month after your expenses.")
+          }
+        />
+        {habits.map((h) => (
+          <Rule key={h} k={t("Your spending style")} v={t(h)} />
+        ))}
         {goal && a.pctGoal !== null && (
           <Rule
             k={goal.name}
@@ -562,13 +645,18 @@ function Analysis({
           }
         />
         <p className="text-xs text-soft m-0 mt-1">
-          {t("Estimate based on your onboarding ranges.")}
+          {t(
+            month.income > 0
+              ? "Based on this month's entries."
+              : "Estimate based on your onboarding ranges.",
+          )}
         </p>
         <Expand title={t("How was this calculated?")}>
           <p className="m-0">
-            Fit = Budget + Need + (25 − Goal impact) + (25 − Impulse) = {a.budget} + {a.need} +{" "}
-            {25 - a.goalImpact} + {25 - a.impulse} = <b>{a.fit}</b>. Each factor is 0–25. A simple
-            heuristic for reflection, not financial advice.
+            {t(
+              "Overall fit adds budget fit and need level, plus the room left after goal impact and impulse signals: {a} + {b} + {c} + {d} = {f}. Each factor is 0–25. A simple heuristic for reflection, not financial advice.",
+              { a: a.budget, b: a.need, c: 25 - a.goalImpact, d: 25 - a.impulse, f: a.fit },
+            )}
           </p>
         </Expand>
       </Card>
@@ -585,30 +673,18 @@ function Analysis({
             <Button
               key={d}
               big
-              aria-expanded={d === "Wait" ? picker : undefined}
-              onClick={() => (d === "Wait" ? setPicker(!picker) : decide(d))}
+              onClick={() => decide(d, d === "Wait" ? p.wait : undefined)}
               icon={<I size={18} />}
             >
               {t(d)}
             </Button>
           ))}
         </div>
-        {picker && (
-          <div className="rise grid gap-2">
-            <p className="f-ui m-0">{t("Wait for how long?")}</p>
-            <Segmented
-              label={t("Wait for how long?")}
-              value={wl}
-              onChange={setWl}
-              options={WAITS.map(([w, l]) => [w, t(l)])}
-            />
-            <div>
-              <Button variant="coral" onClick={() => decide("Wait", wl)}>
-                {t("Add to waiting list")}
-              </Button>
-            </div>
-          </div>
-        )}
+        <p className="m-0 text-sm text-soft">
+          {t("Wait adds it to your waiting list for {w}. Use Edit to change this.", {
+            w: t(WAITS.find(([w]) => w === p.wait)![1]).toLowerCase(),
+          })}
+        </p>
       </Card>
     </>
   );
