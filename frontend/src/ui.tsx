@@ -9,6 +9,7 @@ import {
   type ButtonHTMLAttributes,
 } from "react";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
+import { formatExactAmount } from "./lib/money";
 
 /* ---------- i18n ---------- */
 export type Lang = "en" | "tr";
@@ -231,7 +232,7 @@ const TR: Record<string, string> = {
   Gift: "Hediye",
   What: "Ne?",
   Why: "Neden?",
-  Feeling: "His",
+  Feeling: "Duygu",
   Own: "Var mı?",
   Wait: "Bekle",
   "Let's add a little context first.": "Önce biraz bağlam ekleyelim.",
@@ -267,6 +268,13 @@ const TR: Record<string, string> = {
   "Enter a product name.": "Bir ürün adı gir.",
   "Enter a price above zero.": "Sıfırdan büyük bir fiyat gir.",
   "{v} out of {max}": "{max} üzerinden {v}",
+  "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50.":
+    "Binlik ayırıcı olmadan yalnızca rakam gir. Kuruş için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
+  "You can change any answer above. Nothing is analyzed again until you press Analyze.":
+    "Yukarıdaki cevaplardan istediğini değiştirebilirsin. Analiz et'e basana kadar yeniden analiz yapılmaz.",
+  "Keep editing": "Düzenlemeye devam et",
+  "Wait keeps it on your Waiting List for {w} without buying anything. Then it is marked ready to revisit there, so you can decide again. Use Edit to change the wait time.":
+    "Bekle, hiçbir şey satın almadan ürünü {w} boyunca Bekleme Listende tutar. Süre dolunca orada tekrar bakmaya hazır olarak görünür ve yeniden karar verebilirsin. Bekleme süresini değiştirmek için Düzenle'yi kullan.",
   "Fits well": "Rahatça uyuyor",
   "Fits, but tight": "Uyuyor ama sınırda",
   "Stretches budget": "Bütçeyi zorluyor",
@@ -395,8 +403,6 @@ const TR: Record<string, string> = {
   "Compare with goal": "Karşılaştırılacak hedef",
   "Overall fit adds budget fit and need level, plus the room left after goal impact and impulse signals: {a} + {b} + {c} + {d} = {f}. Each factor is 0–25. A simple heuristic for reflection, not financial advice.":
     "Genel uyum; bütçe uyumu ve ihtiyaç düzeyini, hedef etkisi ve anlık alım işaretlerinden sonra kalan payla toplar: {a} + {b} + {c} + {d} = {f}. Her etken 0–25 arasıdır. Düşünmeye yardımcı basit bir hesap, finansal tavsiye değildir.",
-  "Wait adds it to your waiting list for {w}. Use Edit to change this.":
-    "Bekle, bunu {w} boyunca bekleme listene ekler. Değiştirmek için Düzenle'yi kullan.",
   Type: "Tür",
   "Pick today or an earlier date.": "Bugünü ya da daha önceki bir tarihi seç.",
   "Delete last digit": "Son rakamı sil",
@@ -459,7 +465,7 @@ const TR: Record<string, string> = {
   "Purchase receipt": "Alım fişi",
   "That's {n}% of what's left this month.": "Bu ay kalan paranın %{n} kadarı.",
   Reasons: "Gerekçeler",
-  "Similar item": "Benzeri",
+  "Similar item": "Benzer ürün",
   "Wait time": "Bekleme süresi",
   Groceries: "Market",
   Education: "Eğitim",
@@ -614,6 +620,11 @@ export const fmt = (n: number) => {
   const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
   return (n < 0 ? "−" : "") + (curMode === "symbol" ? "₺" + s : s + " TRY");
 };
+/** Decide only: keeps kuruş and uses the UI language's separators (fmt() is unchanged). */
+export function useExactAmount() {
+  const { lang } = useContext(LangCtx);
+  return (n: number) => formatExactAmount(n, lang, curMode);
+}
 
 /* ---------- display ---------- */
 export const Logo = ({ size = 36 }: { size?: number }) => (
@@ -1213,6 +1224,7 @@ export function Dialog({
   title,
   body,
   confirm,
+  cancel,
   danger,
   onConfirm,
   onClose,
@@ -1220,6 +1232,8 @@ export function Dialog({
   title: string;
   body: string;
   confirm: string;
+  /** Label of the button that closes the dialog without acting (default "Cancel"). */
+  cancel?: string;
   danger?: boolean;
   onConfirm: () => void | boolean | Promise<void | boolean>;
   onClose: () => void;
@@ -1238,7 +1252,7 @@ export function Dialog({
         <h2 className="text-xl font-bold m-0">{title}</h2>
         <p className="text-soft">{body}</p>
         <div className="flex gap-2 justify-end flex-wrap">
-          <Button onClick={onClose}>{t("Cancel")}</Button>
+          <Button onClick={onClose}>{cancel ?? t("Cancel")}</Button>
           <button
             className={`btn ${danger ? "bg-danger text-white!" : "clay-coral"}`}
             onClick={async () => {

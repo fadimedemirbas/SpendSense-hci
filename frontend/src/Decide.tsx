@@ -42,9 +42,9 @@ import {
   Tube,
   useT,
   useToast,
-  fmt,
   Dialog,
   curLabel,
+  useExactAmount,
 } from "./ui";
 import {
   EXP_CATS,
@@ -81,7 +81,9 @@ export const FEELINGS: [string, typeof Check][] = [
   ["Tired", Moon],
   ["Neutral", Circle],
 ];
-const STEPS = ["What", "Why", "Feeling", "Own", "Wait"];
+// Labels of the answer summary. "Wait time" (not "Wait") so the last answer does not read
+// like the Wait decision button.
+const STEPS = ["What", "Why", "Feeling", "Own", "Wait time"];
 const fieldError = "m-0 -mt-1 text-sm text-attn bg-butter rounded-inner px-3 py-2";
 const WAITS: [WaitLen, string][] = [
   ["24h", "24 hours"],
@@ -96,6 +98,8 @@ export function Decide() {
     lastCat,
     setLastCat,
     setTab,
+    canGoBack,
+    goBack,
     recordAnalysis,
     profile,
     goals,
@@ -131,7 +135,17 @@ export function Decide() {
   const loadingRef = useRef<HTMLDivElement>(null);
   const moveFocus = useRef(false);
   const [fromAnalyze, setFromAnalyze] = useState(false);
+  const amount = useExactAmount();
+  // Back from the result via Edit: every answer is listed as editable (D9).
+  const [reviewing, setReviewing] = useState(false);
+  const answersRef = useRef<HTMLOListElement>(null);
+  const focusAnswers = useRef(false);
   useEffect(() => {
+    if (focusAnswers.current && phase === "ask") {
+      focusAnswers.current = false;
+      answersRef.current?.querySelector<HTMLButtonElement>("li button")?.focus();
+      return;
+    }
     if (!moveFocus.current) return;
     moveFocus.current = false;
     if (phase === "ask") stepHeading.current?.focus();
@@ -147,6 +161,7 @@ export function Decide() {
     setPhase(prefill?.review ? "result" : "ask");
     setFieldErr({});
     setFromAnalyze(false);
+    setReviewing(false);
   }, [prefill]);
   const valid = [
     p.name.trim() !== "" && p.price > 0,
@@ -189,6 +204,7 @@ export function Decide() {
       if (id) {
         setAnalysisId(id);
         setFromAnalyze(true);
+        setReviewing(false);
         setPhase("result");
       } else {
         setPhase("ask");
@@ -198,9 +214,11 @@ export function Decide() {
   };
   const [confirmCancel, setConfirmCancel] = useState(false);
   const dirty = !!(p.name || priceStr || p.reasons.length || p.feeling);
+  // Cancel returns to the screen the user came from (Money, Home…), else Home.
   const leave = () => {
     openDecide(undefined);
-    setTab("home");
+    if (canGoBack) goBack();
+    else setTab("home");
   };
   const cancel = () => (dirty ? setConfirmCancel(true) : leave());
   if (phase === "load")
@@ -221,10 +239,12 @@ export function Decide() {
         waitId={prefill?.waitId}
         focusTitle={fromAnalyze}
         edit={() => {
-          moveFocus.current = true;
+          // Return with all answers listed for editing; analysis only reruns on Analyze.
+          focusAnswers.current = true;
           setFromAnalyze(false);
+          setReviewing(true);
           setPhase("ask");
-          setS(0);
+          setS(STEPS.length - 1);
         }}
       />
     );
@@ -246,7 +266,7 @@ export function Decide() {
   const ownLabel =
     own === null ? "" : own ? t(p.usable ? "Yes, still usable" : "Yes, not usable") : t("No");
   const answers = [
-    `${p.name} · ${fmt(p.price)}`,
+    `${p.name} · ${amount(p.price)}`,
     p.reasons.map((r) => t(r)).join(", "),
     t(p.feeling),
     ownLabel,
@@ -264,10 +284,15 @@ export function Decide() {
       <PageHead title={t("Should I buy it?")} sub={t("Let's add a little context first.")} />
       <div className="grid md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-5 items-start">
         <Receipt p={p} own={own} waitSet={waitSet} step={s} />
-        <ol className="grid gap-2 m-0 p-0 list-none md:order-first" aria-label={t("Progress")}>
+        <ol
+          ref={answersRef}
+          className="grid gap-2 m-0 p-0 list-none md:order-first"
+          aria-label={t("Progress")}
+        >
           {STEPS.map((l, i) =>
             i < s ? (
-              <li key={l} className={i < s - 1 ? "hidden md:block" : ""}>
+              // Every completed answer stays visible and editable on all screen sizes (D8).
+              <li key={l}>
                 <button
                   onClick={() => {
                     setHint("");
@@ -297,6 +322,13 @@ export function Decide() {
                   <Say key={s} expr="thinking" size={48}>
                     {t(questions[s])}
                   </Say>
+                  {reviewing && (
+                    <p className="m-0 text-sm text-soft">
+                      {t(
+                        "You can change any answer above. Nothing is analyzed again until you press Analyze.",
+                      )}
+                    </p>
+                  )}
                   {s === 0 && (
                     <>
                       <label className="f-ui grid gap-1">
@@ -327,7 +359,7 @@ export function Decide() {
                           inputMode="decimal"
                           value={priceStr}
                           aria-invalid={!!fieldErr.price || undefined}
-                          aria-describedby={fieldErr.price ? `${fieldId}-price` : undefined}
+                          aria-describedby={`${fieldId}-price-hint${fieldErr.price ? ` ${fieldId}-price` : ""}`}
                           onChange={(e) => {
                             if (/^\d{0,8}([.,]\d{0,2})?$/.test(e.target.value)) {
                               setPriceStr(e.target.value);
@@ -342,6 +374,12 @@ export function Decide() {
                           className="h-13 rounded-tile border border-line bg-white px-4 f-num text-xl"
                         />
                       </label>
+                      {/* Matches the parser: digits, one comma or dot, up to 2 decimals. */}
+                      <p id={`${fieldId}-price-hint`} className="m-0 -mt-1 text-sm text-soft">
+                        {t(
+                          "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50.",
+                        )}
+                      </p>
                       {fieldErr.price && (
                         <p id={`${fieldId}-price`} role="alert" className={fieldError}>
                           {fieldErr.price}
@@ -488,6 +526,7 @@ export function Decide() {
           title={t("Discard this purchase?")}
           body={t("Your answers for this purchase will not be saved.")}
           confirm={t("Discard")}
+          cancel={t("Keep editing")}
           onClose={() => setConfirmCancel(false)}
           onConfirm={leave}
         />
@@ -512,6 +551,7 @@ function Receipt({
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const amount = useExactAmount();
   const a = analyze(p, profile, undefined, entries);
   const month = monthTotals(entries);
   const left = a.income - month.spent;
@@ -540,7 +580,7 @@ function Receipt({
         <b className="truncate flex-1">
           <span className="sr-only">{t("Purchase receipt")}: </span>
           {p.name || t("New purchase")}
-          {p.price > 0 && ` · ${fmt(p.price)}`}
+          {p.price > 0 && ` · ${amount(p.price)}`}
         </b>
         <span className="text-soft" aria-hidden>
           {step + 1}/5
@@ -559,7 +599,7 @@ function Receipt({
           <b className="truncate">{p.name || t("New purchase")}</b>
         </div>
         <p key={p.price} className="f-num text-3xl m-0 rise">
-          {fmt(p.price)}
+          {amount(p.price)}
         </p>
         <dl className="m-0 grid text-sm">
           {(
@@ -644,6 +684,8 @@ function Analysis({
   const t = useT();
   const toast = useToast();
   const title = useRef<HTMLHeadingElement>(null);
+  const amount = useExactAmount();
+  const waitHelpId = useId();
   useEffect(() => {
     if (focusTitle) title.current?.focus();
   }, []); // On mount only: a later re-render must not pull focus back.
@@ -771,7 +813,7 @@ function Analysis({
             {p.name}
           </h1>
           <p className="f-num text-xl m-0 mt-1">
-            {fmt(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
+            {amount(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
           </p>
           {/* The explanation below stays visible; the duplicate info tooltip was removed. */}
           <p className="m-0 mt-2">
@@ -900,15 +942,18 @@ function Analysis({
               big
               onClick={() => decide(d, d === "Wait" ? p.wait : undefined)}
               icon={<I size={18} />}
+              aria-describedby={d === "Wait" ? waitHelpId : undefined}
             >
               {t(d)}
             </Button>
           ))}
         </div>
-        <p className="m-0 text-sm text-soft">
-          {t("Wait adds it to your waiting list for {w}. Use Edit to change this.", {
-            w: t(WAITS.find(([w]) => w === p.wait)![1]).toLowerCase(),
-          })}
+        {/* Describes existing behaviour only: a Waiting List entry with a review date. */}
+        <p id={waitHelpId} className="m-0 text-sm text-soft">
+          {t(
+            "Wait keeps it on your Waiting List for {w} without buying anything. Then it is marked ready to revisit there, so you can decide again. Use Edit to change the wait time.",
+            { w: t(WAITS.find(([w]) => w === p.wait)![1]).toLowerCase() },
+          )}
         </p>
       </Card>
     </>

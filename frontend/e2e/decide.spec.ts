@@ -44,10 +44,12 @@ async function openDecide(page: Page, lang: "en" | "tr" = "en") {
 const name = (page: Page) => page.getByLabel("Product name");
 const price = (page: Page) => page.getByLabel("Price (₺)", { exact: true });
 const next = (page: Page) => page.getByRole("button", { name: "Next", exact: true }).click();
+// The price field is also described by its format hint (Batch 3), so the error is
+// the last id in aria-describedby.
 const errorFor = async (page: Page, label: ReturnType<typeof name>) => {
-  const id = await label.getAttribute("aria-describedby");
-  expect(id).toBeTruthy();
-  return page.locator(`[id="${id}"]`);
+  const ids = ((await label.getAttribute("aria-describedby")) ?? "").split(" ").filter(Boolean);
+  expect(ids.length).toBeGreaterThan(0);
+  return page.locator(`[id="${ids[ids.length - 1]}"]`);
 };
 
 test.beforeEach(async ({ request }) => {
@@ -129,8 +131,11 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: "Analyze", exact: true }).click();
     const title = page.getByRole("heading", { level: 1, name: "Noise-cancelling headphones" });
     await expect(title).toBeFocused();
-    // Edit returns to the form with focus on the first step.
+    // Edit (Batch 3, D9) returns with every answer listed; focus is on the first one.
     await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await expect(page.getByRole("button", { name: /^Edit: What/ })).toBeFocused();
+    await expect(page.getByRole("heading", { name: /^Step 5 of 5/ })).toBeVisible();
+    await page.getByRole("button", { name: /^Edit: What/ }).click();
     await expect(page.getByRole("heading", { name: /^Step 1 of 5/ })).toBeFocused();
     await expect(name(page)).toHaveValue("Noise-cancelling headphones");
   });
@@ -143,7 +148,8 @@ test("the mobile receipt toggle has a readable name and controls its panel", asy
   await price(page).fill("2500");
   await next(page);
   const toggle = page.getByRole("button", {
-    name: /^Purchase receipt: Headphones · ₺2\.500\s*, Step 2 of 5$/,
+    // English Decide amounts use English separators since Batch 3 (D2).
+    name: /^Purchase receipt: Headphones · ₺2,500\s*, Step 2 of 5$/,
   });
   await expect(toggle).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -424,5 +430,330 @@ for (const withIncome of [false, true]) {
     const note = receipt.getByText("Estimate based on your onboarding ranges.");
     if (withIncome) await expect(note).toHaveCount(0);
     else await expect(note).toBeVisible();
+  });
+}
+
+// ---- Batch 3: flow, error recovery and interaction ---------------------------
+const API = "http://127.0.0.1:4180";
+const workspace = async (request: APIRequestContext) =>
+  (
+    (await (await request.post(`${API}/rest/v1/rpc/spendsense_load_workspace`)).json()) as {
+      workspace: {
+        analyses: unknown[];
+        waiting: { name: string; price: number; wait: string; review: string }[];
+        decisions: { name: string; price: number; decision: string }[];
+        entries: { name: string; amount: number; type: string }[];
+      };
+    }
+  ).workspace;
+async function toResult(page: Page, productName: string, typedPrice: string) {
+  await name(page).fill(productName);
+  await price(page).fill(typedPrice);
+  await next(page);
+  await page.getByRole("button", { name: "I need it", exact: true }).click();
+  await next(page);
+  await page.getByRole("button", { name: "Calm", exact: true }).click();
+  await next(page);
+  await page.getByRole("button", { name: "No", exact: true }).click();
+  await next(page);
+  await page.getByRole("button", { name: "3 days", exact: true }).click();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: productName })).toBeFocused();
+}
+
+for (const [lang, typed, shown] of [
+  ["en", "129.95", "₺129.95"],
+  ["en", "129,5", "₺129.50"],
+  ["en", "2500", "₺2,500"],
+  ["tr", "129,95", "₺129,95"],
+  ["tr", "2500", "₺2.500"],
+] as const) {
+  test(`Decide shows ${typed} exactly as ${shown} (${lang})`, async ({ page, request }) => {
+    await seedWith(request, [GOAL]);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openDecide(page, lang);
+    const nameLabel = lang === "tr" ? "Ürün adı" : "Product name";
+    const priceLabel = lang === "tr" ? "Fiyat (₺)" : "Price (₺)";
+    await page.getByLabel(nameLabel).fill("Kettle");
+    await page.getByLabel(priceLabel, { exact: true }).fill(typed);
+    const receipt = page
+      .locator("main section")
+      .filter({ hasText: lang === "tr" ? "Alım fişi" : "Purchase receipt" });
+    await expect(receipt.getByText(shown, { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: lang === "tr" ? "İleri" : "Next", exact: true }).click();
+    // Answer summary uses the same exact amount.
+    await expect(
+      page.getByRole("button", { name: new RegExp(`Kettle · ${shown.replace(/[.$]/g, "\\$&")}$`) }),
+    ).toBeVisible();
+  });
+}
+
+test("the exact price reaches the result screen and is saved unrounded", async ({
+  page,
+  request,
+}) => {
+  await seedWith(request, [GOAL]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDecide(page);
+  await toResult(page, "Kettle", "129,95");
+  await expect(page.locator("main p.f-num").first()).toHaveText(/^₺129\.95 · Shopping$/);
+  await page.getByRole("button", { name: "Wait", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Waiting List", exact: true })).toBeVisible();
+  const saved = await workspace(request);
+  expect(saved.waiting[0]).toMatchObject({ name: "Kettle", price: 129.95, wait: "3d" });
+});
+
+test("the price hint is visible, translated and announced with the field", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await openDecide(page);
+  const hint = page.getByText(
+    "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50.",
+  );
+  await expect(hint).toBeVisible();
+  const hintId = await hint.getAttribute("id");
+  expect(await price(page).getAttribute("aria-describedby")).toBe(hintId);
+  await next(page); // empty: the error is added, the hint stays linked
+  const described = ((await price(page).getAttribute("aria-describedby")) ?? "").split(" ");
+  expect(described).toContain(hintId);
+  expect(described).toHaveLength(2);
+  // Turkish
+  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("radio", { name: "Türkçe", exact: true }).click();
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
+  await expect(
+    page.getByText(
+      "Binlik ayırıcı olmadan yalnızca rakam gir. Kuruş için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
+    ),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+for (const width of [320, 390]) {
+  test(`every earlier answer can be edited on a ${width}px phone without losing values`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await openDecide(page);
+    await name(page).fill("Headphones");
+    await price(page).fill("2500");
+    await next(page);
+    await page.getByRole("button", { name: "I need it", exact: true }).click();
+    await next(page);
+    await page.getByRole("button", { name: "Calm", exact: true }).click();
+    await next(page);
+    // Step 4: all three earlier answers are visible and editable.
+    for (const label of [
+      /^Edit: What · Headphones/,
+      /^Edit: Why · I need it/,
+      /^Edit: Feeling · Calm/,
+    ])
+      await expect(page.getByRole("button", { name: label })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.getByRole("button", { name: /^Edit: What/ }).click();
+    await expect(page.getByRole("heading", { name: /^Step 1 of 5/ })).toBeFocused();
+    await expect(price(page)).toHaveValue("2500");
+    await name(page).fill("Wireless headphones");
+    await next(page);
+    await expect(page.getByRole("button", { name: "I need it", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await next(page);
+    await expect(page.getByRole("button", { name: "Calm", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(
+      page.getByRole("button", { name: /^Edit: What · Wireless headphones/ }),
+    ).toBeVisible();
+  });
+}
+
+test("Edit on the result lists every answer and only re-analyzes on Analyze", async ({
+  page,
+  request,
+}) => {
+  await seedWith(request, [GOAL]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDecide(page);
+  await toResult(page, "Headphones", "2500");
+  const before = (await workspace(request)).analyses.length;
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Edit: What · Headphones/ })).toBeFocused();
+  for (const label of [/^Edit: Why/, /^Edit: Feeling/, /^Edit: Own/])
+    await expect(page.getByRole("button", { name: label })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Step 5 of 5/ })).toBeVisible();
+  await expect(
+    page.getByText(
+      "You can change any answer above. Nothing is analyzed again until you press Analyze.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "3 days", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  // Change only the wait time: one tap, no new analysis yet.
+  await page.getByRole("button", { name: "1 week", exact: true }).click();
+  expect((await workspace(request)).analyses.length).toBe(before);
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Headphones" })).toBeFocused();
+  await expect(page.getByText(/Waiting List for 1 week without buying anything/)).toBeVisible();
+  expect((await workspace(request)).analyses.length).toBe(before + 1);
+});
+
+test("Cancel leaves without a dialog when nothing was entered and returns to the previous screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openDecide(page);
+  // openDecide came from Home; go via Money to prove Cancel goes back, not always Home.
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(1).click();
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
+  await page.locator("main").getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Money" })).toBeVisible();
+});
+
+test("Cancel with unsaved answers asks first; Keep editing preserves them", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDecide(page);
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(1).click();
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
+  await name(page).fill("Headphones");
+  await price(page).fill("2500");
+  const cancel = page.locator("main").getByRole("button", { name: "Cancel", exact: true });
+  await cancel.click();
+  const dialog = page.getByRole("alertdialog", { name: "Discard this purchase?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Keep editing" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(cancel).toBeFocused();
+  await expect(name(page)).toHaveValue("Headphones");
+  await expect(price(page)).toHaveValue("2500");
+  await cancel.click();
+  await dialog.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Money" })).toBeVisible();
+});
+
+test("the Wait explanation is accurate, translated and Wait/Buy/Skip still save the same way", async ({
+  page,
+  request,
+}) => {
+  await seedWith(request, [GOAL]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDecide(page);
+  await toResult(page, "Lamp", "800");
+  const help = page.getByText(
+    "Wait keeps it on your Waiting List for 3 days without buying anything. Then it is marked ready to revisit there, so you can decide again. Use Edit to change the wait time.",
+  );
+  await expect(help).toBeVisible();
+  expect(
+    await page.getByRole("button", { name: "Wait", exact: true }).getAttribute("aria-describedby"),
+  ).toBe(await help.getAttribute("id"));
+  await page.getByRole("button", { name: "Wait", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Waiting List", exact: true })).toBeVisible();
+  let saved = await workspace(request);
+  const due = new Date();
+  due.setDate(due.getDate() + 3);
+  expect(saved.waiting[0]).toMatchObject({
+    name: "Lamp",
+    price: 800,
+    wait: "3d",
+    review: due.toISOString().slice(0, 10),
+  });
+  expect(saved.entries).toHaveLength(0); // nothing was bought
+
+  // Buy adds an expense; Skip adds only a decision.
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
+  await toResult(page, "Mug", "129,95");
+  await page.getByRole("button", { name: "Buy", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
+  saved = await workspace(request);
+  expect(saved.entries[0]).toMatchObject({ name: "Mug", amount: 129.95, type: "expense" });
+  await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
+  await toResult(page, "Poster", "300");
+  await page.getByRole("button", { name: "Skip", exact: true }).click();
+  saved = await workspace(request);
+  expect(saved.decisions[0]).toMatchObject({ name: "Poster", decision: "Skip" });
+  expect(saved.entries).toHaveLength(1);
+});
+
+test("Turkish microcopy: Duygu, Benzer ürün, Bekleme süresi and the Wait explanation", async ({
+  page,
+  request,
+}) => {
+  await seedWith(request, [GOAL]);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openDecide(page, "tr");
+  await page.getByLabel("Ürün adı").fill("Lamba");
+  await page.getByLabel("Fiyat (₺)", { exact: true }).fill("800");
+  const receipt = page.locator("main section").filter({ hasText: "Alım fişi" });
+  for (const row of ["Duygu", "Benzer ürün", "Bekleme süresi"])
+    await expect(receipt.getByText(row, { exact: true })).toBeVisible();
+  await expect(receipt.getByText("His", { exact: true })).toHaveCount(0);
+  await expect(receipt.getByText("Benzeri", { exact: true })).toHaveCount(0);
+  const go = (n: string) => page.getByRole("button", { name: n, exact: true }).click();
+  await go("İleri");
+  await go("İhtiyacım var");
+  await go("İleri");
+  await go("Sakin");
+  await go("İleri");
+  await go("Hayır");
+  await go("İleri");
+  await go("3 gün");
+  // The wait-time answer no longer reads like the Wait decision.
+  await expect(page.getByRole("button", { name: /^Düzenle: Duygu · Sakin/ })).toBeVisible();
+  await go("Analiz et");
+  await expect(
+    page.getByText(
+      "Bekle, hiçbir şey satın almadan ürünü 3 gün boyunca Bekleme Listende tutar. Süre dolunca orada tekrar bakmaya hazır olarak görünür ve yeniden karar verebilirsin. Bekleme süresini değiştirmek için Düzenle'yi kullan.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Bekle", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Düzenle", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Düzenle: Bekleme süresi/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Düzenle: Ne\?/ })).toBeFocused();
+});
+
+for (const lang of ["en", "tr"] as const) {
+  test(`Batch 3 states meet WCAG AA (${lang})`, async ({ page, request }) => {
+    await seedWith(request, [GOAL]);
+    const audit = async (state: string) => {
+      const result = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(
+        result.violations.map((v) => ({ state, id: v.id, nodes: v.nodes.map((n) => n.target) })),
+      ).toEqual([]);
+    };
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openDecide(page, lang);
+    await audit("step 1 with price hint");
+    const tr = (en: string, trText: string) => (lang === "tr" ? trText : en);
+    await page.getByLabel(tr("Product name", "Ürün adı")).fill("Kettle");
+    await page.getByLabel(`${tr("Price", "Fiyat")} (₺)`, { exact: true }).fill("129,95");
+    await page
+      .locator("main")
+      .getByRole("button", { name: tr("Cancel", "Vazgeç"), exact: true })
+      .click();
+    await audit("discard dialog");
+    await page.getByRole("button", { name: tr("Keep editing", "Düzenlemeye devam et") }).click();
+    const go = (n: string) => page.getByRole("button", { name: n, exact: true }).click();
+    await go(tr("Next", "İleri"));
+    await go(tr("I need it", "İhtiyacım var"));
+    await go(tr("Next", "İleri"));
+    await go(tr("Calm", "Sakin"));
+    await go(tr("Next", "İleri"));
+    await go(tr("No", "Hayır"));
+    await go(tr("Next", "İleri"));
+    await go(tr("3 days", "3 gün"));
+    await go(tr("Analyze", "Analiz et"));
+    await expect(page.getByRole("heading", { level: 1, name: "Kettle" })).toBeFocused();
+    await audit("result with Wait help");
+    await go(tr("Edit", "Düzenle"));
+    await audit("editing from result");
   });
 }
