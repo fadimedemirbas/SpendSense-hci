@@ -2,9 +2,22 @@ import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { Button, Card, LangCtx, ToastHost, type Lang, useT } from "./ui";
 import { emptyProfile } from "./store";
-import { Landing, Onboarding, type AuthMode } from "./Onboarding";
-import { requireSupabase, supabase, supabaseConfigurationError } from "./lib/supabase";
-import { authenticateUser } from "./lib/auth";
+import { Landing, LangToggle, Onboarding, type AuthMode } from "./Onboarding";
+import {
+  initialAuthRedirect,
+  requireSupabase,
+  supabase,
+  supabaseConfigurationError,
+} from "./lib/supabase";
+import {
+  authenticateUser,
+  passwordResetRedirect,
+  requestPasswordReset,
+  resendConfirmation,
+  updatePassword,
+  type AuthResult,
+} from "./lib/auth";
+import { ResetPassword } from "./AuthPanels";
 import { Pwa } from "./pwa/Pwa";
 import { onlineOperation } from "./pwa/network";
 const SignedIn = lazy(() => import("./SignedIn"));
@@ -54,18 +67,38 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [stage, setStage] = useState<"landing" | "onb">("landing");
   const [authMode, setAuthMode] = useState<AuthMode>("register");
+  // Keeps the typed e-mail when switching between log in and registration.
+  const [authEmail, setAuthEmail] = useState("");
+  const [authView, setAuthView] = useState<"form" | "forgot">("form");
+  // Password recovery opened from the reset e-mail ("invalid" = expired/used link).
+  const [recovery, setRecovery] = useState<"none" | "active" | "done" | "invalid">(() =>
+    initialAuthRedirect.kind === "recovery"
+      ? "active"
+      : initialAuthRedirect.kind === "link-error" && initialAuthRedirect.recovery
+        ? "invalid"
+        : "none",
+  );
+  const [linkError] = useState(
+    () => initialAuthRedirect.kind === "link-error" && !initialAuthRedirect.recovery,
+  );
   useEffect(() => {
     document.documentElement.lang = lang;
     localStorage.setItem("ss.lang", JSON.stringify(lang));
   }, [lang]);
+  useEffect(() => {
+    // Error links are never consumed by Supabase; clear them so a reload starts clean.
+    if (initialAuthRedirect.kind === "link-error")
+      history.replaceState(null, "", location.pathname);
+  }, []);
   useEffect(() => {
     if (!supabase) return;
     let mounted = true;
     let receivedAuthEvent = false;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (mounted) {
+        if (event === "PASSWORD_RECOVERY") setRecovery("active");
         receivedAuthEvent = true;
         setSession(nextSession);
         if (nextSession) setAuthError("");
@@ -101,6 +134,57 @@ export default function App() {
       return { error: "You are offline. Reconnect before signing in." };
     }
   }
+  async function emailAction(action: () => Promise<AuthResult>): Promise<AuthResult> {
+    if (supabaseConfigurationError) return { error: supabaseConfigurationError };
+    try {
+      return await onlineOperation(action);
+    } catch {
+      return { error: "You are offline. Reconnect and try again." };
+    }
+  }
+  const authActions = {
+    resend: (email: string) =>
+      emailAction(() => resendConfirmation(requireSupabase(), email, window.location.origin)),
+    requestReset: (email: string) =>
+      emailAction(() =>
+        requestPasswordReset(
+          requireSupabase(),
+          email,
+          passwordResetRedirect(window.location.origin),
+        ),
+      ),
+  };
+  const leaveRecovery = () => {
+    setRecovery("none");
+    history.replaceState(null, "", location.pathname);
+  };
+  const openLogin = (view: "form" | "forgot") => {
+    leaveRecovery();
+    setAuthMode("login");
+    setAuthView(view);
+    setStage("onb");
+  };
+  async function cancelRecovery() {
+    // Leaving the reset screen signs the recovery session out on this device only.
+    if (session) {
+      try {
+        await onlineOperation(() => requireSupabase().auth.signOut({ scope: "local" }));
+      } catch {
+        return setAuthError("Could not log out. Check your connection and try again.");
+      }
+      setSession(null);
+    }
+    openLogin("form");
+  }
+  // A recovery link without a valid session (expired, reused or tampered) is invalid.
+  const recoveryState =
+    recovery === "active"
+      ? initializing
+        ? "checking"
+        : session
+          ? "form"
+          : "invalid"
+      : recovery;
   async function logout() {
     try {
       const { error } = await onlineOperation(() =>
@@ -124,7 +208,26 @@ export default function App() {
               <LocalText value={authError} />
             </p>
           )}
-          {initializing ? (
+          {linkError && !session && (
+            <p role="alert" className="max-w-xl mx-auto px-5 py-3 text-attn">
+              <LocalText value="This email link is invalid or has expired. Log in, or request a new link." />
+            </p>
+          )}
+          {recovery !== "none" ? (
+            <ResetPassword
+              state={recoveryState as "checking" | "form" | "done" | "invalid"}
+              header={<LangToggle />}
+              onSave={async (password) => {
+                const result = await emailAction(() => updatePassword(requireSupabase(), password));
+                if (result.expired) setRecovery("invalid");
+                else if (!result.error) setRecovery("done");
+                return result;
+              }}
+              onContinue={leaveRecovery}
+              onCancel={() => void cancelRecovery()}
+              onRequestNew={() => openLogin("forgot")}
+            />
+          ) : initializing ? (
             <p role="status" className="max-w-xl mx-auto px-5 py-6">
               <LocalText value="Restoring your session..." />
             </p>
@@ -138,17 +241,24 @@ export default function App() {
             <Landing
               start={(login) => {
                 setAuthMode(login ? "login" : "register");
+                setAuthView("form");
                 setStage("onb");
               }}
             />
           ) : (
             <Onboarding
-              key={authMode}
-              initial={{ ...emptyProfile, habits: [] }}
+              key={`${authMode}-${authView}`}
+              initial={{ ...emptyProfile, habits: [], email: authEmail }}
               startAt={authMode === "login" ? 1 : 0}
               authMode={authMode}
+              authView={authView}
+              authActions={authActions}
               onAuthenticate={authenticate}
-              onAuthModeChange={setAuthMode}
+              onAuthModeChange={(mode, email) => {
+                if (email !== undefined) setAuthEmail(email);
+                setAuthView("form");
+                setAuthMode(mode);
+              }}
               exit={() => setStage("landing")}
               done={async () => false}
             />

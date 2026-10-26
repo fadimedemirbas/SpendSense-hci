@@ -42,6 +42,8 @@ let workspace = {
   waiting: [],
 };
 let revision = 1;
+// Auth e-mail/password requests, exposed to browser tests (never real credentials).
+let authRequests = [];
 const api = createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:4179");
   res.setHeader(
@@ -59,6 +61,18 @@ const api = createServer(async (req, res) => {
   }
   let body = "";
   for await (const chunk of req) body += chunk;
+  if (req.url.startsWith("/auth/v1/")) {
+    let json = null;
+    try {
+      json = body ? JSON.parse(body) : null;
+    } catch {}
+    authRequests.push({ method: req.method, url: req.url, body: json });
+  }
+  if (req.url === "/__test/auth-requests") {
+    res.end(JSON.stringify(authRequests));
+    authRequests = [];
+    return;
+  }
   if (req.url === "/__test/seed" && req.method === "POST") {
     workspace = JSON.parse(body);
     revision++;
@@ -75,6 +89,8 @@ const api = createServer(async (req, res) => {
         user,
       }),
     );
+  else if (req.url.startsWith("/auth/v1/resend") || req.url.startsWith("/auth/v1/recover"))
+    res.end("{}");
   else if (req.url.startsWith("/auth/v1/logout")) {
     res.end("{}");
   } else if (req.url.startsWith("/auth/v1/user")) res.end(JSON.stringify(user));

@@ -13,8 +13,6 @@ import {
   Share,
   SquarePlus,
   Check as CheckI,
-  Eye,
-  EyeOff,
   Wallet,
   ShieldCheck,
   Smartphone,
@@ -34,9 +32,12 @@ import {
   rangeLabel,
 } from "./ui";
 import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, type Profile } from "./store";
+import { meetsPasswordMinimum } from "./lib/auth";
 import { useContext } from "react";
 import { Sheet } from "./ui";
 import { usePwa } from "./pwa/Pwa";
+import { ConfirmEmail, ForgotPassword, PasswordInput, PasswordRule } from "./AuthPanels";
+import type { AuthResult } from "./lib/auth";
 
 export function LangToggle() {
   const { lang, setLang } = useContext(LangCtx);
@@ -332,6 +333,11 @@ const HABITS: [string, string[]][] = [
   ["How much do friends shape what you buy?", ["Quite a bit", "A little", "Not really"]],
 ];
 export type AuthMode = "register" | "login";
+export type AuthActions = {
+  resend: (email: string) => Promise<AuthResult>;
+  requestReset: (email: string) => Promise<AuthResult>;
+};
+const EMAIL = /^\S+@\S+\.\S+$/;
 export function Onboarding({
   initial,
   startAt = 0,
@@ -341,6 +347,8 @@ export function Onboarding({
   authenticated = false,
   onAuthenticate,
   onAuthModeChange,
+  authActions,
+  authView = "form",
 }: {
   initial: Profile;
   startAt?: number;
@@ -353,14 +361,23 @@ export function Onboarding({
     password: string,
     mode: AuthMode,
   ) => Promise<{ error?: string; message?: string }>;
-  onAuthModeChange?: (mode: AuthMode) => void;
+  onAuthModeChange?: (mode: AuthMode, email?: string) => void;
+  authActions?: AuthActions;
+  /** Opens the "Forgot password?" form directly (e.g. from an expired reset link). */
+  authView?: "form" | "forgot";
 }) {
   const t = useT();
   const [s, setS] = useState(startAt);
   const [p, setP] = useState<Profile>(initial);
   const [pw, setPw] = useState("");
-  const [show, setShow] = useState(false);
   const [err, setErr] = useState("");
+  // Which account field the current error belongs to, for aria-invalid and focus.
+  const [errField, setErrField] = useState<"email" | "password" | "form" | null>(null);
+  // Account step sub-views: the form, "check your email", or password reset request.
+  const [view, setView] = useState<"form" | "confirm" | "forgot">(authView);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const register = authMode === "register";
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
@@ -370,24 +387,34 @@ export function Onboarding({
   const next = async () => {
     if (busy || submitting.current) return;
     if (s === 1) {
-      if (!/^\S+@\S+\.\S+$/.test(p.email))
+      if (!EMAIL.test(p.email.trim())) {
+        setErrField("email");
+        emailRef.current?.focus();
         return setErr(t("That email looks incomplete — try name@example.com."));
-      if (pw.length < (authMode === "register" ? 8 : 1))
+      }
+      if (register ? !meetsPasswordMinimum(pw) : pw.length < 1) {
+        setErrField("password");
+        passwordRef.current?.focus();
         return setErr(
-          t(
-            authMode === "register"
-              ? "Use at least 8 characters for a new password."
-              : "Enter your password.",
-          ),
+          t(register ? "Use at least 8 characters for a new password." : "Enter your password."),
         );
+      }
       setBusy(true);
       submitting.current = true;
       setErr("");
+      setErrField(null);
       setNotice("");
       try {
         const response = await onAuthenticate?.(p.email.trim(), pw, authMode);
-        if (response?.error) setErr(t(response.error));
-        else {
+        if (response?.error) {
+          setErr(t(response.error));
+          setErrField("form");
+        } else if (register && response?.message) {
+          // E-mail confirmation required: replace the form with clear next steps.
+          setPw("");
+          setP({ ...p, email: p.email.trim() });
+          setView("confirm");
+        } else {
           setNotice(t(response?.message ?? "Signing in..."));
           setPw("");
         }
@@ -414,8 +441,17 @@ export function Onboarding({
   };
   const back = () => {
     setErr("");
+    setErrField(null);
+    if (s === 1 && view !== "form") return setView("form");
     s === startAt ? exit() : setS(s - 1);
   };
+  const clearError = () => {
+    setErr("");
+    setErrField(null);
+  };
+  const authVoice =
+    view === "confirm" ? "Check your email" : view === "forgot" ? "Reset your password" : null;
+  const errorId = err ? "onboarding-error" : "";
   const voice = [
     "Hi! I'm Blob. I'll keep you company with your money.",
     "Create your account",
@@ -450,7 +486,7 @@ export function Onboarding({
         expr={s === 0 ? "wave" : s === 8 ? "calm" : "thinking"}
         size={s === 0 ? 120 : 64}
       >
-        {t(s === 1 && authMode === "login" ? "Log in" : voice)}
+        {t(s === 1 ? (authVoice ?? (authMode === "login" ? "Log in" : voice)) : voice)}
       </Say>
       <Card className="grid gap-3" key={"c" + s}>
         {s === 0 && (
@@ -461,7 +497,22 @@ export function Onboarding({
             </p>
           </>
         )}
-        {s === 1 && (
+        {s === 1 && view === "confirm" && authActions && (
+          <ConfirmEmail
+            email={p.email}
+            onResend={authActions.resend}
+            onLogin={() => onAuthModeChange?.("login", p.email)}
+            onChangeEmail={() => setView("form")}
+          />
+        )}
+        {s === 1 && view === "forgot" && authActions && (
+          <ForgotPassword
+            initialEmail={p.email}
+            onRequest={authActions.requestReset}
+            onBack={() => setView("form")}
+          />
+        )}
+        {s === 1 && view === "form" && (
           <form
             id="spendsense-auth"
             className="contents"
@@ -480,48 +531,67 @@ export function Onboarding({
             <label className="grid gap-1 f-ui">
               {t("Email")}
               <input
+                ref={emailRef}
                 type="email"
+                inputMode="email"
                 autoCapitalize="none"
                 spellCheck={false}
-                aria-invalid={!!err && !/^\S+@\S+\.\S+$/.test(p.email)}
-                aria-describedby={err ? "onboarding-error" : undefined}
+                aria-invalid={errField === "email" || undefined}
+                aria-describedby={errField === "email" || errField === "form" ? errorId : undefined}
                 autoComplete="email"
                 value={p.email}
-                onChange={(e) => setP({ ...p, email: e.target.value })}
+                onChange={(e) => {
+                  setP({ ...p, email: e.target.value });
+                  if (errField === "email") clearError(); // no stale feedback
+                }}
                 className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
               />
             </label>
-            <label className="grid gap-1 f-ui">
-              {t("Password")}
-              <span className="relative">
-                <input
-                  type={show ? "text" : "password"}
-                  aria-describedby={err ? "onboarding-error" : undefined}
-                  autoComplete={authMode === "login" ? "current-password" : "new-password"}
-                  value={pw}
-                  onChange={(e) => setPw(e.target.value)}
-                  className="h-13 w-full rounded-tile border border-line bg-white px-4 pr-12 font-sans"
-                />
-                <button
-                  type="button"
-                  aria-label={t(show ? "Hide password" : "Show password")}
-                  onClick={() => setShow(!show)}
-                  className="absolute right-1 top-1 w-11 h-11 flex items-center justify-center"
-                >
-                  {show ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </span>
-            </label>
+            <PasswordInput
+              label={t("Password")}
+              value={pw}
+              onChange={(value) => {
+                setPw(value);
+                if (errField === "password") clearError();
+              }}
+              inputRef={passwordRef}
+              autoComplete={register ? "new-password" : "current-password"}
+              invalid={errField === "password"}
+              describedBy={
+                [
+                  register && "password-rule",
+                  (errField === "password" || errField === "form") && errorId,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
+            />
+            {register && <PasswordRule id="password-rule" value={pw} />}
+            {!register && authActions && (
+              <button
+                type="button"
+                className="text-leaf f-ui min-h-11 justify-self-start"
+                disabled={busy}
+                onClick={() => {
+                  setErr("");
+                  setErrField(null);
+                  setNotice("");
+                  setView("forgot");
+                }}
+              >
+                {t("Forgot password?")}
+              </button>
+            )}
           </form>
         )}
-        {s === 1 && onAuthModeChange && (
+        {s === 1 && view === "form" && onAuthModeChange && (
           <button
             type="button"
             className="text-leaf f-ui min-h-11"
             disabled={busy}
-            onClick={() => onAuthModeChange(authMode === "login" ? "register" : "login")}
+            onClick={() => onAuthModeChange(register ? "login" : "register", p.email)}
           >
-            {t(authMode === "login" ? "Create your account" : "Log in")}
+            {t(register ? "Already have an account? Log in" : "New here? Create your account")}
           </button>
         )}
         {(s === 2 || s === 3) && (
@@ -585,6 +655,8 @@ export function Onboarding({
           </p>
         )}
       </Card>
+      {/* The confirmation and reset panels carry their own way back to the form. */}
+      {!(s === 1 && view !== "form") && (
       <div className="flex justify-between">
         <Button disabled={busy} onClick={back}>
           {t("Back")}
@@ -605,7 +677,7 @@ export function Onboarding({
           }
         >
           {busy
-            ? t(s === 1 ? "Signing in..." : "Saving...")
+            ? t(s === 1 ? (register ? "Creating account..." : "Signing in...") : "Saving...")
             : s === 8
               ? t("Let's go")
               : s === 1
@@ -613,6 +685,7 @@ export function Onboarding({
                 : t("Next")}
         </Button>
       </div>
+      )}
     </div>
   );
 }

@@ -60,6 +60,58 @@ const TR: Record<string, string> = {
   "Please log in before continuing.": "Devam etmeden önce giriş yap.",
   "Signing in...": "Giriş yapılıyor...",
   "Saving...": "Kaydediliyor...",
+  "Creating account...": "Hesap oluşturuluyor...",
+  "At least {n} characters": "En az {n} karakter",
+  "Requirement met": "Koşul sağlandı",
+  "Requirement not met yet": "Koşul henüz sağlanmadı",
+  "Already have an account? Log in": "Hesabın var mı? Giriş yap",
+  "New here? Create your account": "Yeni misin? Hesabını oluştur",
+  "Forgot password?": "Şifremi unuttum",
+  "Check your email": "E-postanı kontrol et",
+  "We sent a confirmation link to {e}. Open it to activate your account, then log in.":
+    "{e} adresine bir onay bağlantısı gönderdik. Hesabını etkinleştirmek için bağlantıyı aç, sonra giriş yap.",
+  "Can't find it? Check your spam or junk folder. It can take a few minutes to arrive.":
+    "Bulamadın mı? Spam veya gereksiz klasörünü kontrol et. E-postanın gelmesi birkaç dakika sürebilir.",
+  "Go to log in": "Girişe git",
+  "Resend email": "E-postayı tekrar gönder",
+  "Sending...": "Gönderiliyor...",
+  "You can resend in {n} s.": "{n} sn sonra tekrar gönderebilirsin.",
+  "Use a different email": "Farklı bir e-posta kullan",
+  "If this address still needs confirmation, a new link is on its way.":
+    "Bu adres hâlâ onay bekliyorsa yeni bir bağlantı yolda.",
+  "Reset your password": "Şifreni sıfırla",
+  "Enter your account email. We'll send you a link to set a new password.":
+    "Hesabının e-posta adresini gir. Yeni şifre belirlemen için bir bağlantı göndereceğiz.",
+  "Send reset link": "Sıfırlama bağlantısı gönder",
+  "Send again": "Tekrar gönder",
+  "If an account exists for this email, a reset link is on its way.":
+    "Bu e-postaya ait bir hesap varsa sıfırlama bağlantısı yolda.",
+  "We couldn't send the email right now. Try again in a few minutes.":
+    "E-postayı şu an gönderemedik. Birkaç dakika sonra tekrar dene.",
+  "Back to log in": "Girişe dön",
+  "Set a new password": "Yeni şifre belirle",
+  "Choose a new password for your account.": "Hesabın için yeni bir şifre seç.",
+  "Save new password": "Yeni şifreyi kaydet",
+  "Checking your link...": "Bağlantın kontrol ediliyor...",
+  "Password updated": "Şifre güncellendi",
+  "Your new password is saved and you're signed in.":
+    "Yeni şifren kaydedildi ve giriş yaptın.",
+  "Continue to SpendSense": "SpendSense'e devam et",
+  "This reset link no longer works": "Bu sıfırlama bağlantısı artık geçerli değil",
+  "It may have expired or already been used. Reset links work once and expire after a while. Request a new one to continue.":
+    "Süresi dolmuş ya da daha önce kullanılmış olabilir. Sıfırlama bağlantıları yalnızca bir kez çalışır ve bir süre sonra geçersiz olur. Devam etmek için yeni bir bağlantı iste.",
+  "Send a new link": "Yeni bağlantı gönder",
+  "Your reset link has expired. Request a new one.":
+    "Sıfırlama bağlantının süresi doldu. Yeni bir bağlantı iste.",
+  "Choose a new password that's different from your current one.":
+    "Mevcut şifrenden farklı yeni bir şifre seç.",
+  "Your password could not be changed. Request a new reset link and try again.":
+    "Şifren değiştirilemedi. Yeni bir sıfırlama bağlantısı isteyip tekrar dene.",
+  "This email link is invalid or has expired. Log in, or request a new link.":
+    "Bu e-posta bağlantısı geçersiz ya da süresi dolmuş. Giriş yap veya yeni bir bağlantı iste.",
+  "You are offline. Reconnect and try again.": "Çevrimdışısın. Bağlan ve tekrar dene.",
+  "You are offline. Reconnect before signing in.":
+    "Çevrimdışısın. Giriş yapmadan önce bağlan.",
   "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.":
     "Kaydedilen kayıtların, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
   Home: "Ana Sayfa",

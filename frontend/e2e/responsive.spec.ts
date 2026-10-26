@@ -310,10 +310,9 @@ test("mobile registration, first onboarding and keyboard language controls", asy
   await page.getByLabel("Email", { exact: true }).fill("new@example.com");
   await page.getByLabel("Password", { exact: true }).fill("test-only-password");
   await page.getByRole("button", { name: "Create your account", exact: true }).last().click();
-  await expect(
-    page.getByText("Check your email to confirm your account, then log in."),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  await layout(page);
+  await page.getByRole("button", { name: "Go to log in", exact: true }).click();
   await page.getByLabel("Email", { exact: true }).fill("pwa-test@example.com");
   await page.getByLabel("Password", { exact: true }).fill("test-only-password");
   await page.getByRole("button", { name: "Log in", exact: true }).last().click();

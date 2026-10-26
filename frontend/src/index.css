@@ -266,8 +266,10 @@
   outline: 3px solid var(--color-info);
   outline-offset: 3px;
 }
-/* Main only receives programmatic focus for screen readers; its controls keep their own ring. */
-#main-content:focus-visible {
+/* Main and panel headings only receive programmatic focus for screen readers;
+   every control keeps its own focus ring. */
+#main-content:focus-visible,
+h1[tabindex="-1"]:focus-visible {
   outline: none;
 }
 @keyframes rise {
