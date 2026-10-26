@@ -269,7 +269,7 @@
 /* Main and panel headings only receive programmatic focus for screen readers;
    every control keeps its own focus ring. */
 #main-content:focus-visible,
-h1[tabindex="-1"]:focus-visible {
+:is(h1, h2, [data-focus-region])[tabindex="-1"]:focus-visible {
   outline: none;
 }
 @keyframes rise {

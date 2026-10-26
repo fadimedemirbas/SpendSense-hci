@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   Check,
   HeartHandshake,
@@ -82,6 +82,7 @@ export const FEELINGS: [string, typeof Check][] = [
   ["Neutral", Circle],
 ];
 const STEPS = ["What", "Why", "Feeling", "Own", "Wait"];
+const fieldError = "m-0 -mt-1 text-sm text-attn bg-butter rounded-inner px-3 py-2";
 const WAITS: [WaitLen, string][] = [
   ["24h", "24 hours"],
   ["3d", "3 days"],
@@ -119,6 +120,23 @@ export function Decide() {
   const [phase, setPhase] = useState<"ask" | "load" | "result">(prefill?.review ? "result" : "ask");
   const [priceStr, setPriceStr] = useState(prefill?.price ? String(prefill.price) : "");
   const [analysisId, setAnalysisId] = useState<string | undefined>(prefill?.analysisId);
+  // Field-level errors for step 1 (product name and price).
+  const [fieldErr, setFieldErr] = useState<{ name?: string; price?: string }>({});
+  const nameRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
+  const fieldId = useId();
+  // Focus targets: the step replaced by Next/Back/Edit and the analysis status
+  // would otherwise leave keyboard focus on <body>.
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const loadingRef = useRef<HTMLDivElement>(null);
+  const moveFocus = useRef(false);
+  const [fromAnalyze, setFromAnalyze] = useState(false);
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    if (phase === "ask") stepHeading.current?.focus();
+    if (phase === "load") loadingRef.current?.focus();
+  }, [s, phase]);
   useEffect(() => {
     setP({ ...blank(), ...prefill });
     setPriceStr(prefill?.price ? String(prefill.price) : "");
@@ -127,6 +145,8 @@ export function Decide() {
     setS(0);
     setAnalysisId(prefill?.analysisId);
     setPhase(prefill?.review ? "result" : "ask");
+    setFieldErr({});
+    setFromAnalyze(false);
   }, [prefill]);
   const valid = [
     p.name.trim() !== "" && p.price > 0,
@@ -143,8 +163,20 @@ export function Decide() {
     "Answer to continue.",
   ];
   const next = async () => {
+    if (s === 0) {
+      const errors = {
+        name: p.name.trim() ? undefined : t("Enter a product name."),
+        price: p.price > 0 ? undefined : t("Enter a price above zero."),
+      };
+      setFieldErr(errors);
+      if (errors.name || errors.price) {
+        setHint("");
+        return (errors.name ? nameRef : priceRef).current?.focus();
+      }
+    }
     if (!valid[s]) return setHint(t(hints[s]));
     setHint("");
+    moveFocus.current = true;
     if (s === 0) setLastCat(p.cat);
     if (s < 4) setS(s + 1);
     else {
@@ -156,6 +188,7 @@ export function Decide() {
       ]);
       if (id) {
         setAnalysisId(id);
+        setFromAnalyze(true);
         setPhase("result");
       } else {
         setPhase("ask");
@@ -173,9 +206,11 @@ export function Decide() {
   if (phase === "load")
     return (
       <Card>
-        <Say expr="curious" live>
-          {t("Looking at your context…")}
-        </Say>
+        <div ref={loadingRef} tabIndex={-1} data-focus-region>
+          <Say expr="curious" live>
+            {t("Looking at your context…")}
+          </Say>
+        </div>
       </Card>
     );
   if (phase === "result")
@@ -184,7 +219,10 @@ export function Decide() {
         p={p}
         analysisId={analysisId}
         waitId={prefill?.waitId}
+        focusTitle={fromAnalyze}
         edit={() => {
+          moveFocus.current = true;
+          setFromAnalyze(false);
           setPhase("ask");
           setS(0);
         }}
@@ -216,6 +254,8 @@ export function Decide() {
   ];
   const back = () => {
     setHint("");
+    setFieldErr({});
+    moveFocus.current = true;
     setS(s - 1);
   };
   const enter = (e: React.KeyboardEvent) => e.key === "Enter" && void next();
@@ -231,6 +271,7 @@ export function Decide() {
                 <button
                   onClick={() => {
                     setHint("");
+                    moveFocus.current = true;
                     setS(i);
                   }}
                   aria-label={`${t("Edit")}: ${t(l)} · ${answers[i]}`}
@@ -245,7 +286,15 @@ export function Decide() {
             ) : i === s ? (
               <li key={l} aria-current="step">
                 <Card className="grid gap-3 rise ring-2 ring-sun">
-                  <Say key={s} expr="thinking" size={48} live>
+                  {/* Visible on every screen size; receives focus on step changes so
+                      screen readers hear the position and the question together. */}
+                  <h2 ref={stepHeading} tabIndex={-1} className="f-ui text-sm text-soft m-0">
+                    <span aria-hidden>{t("Step {n} of {t}", { n: s + 1, t: STEPS.length })}</span>
+                    <span className="sr-only">
+                      {`${t("Step {n} of {t}", { n: s + 1, t: STEPS.length })}: ${t(questions[s])}`}
+                    </span>
+                  </h2>
+                  <Say key={s} expr="thinking" size={48}>
                     {t(questions[s])}
                   </Say>
                   {s === 0 && (
@@ -254,17 +303,31 @@ export function Decide() {
                         {t("Product name")}
                         <input
                           autoFocus
+                          ref={nameRef}
                           value={p.name}
-                          onChange={(e) => setP({ ...p, name: e.target.value })}
+                          aria-invalid={!!fieldErr.name || undefined}
+                          aria-describedby={fieldErr.name ? `${fieldId}-name` : undefined}
+                          onChange={(e) => {
+                            setP({ ...p, name: e.target.value });
+                            if (fieldErr.name) setFieldErr({ ...fieldErr, name: undefined });
+                          }}
                           onKeyDown={enter}
                           className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
                         />
                       </label>
+                      {fieldErr.name && (
+                        <p id={`${fieldId}-name`} role="alert" className={fieldError}>
+                          {fieldErr.name}
+                        </p>
+                      )}
                       <label className="f-ui grid gap-1">
                         {t("Price")} ({curLabel()})
                         <input
+                          ref={priceRef}
                           inputMode="decimal"
                           value={priceStr}
+                          aria-invalid={!!fieldErr.price || undefined}
+                          aria-describedby={fieldErr.price ? `${fieldId}-price` : undefined}
                           onChange={(e) => {
                             if (/^\d{0,8}([.,]\d{0,2})?$/.test(e.target.value)) {
                               setPriceStr(e.target.value);
@@ -272,12 +335,18 @@ export function Decide() {
                                 ...p,
                                 price: parseFloat(e.target.value.replace(",", ".")) || 0,
                               });
+                              if (fieldErr.price) setFieldErr({ ...fieldErr, price: undefined });
                             }
                           }}
                           onKeyDown={enter}
                           className="h-13 rounded-tile border border-line bg-white px-4 f-num text-xl"
                         />
                       </label>
+                      {fieldErr.price && (
+                        <p id={`${fieldId}-price`} role="alert" className={fieldError}>
+                          {fieldErr.price}
+                        </p>
+                      )}
                       <p className="f-ui m-0">{t("Category")}</p>
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(7.25rem,1fr))] gap-2 sm:gap-3">
                         {EXP_CATS.map(([c, I]) => (
@@ -442,6 +511,7 @@ function Receipt({
   const { profile, entries } = useApp();
   const t = useT();
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const a = analyze(p, profile, undefined, entries);
   const left = a.income - monthTotals(entries).spent;
   const CatIcon = EXP_CATS.find(([c]) => c === p.cat)?.[1] ?? CircleDot;
@@ -457,20 +527,29 @@ function Receipt({
     <Card className="grid gap-2 md:sticky md:top-4">
       <button
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen(!open)}
         className="md:hidden flex items-center gap-2 min-h-11 f-ui text-sm text-left"
       >
         <ReceiptText size={18} aria-hidden />
+        {/* Hidden separators keep the spoken name readable:
+            "Purchase receipt: Headphones · ₺130, Step 2 of 5" (not "₺1302/5"). */}
         <b className="truncate flex-1">
+          <span className="sr-only">{t("Purchase receipt")}: </span>
           {p.name || t("New purchase")}
           {p.price > 0 && ` · ${fmt(p.price)}`}
         </b>
-        <span className="text-soft">{step + 1}/5</span>
+        <span className="text-soft" aria-hidden>
+          {step + 1}/5
+        </span>
+        <span className="sr-only">
+          , {t("Step {n} of {t}", { n: step + 1, t: STEPS.length })}
+        </span>
         <ChevronDown size={18} className={`transition ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {/* grid-cols-1 = minmax(0,1fr): a long product name truncates instead of
           widening the receipt past the screen on tablets. */}
-      <div className={`${open ? "grid" : "hidden"} md:grid grid-cols-1 gap-2`}>
+      <div id={panelId} className={`${open ? "grid" : "hidden"} md:grid grid-cols-1 gap-2`}>
         <p className="hidden md:block f-ui text-xs text-soft text-center tracking-widest uppercase m-0">
           {t("Purchase receipt")}
         </p>
@@ -534,11 +613,14 @@ function Analysis({
   analysisId,
   waitId,
   edit,
+  focusTitle,
 }: {
   p: Purchase;
   analysisId?: string;
   waitId?: string;
   edit: () => void;
+  /** Move focus to the result title after "Analyze" (not when opened from elsewhere). */
+  focusTitle?: boolean;
 }) {
   const {
     profile,
@@ -553,6 +635,10 @@ function Analysis({
   } = useApp();
   const t = useT();
   const toast = useToast();
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusTitle) title.current?.focus();
+  }, []); // On mount only: a later re-render must not pull focus back.
   const active = goals.filter((g) => g.status === "Active");
   const [goalId, setGoalId] = useState(active[0]?.id);
   const goal = active.find((g) => g.id === goalId) ?? active[0];
@@ -673,7 +759,9 @@ function Analysis({
       <Card className="flex flex-wrap gap-5 items-center">
         <Ring value={a.fit} size={128} label={`${t("Overall fit")} ${a.fit}/100`} color="#6b4fa3" />
         <div className="flex-1 min-w-0 basis-52">
-          <h1 className="text-3xl font-bold m-0">{p.name}</h1>
+          <h1 ref={title} tabIndex={-1} className="text-3xl font-bold m-0">
+            {p.name}
+          </h1>
           <p className="f-num text-xl m-0 mt-1">
             {fmt(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
           </p>
@@ -707,10 +795,11 @@ function Analysis({
               <div className="flex items-center gap-2">
                 <I size={20} aria-hidden />
                 <h2 className="text-lg font-bold m-0 flex-1">{t(n)}</h2>
-                <span className="f-num text-xl">
+                <span className="f-num text-xl" aria-hidden>
                   {v}
                   <span className="text-soft text-sm">/25</span>
                 </span>
+                <span className="sr-only">{t("{v} out of {max}", { v, max: 25 })}</span>
               </div>
               <div className="flex gap-2 flex-wrap">
                 <Pill tone={positive ? "leaf" : "butter"}>
@@ -718,11 +807,13 @@ function Analysis({
                   {t(lv)}
                 </Pill>
               </div>
+              {/* The bar is a visual of the score above, not a progress indicator. */}
               <Tube
                 value={v * 4}
                 label={t(dir)}
                 color={positive ? "bg-leaf" : "bg-sun"}
                 showPct={false}
+                decorative
               />
               <Expand title={t("Why?")}>
                 <p className="m-0">{calc}</p>

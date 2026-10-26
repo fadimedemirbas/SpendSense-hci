@@ -266,6 +266,9 @@ const TR: Record<string, string> = {
   "3 days": "3 gün",
   "1 week": "1 hafta",
   "Add a name and a price above zero.": "Bir ad ve sıfırdan büyük fiyat ekle.",
+  "Enter a product name.": "Bir ürün adı gir.",
+  "Enter a price above zero.": "Sıfırdan büyük bir fiyat gir.",
+  "{v} out of {max}": "{max} üzerinden {v}",
   "Choose at least one reason.": "En az bir neden seç.",
   "Choose how you feel.": "Nasıl hissettiğini seç.",
   "Answer to continue.": "Devam etmek için cevapla.",
@@ -917,11 +920,14 @@ export const Tube = ({
   label,
   color = "bg-sun",
   showPct = true,
+  decorative = false,
 }: {
   value: number;
   label: string;
   color?: string;
   showPct?: boolean;
+  /** Hide the bar from assistive tech when nearby text already states the value. */
+  decorative?: boolean;
 }) => (
   <div>
     <div className="flex justify-between gap-2 f-ui text-sm mb-1">
@@ -932,11 +938,15 @@ export const Tube = ({
     </div>
     <div
       className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_#2a1a2c1a]"
-      role="progressbar"
-      aria-label={label}
-      aria-valuenow={Math.min(100, Math.max(0, Math.round(value)))}
-      aria-valuemin={0}
-      aria-valuemax={100}
+      {...(decorative
+        ? { "aria-hidden": true }
+        : {
+            role: "progressbar",
+            "aria-label": label,
+            "aria-valuenow": Math.min(100, Math.max(0, Math.round(value))),
+            "aria-valuemin": 0,
+            "aria-valuemax": 100,
+          })}
     >
       <div
         className={`h-full rounded-full ${color}`}
