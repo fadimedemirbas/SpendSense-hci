@@ -14,6 +14,19 @@ type InstallEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
 };
+// Chromium may fire beforeinstallprompt before React mounts (or between the
+// StrictMode effect cleanup and re-run). Capture it at module load so the
+// user-initiated install button never misses the event. Still no auto prompt.
+let earlyInstallEvent: InstallEvent | null = null;
+if (typeof window !== "undefined") {
+  addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    earlyInstallEvent = event as InstallEvent;
+  });
+  addEventListener("appinstalled", () => {
+    earlyInstallEvent = null;
+  });
+}
 const InstallContext = createContext({
   mode: "manual" as "manual" | "prompt" | "installed",
   install: async () => false,
@@ -69,7 +82,7 @@ export function Pwa({ children }: { children: ReactNode }) {
   const busy = useSyncExternalStore(subscribeNetwork, pendingNetwork);
   const [online, setOnline] = useState(navigator.onLine);
   const [blocked, setBlocked] = useState(!navigator.onLine);
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
+  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(() => earlyInstallEvent);
   const standalone = () =>
     matchMedia("(display-mode: standalone)").matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true;
@@ -165,6 +178,8 @@ export function Pwa({ children }: { children: ReactNode }) {
 
   async function install() {
     if (!installEvent || dismissed) return false;
+    // A deferred prompt can only be shown once; drop every reference to it.
+    earlyInstallEvent = null;
     try {
       await installEvent.prompt();
       const choice = await installEvent.userChoice;

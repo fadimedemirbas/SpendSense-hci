@@ -251,17 +251,27 @@ const TR: Record<string, string> = {
   "Add to Home Screen": "Ana Ekrana Ekle",
   "Install the app": "Uygulamayı yükle",
   "Open SpendSense in Safari.": "SpendSense'i Safari'de aç.",
-  "Tap the Share button.": "Paylaş düğmesine dokun.",
+  "Tap the Share button (in the toolbar or the ••• menu).":
+    "Paylaş düğmesine dokun (araç çubuğunda veya ••• menüsünde).",
   "Select “Add to Home Screen”.": "“Ana Ekrana Ekle”yi seç.",
-  "Tap “Add” to finish.": "Bitirmek için “Ekle”ye dokun.",
-  "Open SpendSense in a supported browser.": "SpendSense'i desteklenen bir tarayıcıda aç.",
-  "Select “Install app” when the browser offers the option.":
-    "Tarayıcı sunduğunda “Uygulamayı yükle”yi seç.",
+  "Keep “Open as Web App” on if shown, then tap “Add”.":
+    "“Web Uygulaması Olarak Aç” görünürse açık bırak, sonra “Ekle”ye dokun.",
+  "Open SpendSense from its new home screen icon.": "SpendSense'i ana ekrandaki yeni simgesinden aç.",
+  "Open SpendSense in Chrome, Edge or Samsung Internet.":
+    "SpendSense'i Chrome, Edge veya Samsung Internet'te aç.",
+  "Open the browser menu (⋮).": "Tarayıcı menüsünü (⋮) aç.",
+  "Tap “Install app” or “Add to Home screen”.":
+    "“Uygulamayı yükle” veya “Ana ekrana ekle”ye dokun.",
   "Confirm installation.": "Yüklemeyi onayla.",
-  "Other iOS browsers may not offer this option.":
-    "Diğer iOS tarayıcıları bu seçeneği sunmayabilir.",
-  "The install dialog is shown by your browser or operating system.":
-    "Yükleme penceresini tarayıcın veya işletim sistemin gösterir.",
+  "Don’t see it? Scroll down in the Share menu. On iOS 16.4 or later, Chrome and Edge offer it in their Share menu too.":
+    "Göremiyor musun? Paylaş menüsünde aşağı kaydır. iOS 16.4 ve sonrasında Chrome ve Edge de bu seçeneği Paylaş menüsünde sunar.",
+  "On a computer, use the install icon in the address bar. The install dialog is shown by your browser or operating system.":
+    "Bilgisayarda adres çubuğundaki yükleme simgesini kullan. Yükleme penceresini tarayıcın veya işletim sistemin gösterir.",
+  "You seem to be in an app’s built-in browser, which can’t install apps. Open this page in Safari or Chrome first.":
+    "Bir uygulamanın içindeki tarayıcıdasın gibi görünüyor; buradan uygulama yüklenemez. Önce bu sayfayı Safari'de veya Chrome'da aç.",
+  "Use SpendSense like an app": "SpendSense'i uygulama gibi kullan",
+  "Add it to your home screen for one-tap, full-screen access.":
+    "Tek dokunuşla, tam ekran açmak için ana ekranına ekle.",
   "Got it": "Anladım",
   "Context for your purchases. The decision stays yours.":
     "Alışverişlerin için bağlam. Karar sende kalır.",

@@ -30,7 +30,7 @@ import {
   useToast,
 } from "./ui";
 import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, today } from "./store";
-import { TENDENCY } from "./Onboarding";
+import { InstallHelp, TENDENCY } from "./Onboarding";
 import { requireSupabase } from "./lib/supabase";
 import { onlineOperation } from "./pwa/network";
 import { usePwa } from "./pwa/Pwa";
@@ -171,6 +171,7 @@ export function SettingsPage({
   const { lang, setLang } = useContext(LangCtx);
   const [confirm, setConfirm] = useState(false);
   const [password, setPassword] = useState(false);
+  const [installHelp, setInstallHelp] = useState(false);
   const select = "min-h-11 rounded-full clay-cream px-4 f-ui";
   const exportCsv = () =>
     download(
@@ -351,13 +352,21 @@ export function SettingsPage({
             {t("Start")}
           </Button>
         </Row>
-        {pwa.mode === "prompt" && (
+        {pwa.mode !== "installed" && (
+          // iOS never fires beforeinstallprompt and Android may not have offered
+          // it yet, so fall back to step-by-step guidance instead of hiding it.
           <Row
             icon={<Download size={18} />}
             title={t("Install app")}
             desc={t("Add SpendSense to your device for quick access from your home screen.")}
           >
-            <Button onClick={() => void pwa.install()}>{t("Install")}</Button>
+            <Button
+              onClick={async () => {
+                if (!(await pwa.install())) setInstallHelp(true);
+              }}
+            >
+              {t(pwa.mode === "prompt" ? "Install" : "How to install")}
+            </Button>
           </Row>
         )}
         <Row
@@ -390,6 +399,7 @@ export function SettingsPage({
           onConfirm={reset}
         />
       )}
+      {installHelp && <InstallHelp onClose={() => setInstallHelp(false)} />}
     </>
   );
 }
