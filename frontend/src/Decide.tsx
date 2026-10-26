@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Check,
   HeartHandshake,
@@ -21,6 +21,10 @@ import {
   Wallet,
   Target,
   Zap,
+  Pencil,
+  ReceiptText,
+  ChevronDown,
+  Lightbulb,
 } from "lucide-react";
 import { useApp } from "./context";
 import {
@@ -193,205 +197,221 @@ export function Decide() {
       reasons: p.reasons.includes(r) ? p.reasons.filter((x) => x !== r) : [...p.reasons, r],
     });
   };
+  const questions = [
+    "What are you thinking of buying?",
+    "Why do you want it?",
+    "How are you feeling right now?",
+    "Do you already have something similar?",
+    "How long could you wait?",
+  ];
+  const waitLabel = t(WAITS.find(([w]) => w === p.wait)![1]);
+  const ownLabel =
+    own === null ? "" : own ? t(p.usable ? "Yes, still usable" : "Yes, not usable") : t("No");
+  const answers = [
+    `${p.name} · ${fmt(p.price)}`,
+    p.reasons.map((r) => t(r)).join(", "),
+    t(p.feeling),
+    ownLabel,
+    waitLabel,
+  ];
+  const back = () => {
+    setHint("");
+    setS(s - 1);
+  };
+  const enter = (e: React.KeyboardEvent) => e.key === "Enter" && void next();
   return (
     <>
       <PageHead title={t("Should I buy it?")} sub={t("Let's add a little context first.")} />
-      <ol className="flex gap-1 m-0 p-0 list-none" aria-label={t("Progress")}>
-        {STEPS.map((l, i) => {
-          const done = i < s && valid[i];
-          return (
-            <li key={l} className="flex-1">
-              <button
-                onClick={() => i <= s && setS(i)}
-                disabled={i > s}
-                aria-current={i === s ? "step" : undefined}
-                aria-label={`${i + 1}. ${t(l)}`}
-                className={`w-full f-ui text-sm min-h-11 rounded-full flex items-center justify-center gap-1 ${i === s ? "clay-sun" : done ? "bg-leaftint text-leaf" : "bg-track text-soft"}`}
-              >
-                {done ? (
-                  <Check size={14} aria-label={t("Done")} />
-                ) : (
-                  <span className="f-num">{i + 1}</span>
-                )}
-                <span className="hidden sm:inline">{t(l)}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-      {s > 0 && (
-        <p className="f-ui text-sm text-soft m-0">
-          {p.name} · {fmt(p.price)}
-          {p.reasons.length > 0 && " · " + p.reasons.map((r) => t(r)).join(", ")}
-          {p.feeling && " · " + t(p.feeling)}
-        </p>
-      )}
-      <Say key={s} expr="thinking" size={56} live>
-        {t(
-          [
-            "What are you thinking of buying?",
-            "Why do you want it?",
-            "How are you feeling right now?",
-            "Do you already have something similar?",
-            "How long could you wait?",
-          ][s],
-        )}
-      </Say>
-      <Card className="grid gap-3">
-        {s === 0 && (
-          <>
-            <label className="f-ui grid gap-1">
-              {t("Product name")}
-              <input
-                value={p.name}
-                onChange={(e) => setP({ ...p, name: e.target.value })}
-                className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
-              />
-            </label>
-            <label className="f-ui grid gap-1">
-              {t("Price")} ({curLabel()})
-              <input
-                inputMode="decimal"
-                value={priceStr}
-                onChange={(e) => {
-                  if (/^\d{0,8}([.,]\d{0,2})?$/.test(e.target.value)) {
-                    setPriceStr(e.target.value);
-                    setP({ ...p, price: parseFloat(e.target.value.replace(",", ".")) || 0 });
-                  }
-                }}
-                className="h-13 rounded-tile border border-line bg-white px-4 f-num text-xl"
-              />
-            </label>
-            <p className="f-ui m-0">{t("Category")}</p>
-            <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2">
-              {EXP_CATS.map(([c, I]) => (
-                <Tile
-                  key={c}
-                  on={p.cat === c}
-                  onClick={() => setP({ ...p, cat: c })}
-                  icon={<I size={20} />}
-                  label={t(c)}
-                />
-              ))}
-            </div>
-          </>
-        )}
-        {s === 1 && (
-          <>
-            <p className="m-0 f-ui" aria-live="polite">
-              {t("{n} / 3 selected", { n: p.reasons.length })}
-            </p>
-            {p.reasons.length >= 3 && (
-              <p className="m-0 text-sm text-attn bg-butter rounded-inner px-3 py-2">
-                {t("Maximum reached. Remove one to choose another.")}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {REASONS.map(([r, I]) => (
-                <Chip
-                  key={r}
-                  disabled={!p.reasons.includes(r) && p.reasons.length >= 3}
-                  on={p.reasons.includes(r)}
-                  onClick={() => toggle(r)}
-                  icon={<I size={16} />}
+      <div className="grid md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-5 items-start">
+        <Receipt p={p} own={own} waitSet={waitSet} step={s} />
+        <ol className="grid gap-2 m-0 p-0 list-none md:order-first" aria-label={t("Progress")}>
+          {STEPS.map((l, i) =>
+            i < s ? (
+              <li key={l} className={i < s - 1 ? "hidden md:block" : ""}>
+                <button
+                  onClick={() => {
+                    setHint("");
+                    setS(i);
+                  }}
+                  aria-label={`${t("Edit")}: ${t(l)} · ${answers[i]}`}
+                  className="rise w-full min-h-11 flex items-center gap-2 px-3 py-2 rounded-tile bg-card border border-cardline text-left f-ui text-sm"
                 >
-                  {t(r)}
-                </Chip>
-              ))}
-            </div>
-          </>
-        )}
-        {s === 2 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {FEELINGS.map(([f, I]) => (
-              <Tile
-                key={f}
-                on={p.feeling === f}
-                onClick={() => setP({ ...p, feeling: f })}
-                icon={<I size={26} />}
-                label={t(f)}
-              />
-            ))}
-          </div>
-        )}
-        {s === 3 && (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <Tile
-                on={own === true}
-                onClick={() => {
-                  setOwn(true);
-                  setP({ ...p, own: true });
-                }}
-                label={t("Yes")}
-              />
-              <Tile
-                on={own === false}
-                onClick={() => {
-                  setOwn(false);
-                  setP({ ...p, own: false, usable: undefined });
-                }}
-                label={t("No")}
-              />
-            </div>
-            {own && (
-              <div className="rise grid gap-2">
-                <p className="f-ui m-0">{t("Is it still usable?")}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Tile
-                    on={p.usable === true}
-                    onClick={() => setP({ ...p, usable: true })}
-                    label={t("Yes")}
-                  />
-                  <Tile
-                    on={p.usable === false}
-                    onClick={() => setP({ ...p, usable: false })}
-                    label={t("No")}
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        )}
-        {s === 4 && (
-          <div className="grid grid-cols-3 gap-2">
-            {WAITS.map(([w, l]) => (
-              <Tile
-                key={w}
-                on={waitSet && p.wait === w}
-                onClick={() => {
-                  setWaitSet(true);
-                  setP({ ...p, wait: w });
-                }}
-                icon={<Hourglass size={20} />}
-                label={t(l)}
-              />
-            ))}
-          </div>
-        )}
-        {hint && (
-          <p role="status" className="m-0 text-attn bg-butter rounded-inner px-3 py-2">
-            {hint}
-          </p>
-        )}
-      </Card>
-      <div className="flex justify-between gap-2 flex-wrap">
-        <div className="flex gap-2">
-          <Button onClick={cancel}>{t("Cancel")}</Button>
-          {s > 0 && (
-            <Button
-              onClick={() => {
-                setHint("");
-                setS(s - 1);
-              }}
-            >
-              {t("Back")}
-            </Button>
+                  <Check size={16} className="text-leaf shrink-0" aria-hidden />
+                  <span className="text-soft shrink-0">{t(l)}</span>
+                  <span className="truncate flex-1">{answers[i]}</span>
+                  <Pencil size={14} className="text-soft shrink-0" aria-hidden />
+                </button>
+              </li>
+            ) : i === s ? (
+              <li key={l} aria-current="step">
+                <Card className="grid gap-3 rise ring-2 ring-sun">
+                  <Say key={s} expr="thinking" size={48} live>
+                    {t(questions[s])}
+                  </Say>
+                  {s === 0 && (
+                    <>
+                      <label className="f-ui grid gap-1">
+                        {t("Product name")}
+                        <input
+                          autoFocus
+                          value={p.name}
+                          onChange={(e) => setP({ ...p, name: e.target.value })}
+                          onKeyDown={enter}
+                          className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+                        />
+                      </label>
+                      <label className="f-ui grid gap-1">
+                        {t("Price")} ({curLabel()})
+                        <input
+                          inputMode="decimal"
+                          value={priceStr}
+                          onChange={(e) => {
+                            if (/^\d{0,8}([.,]\d{0,2})?$/.test(e.target.value)) {
+                              setPriceStr(e.target.value);
+                              setP({
+                                ...p,
+                                price: parseFloat(e.target.value.replace(",", ".")) || 0,
+                              });
+                            }
+                          }}
+                          onKeyDown={enter}
+                          className="h-13 rounded-tile border border-line bg-white px-4 f-num text-xl"
+                        />
+                      </label>
+                      <p className="f-ui m-0">{t("Category")}</p>
+                      <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2">
+                        {EXP_CATS.map(([c, I]) => (
+                          <Tile
+                            key={c}
+                            on={p.cat === c}
+                            onClick={() => setP({ ...p, cat: c })}
+                            icon={<I size={20} />}
+                            label={t(c)}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {s === 1 && (
+                    <>
+                      <p className="m-0 f-ui" aria-live="polite">
+                        {t("{n} / 3 selected", { n: p.reasons.length })}
+                      </p>
+                      {p.reasons.length >= 3 && (
+                        <p className="m-0 text-sm text-attn bg-butter rounded-inner px-3 py-2">
+                          {t("Maximum reached. Remove one to choose another.")}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {REASONS.map(([r, I]) => (
+                          <Chip
+                            key={r}
+                            disabled={!p.reasons.includes(r) && p.reasons.length >= 3}
+                            on={p.reasons.includes(r)}
+                            onClick={() => toggle(r)}
+                            icon={<I size={16} />}
+                          >
+                            {t(r)}
+                          </Chip>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {s === 2 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {FEELINGS.map(([f, I]) => (
+                        <Tile
+                          key={f}
+                          on={p.feeling === f}
+                          onClick={() => setP({ ...p, feeling: f })}
+                          icon={<I size={26} />}
+                          label={t(f)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {s === 3 && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Tile
+                          on={own === true}
+                          onClick={() => {
+                            setOwn(true);
+                            setP({ ...p, own: true });
+                          }}
+                          label={t("Yes")}
+                        />
+                        <Tile
+                          on={own === false}
+                          onClick={() => {
+                            setOwn(false);
+                            setP({ ...p, own: false, usable: undefined });
+                          }}
+                          label={t("No")}
+                        />
+                      </div>
+                      {own && (
+                        <div className="rise grid gap-2">
+                          <p className="f-ui m-0">{t("Is it still usable?")}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Tile
+                              on={p.usable === true}
+                              onClick={() => setP({ ...p, usable: true })}
+                              label={t("Yes")}
+                            />
+                            <Tile
+                              on={p.usable === false}
+                              onClick={() => setP({ ...p, usable: false })}
+                              label={t("No")}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {s === 4 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {WAITS.map(([w, l]) => (
+                        <Tile
+                          key={w}
+                          on={waitSet && p.wait === w}
+                          onClick={() => {
+                            setWaitSet(true);
+                            setP({ ...p, wait: w });
+                          }}
+                          icon={<Hourglass size={20} />}
+                          label={t(l)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {hint && (
+                    <p role="status" className="m-0 text-attn bg-butter rounded-inner px-3 py-2">
+                      {hint}
+                    </p>
+                  )}
+                  <div className="flex justify-between gap-2 flex-wrap">
+                    <div className="flex gap-2">
+                      <Button onClick={cancel}>{t("Cancel")}</Button>
+                      {s > 0 && <Button onClick={back}>{t("Back")}</Button>}
+                    </div>
+                    <Button variant="coral" big onClick={next}>
+                      {s === 4 ? t("Analyze") : t("Next")}
+                    </Button>
+                  </div>
+                </Card>
+              </li>
+            ) : (
+              <li
+                key={l}
+                className="hidden md:flex items-center gap-2 px-3 min-h-11 rounded-tile border border-dashed border-cardline text-soft f-ui text-sm"
+              >
+                <Circle size={16} aria-hidden />
+                {t(questions[i])}
+              </li>
+            ),
           )}
-        </div>
-        <Button variant="coral" big onClick={next}>
-          {s === 4 ? t("Analyze") : t("Next")}
-        </Button>
+        </ol>
       </div>
       {confirmCancel && (
         <Dialog
@@ -403,6 +423,106 @@ export function Decide() {
         />
       )}
     </>
+  );
+}
+
+// Live summary that fills in as each answer is given. Collapses to a strip on phones.
+function Receipt({
+  p,
+  own,
+  waitSet,
+  step,
+}: {
+  p: Purchase;
+  own: boolean | null;
+  waitSet: boolean;
+  step: number;
+}) {
+  const { profile, entries } = useApp();
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const a = analyze(p, profile, undefined, entries);
+  const left = a.income - monthTotals(entries).spent;
+  const CatIcon = EXP_CATS.find(([c]) => c === p.cat)?.[1] ?? CircleDot;
+  const value = (v: ReactNode) =>
+    v ? (
+      <span key={String(v)} className="rise text-right">
+        {v}
+      </span>
+    ) : (
+      <span className="text-soft">—</span>
+    );
+  return (
+    <Card className="grid gap-2 md:sticky md:top-4">
+      <button
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="md:hidden flex items-center gap-2 min-h-11 f-ui text-sm text-left"
+      >
+        <ReceiptText size={18} aria-hidden />
+        <b className="truncate flex-1">
+          {p.name || t("New purchase")}
+          {p.price > 0 && ` · ${fmt(p.price)}`}
+        </b>
+        <span className="text-soft">{step + 1}/5</span>
+        <ChevronDown size={18} className={`transition ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      <div className={`${open ? "grid" : "hidden"} md:grid gap-2`}>
+        <p className="hidden md:block f-ui text-xs text-soft text-center tracking-widest uppercase m-0">
+          {t("Purchase receipt")}
+        </p>
+        <div className="flex items-center gap-2">
+          <CatIcon size={20} aria-hidden />
+          <b className="truncate">{p.name || t("New purchase")}</b>
+        </div>
+        <p key={p.price} className="f-num text-3xl m-0 rise">
+          {fmt(p.price)}
+        </p>
+        <dl className="m-0 grid text-sm">
+          {(
+            [
+              ["Category", t(p.cat)],
+              [
+                "Reasons",
+                p.reasons.length > 0 && (
+                  <span className="flex flex-wrap gap-1 justify-end">
+                    {p.reasons.map((r) => (
+                      <Pill key={r} tone="butter">
+                        {t(r)}
+                      </Pill>
+                    ))}
+                  </span>
+                ),
+              ],
+              ["Feeling", p.feeling && t(p.feeling)],
+              [
+                "Similar item",
+                own === null ? "" : own ? t(p.usable ? "Yes, still usable" : "Yes") : t("No"),
+              ],
+              ["Wait time", waitSet && t(WAITS.find(([w]) => w === p.wait)![1])],
+            ] as [string, ReactNode][]
+          ).map(([k, v]) => (
+            <div
+              key={k}
+              className="flex justify-between gap-3 py-1.5 border-t border-dashed border-cardline"
+            >
+              <dt className="text-soft">{t(k)}</dt>
+              <dd className="m-0">{value(v)}</dd>
+            </div>
+          ))}
+        </dl>
+        {p.price > 0 && (
+          <p className="m-0 text-sm text-soft flex gap-2 items-start" aria-live="polite">
+            <Lightbulb size={16} className="shrink-0 mt-0.5" aria-hidden />
+            {left > 0
+              ? t("That's {n}% of what's left this month.", {
+                  n: Math.round((p.price / left) * 100),
+                })
+              : t("Nothing is left this month after your expenses.")}
+          </p>
+        )}
+      </div>
+    </Card>
   );
 }
 
