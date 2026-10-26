@@ -14,14 +14,6 @@ import {
   ShoppingBag,
   X,
   Hourglass,
-  Globe,
-  User,
-  Repeat,
-  Coins,
-  Map,
-  RefreshCw,
-  LogOut,
-  Info,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
@@ -41,19 +33,14 @@ import {
   Segmented,
   Sheet,
   Tube,
-  Tile,
   useT,
   useToast,
   fmt,
-  LangCtx,
   curLabel,
-  rangeLabel,
 } from "./ui";
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
 import {
-  INCOME_RANGES,
-  SAVINGS_RANGES,
   uid,
   today,
   monthTotals,
@@ -63,7 +50,6 @@ import {
   type Decision,
   type DecisionKind,
 } from "./store";
-import { useContext } from "react";
 
 const daysUntil = (iso: string) =>
   Math.ceil((new Date(iso).getTime() - new Date(today()).getTime()) / 864e5);
@@ -1041,130 +1027,6 @@ export function Insights() {
           </>
         )}
       </Card>
-    </>
-  );
-}
-
-export function SettingsPage({
-  reset,
-  logout,
-  retake,
-}: {
-  reset: () => Promise<boolean>;
-  logout: () => void;
-  retake: () => void;
-}) {
-  const { profile, setProfile, setTour, setTab } = useApp();
-  const t = useT();
-  const { lang, setLang } = useContext(LangCtx);
-  const [confirm, setConfirm] = useState(false);
-  const Row = ({
-    icon,
-    title,
-    children,
-  }: {
-    icon: React.ReactNode;
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <Card className="grid gap-3">
-      <h2 className="text-lg font-bold m-0 flex items-center gap-2">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </Card>
-  );
-  return (
-    <>
-      <PageHead title={t("Settings")} />
-      <Row icon={<Globe size={18} />} title={t("Language")}>
-        <Segmented
-          label={t("Language")}
-          value={lang}
-          onChange={setLang}
-          options={[
-            ["en", "English"],
-            ["tr", "Türkçe"],
-          ]}
-        />
-      </Row>
-      <Row icon={<User size={18} />} title={t("Profile")}>
-        <p className="m-0 text-soft">{profile.email}</p>
-        <p className="f-ui m-0">{t("Monthly income")}</p>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {INCOME_RANGES.map((r, i) => (
-            <Tile
-              key={r}
-              label={rangeLabel(t(r))}
-              on={profile.income === i}
-              onClick={() => setProfile({ ...profile, income: i })}
-            />
-          ))}
-        </div>
-        <p className="f-ui m-0">{t("Monthly savings")}</p>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {SAVINGS_RANGES.map((r, i) => (
-            <Tile
-              key={r}
-              label={rangeLabel(t(r))}
-              on={profile.savings === i}
-              onClick={() => setProfile({ ...profile, savings: i })}
-            />
-          ))}
-        </div>
-      </Row>
-      <Row icon={<Coins size={18} />} title={t("Currency display")}>
-        <Segmented
-          label={t("Currency display")}
-          value={profile.currency}
-          onChange={(c) => setProfile({ ...profile, currency: c })}
-          options={[
-            ["symbol", "₺ 1.000"],
-            ["code", "1.000 TRY"],
-          ]}
-        />
-        <p className="text-sm text-soft m-0">{t("Display only — amounts are not converted.")}</p>
-      </Row>
-      <Card className="grid sm:grid-cols-2 gap-2">
-        <Button icon={<Repeat size={16} />} onClick={retake}>
-          {t("Retake spending style questions")}
-        </Button>
-        <Button
-          icon={<Map size={16} />}
-          onClick={() => {
-            setTab("home");
-            setTour(0);
-          }}
-        >
-          {t("Restart tour")}
-        </Button>
-        <Button icon={<RefreshCw size={16} />} onClick={() => setConfirm(true)}>
-          {t("Reset data")}
-        </Button>
-        <Button icon={<LogOut size={16} />} onClick={logout}>
-          {t("Log out")}
-        </Button>
-      </Card>
-      <Row icon={<Info size={18} />} title={t("About")}>
-        <p className="m-0 text-soft">
-          {t(
-            "SpendSense is an HCI course prototype. Scores are simple heuristics, not financial advice.",
-          )}
-        </p>
-      </Row>
-      {confirm && (
-        <Dialog
-          danger
-          title={t("Reset all data?")}
-          body={t(
-            "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.",
-          )}
-          confirm={t("Reset data")}
-          onClose={() => setConfirm(false)}
-          onConfirm={reset}
-        />
-      )}
     </>
   );
 }

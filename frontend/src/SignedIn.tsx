@@ -7,7 +7,8 @@ import { Onboarding } from "./Onboarding";
 import { Shell } from "./Shell";
 import { Money, QuickAdd } from "./Money";
 import { Decide } from "./Decide";
-import { HomePage, Goals, WaitingPage, HistoryPage, Insights, SettingsPage } from "./Pages";
+import { HomePage, Goals, WaitingPage, HistoryPage, Insights } from "./Pages";
+import { SettingsPage } from "./Settings";
 import { useWorkspace } from "./lib/useWorkspace";
 
 export default function SignedIn({

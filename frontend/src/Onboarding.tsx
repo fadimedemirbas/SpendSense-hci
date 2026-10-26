@@ -265,7 +265,7 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
 }
 
 // Stored score keys stay as-is (the database validates them); only the shown wording is softened.
-const TENDENCY: Record<string, string> = {
+export const TENDENCY: Record<string, string> = {
   "Impulsive Decision Maker": "Quick decisions",
   "Planned Spender": "Planning ahead",
   "Bargain Hunter": "Drawn to discounts",
