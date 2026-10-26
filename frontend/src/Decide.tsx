@@ -43,7 +43,6 @@ import {
   useT,
   useToast,
   fmt,
-  Tip,
   Dialog,
   curLabel,
 } from "./ui";
@@ -62,6 +61,7 @@ import {
   type WaitLen,
   type DecisionKind,
 } from "./store";
+import { outcomeLabel, type Factor } from "./lib/decideLabels";
 
 export const REASONS: [string, typeof Check][] = [
   ["need", HeartHandshake],
@@ -513,7 +513,10 @@ function Receipt({
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const a = analyze(p, profile, undefined, entries);
-  const left = a.income - monthTotals(entries).spent;
+  const month = monthTotals(entries);
+  const left = a.income - month.spent;
+  // analyze() falls back to the onboarding income range until this month has income.
+  const estimated = !(month.income > 0);
   const CatIcon = EXP_CATS.find(([c]) => c === p.cat)?.[1] ?? CircleDot;
   const value = (v: ReactNode) =>
     v ? (
@@ -542,9 +545,7 @@ function Receipt({
         <span className="text-soft" aria-hidden>
           {step + 1}/5
         </span>
-        <span className="sr-only">
-          , {t("Step {n} of {t}", { n: step + 1, t: STEPS.length })}
-        </span>
+        <span className="sr-only">, {t("Step {n} of {t}", { n: step + 1, t: STEPS.length })}</span>
         <ChevronDown size={18} className={`transition ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {/* grid-cols-1 = minmax(0,1fr): a long product name truncates instead of
@@ -596,11 +597,18 @@ function Receipt({
         {p.price > 0 && (
           <p className="m-0 text-sm text-soft flex gap-2 items-start" aria-live="polite">
             <Lightbulb size={16} className="shrink-0 mt-0.5" aria-hidden />
-            {left > 0
-              ? t("That's {n}% of what's left this month.", {
-                  n: Math.round((p.price / left) * 100),
-                })
-              : t("Nothing is left this month after your expenses.")}
+            <span>
+              {left > 0
+                ? t("That's {n}% of what's left this month.", {
+                    n: Math.round((p.price / left) * 100),
+                  })
+                : t("Nothing is left this month after your expenses.")}
+              {estimated && (
+                <span className="block text-xs mt-0.5">
+                  {t("Estimate based on your onboarding ranges.")}
+                </span>
+              )}
+            </span>
           </p>
         )}
       </div>
@@ -765,9 +773,9 @@ function Analysis({
           <p className="f-num text-xl m-0 mt-1">
             {fmt(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
           </p>
-          <p className="m-0 mt-2 flex items-center gap-1">
+          {/* The explanation below stays visible; the duplicate info tooltip was removed. */}
+          <p className="m-0 mt-2">
             {t("Overall fit")} <b className="f-num">{a.fit}/100</b>
-            <Tip text={t("Higher means more aligned with your current context.")} />
           </p>
           <p className="text-sm text-soft m-0">
             {t("Higher means more aligned with your current context.")}
@@ -789,7 +797,9 @@ function Analysis({
       <div className="grid md:grid-cols-2 gap-4">
         {factors.map(([n, v, dir, I, higherGood, calc]) => {
           const lv = level(v);
+          // Colour and icon keep their existing cut-off; only the wording changes.
           const positive = higherGood ? v >= 13 : v < 13;
+          const outcome = outcomeLabel(n as Factor, lv, !!goal);
           return (
             <Card key={n} className="grid gap-2">
               <div className="flex items-center gap-2">
@@ -804,7 +814,7 @@ function Analysis({
               <div className="flex gap-2 flex-wrap">
                 <Pill tone={positive ? "leaf" : "butter"}>
                   {positive ? <Check size={14} /> : <Eye size={14} />}
-                  {t(lv)}
+                  {t(outcome)}
                 </Pill>
               </div>
               {/* The bar is a visual of the score above, not a progress indicator. */}
@@ -824,8 +834,9 @@ function Analysis({
       </div>
       <Card className="grid gap-1">
         <h2 className="text-xl font-bold m-0 mb-1">{t("Context")}</h2>
+        {/* Not the "Budget fit" score: this measures against monthly income. */}
         <Rule
-          k={t("Budget fit")}
+          k={t("Share of monthly income")}
           v={t("This is {n}% of your monthly income.", { n: a.pctIncome })}
         />
         <Rule

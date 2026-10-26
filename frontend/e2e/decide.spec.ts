@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { analyze, level, type Entry, type Goal, type Profile, type Purchase } from "../src/store";
+import { outcomeLabel, type Factor } from "../src/lib/decideLabels";
 
 // Decide ("Should I buy it?") Batch 1: field validation, focus management,
 // visible step position, receipt toggle name and accessible score cards.
@@ -15,7 +17,9 @@ const seed = (request: APIRequestContext) =>
         currency: "symbol",
       },
       entries: [],
-      goals: [{ id: crypto.randomUUID(), name: "Laptop", target: 20000, saved: 2000, status: "Active" }],
+      goals: [
+        { id: crypto.randomUUID(), name: "Laptop", target: 20000, saved: 2000, status: "Active" },
+      ],
       analyses: [],
       decisions: [],
       waiting: [],
@@ -26,8 +30,12 @@ async function openDecide(page: Page, lang: "en" | "tr" = "en") {
   await page.goto("/");
   const login = lang === "tr" ? "Giriş yap" : "Log in";
   await page.getByRole("button", { name: login, exact: true }).click();
-  await page.getByLabel(lang === "tr" ? "E-posta" : "Email", { exact: true }).fill("pwa-test@example.com");
-  await page.getByLabel(lang === "tr" ? "Şifre" : "Password", { exact: true }).fill("test-only-password");
+  await page
+    .getByLabel(lang === "tr" ? "E-posta" : "Email", { exact: true })
+    .fill("pwa-test@example.com");
+  await page
+    .getByLabel(lang === "tr" ? "Şifre" : "Password", { exact: true })
+    .fill("test-only-password");
   await page.getByRole("button", { name: login, exact: true }).last().click();
   await expect(page.locator("main")).toBeVisible();
   // Third main navigation item is Decide in both layouts and languages.
@@ -168,12 +176,14 @@ test("score cards state each score as text and no longer pose as progress bars",
   await expect(main.getByRole("progressbar")).toHaveCount(0);
   // Visible "n/25" and spoken "n out of 25" agree for all four factors.
   const cards = main.locator("section").filter({ has: page.getByRole("heading", { level: 2 }) });
-  const pairs = await main.locator("span.f-num.text-xl").evaluateAll((spans) =>
-    spans.map((span) => [
-      span.textContent?.replace("/25", "").trim(),
-      span.nextElementSibling?.textContent?.trim(),
-    ]),
-  );
+  const pairs = await main
+    .locator("span.f-num.text-xl")
+    .evaluateAll((spans) =>
+      spans.map((span) => [
+        span.textContent?.replace("/25", "").trim(),
+        span.nextElementSibling?.textContent?.trim(),
+      ]),
+    );
   expect(pairs).toHaveLength(4);
   for (const [visible, spoken] of pairs) expect(spoken).toBe(`${visible} out of 25`);
   expect(await cards.count()).toBeGreaterThanOrEqual(4);
@@ -213,5 +223,206 @@ for (const lang of ["en", "tr"] as const) {
     await page.getByRole("button", { name: tr("Analyze", "Analiz et"), exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Headphones" })).toBeFocused();
     await audit("result");
+  });
+}
+
+// ---- Batch 2: clarity and consistency of results (display only) ----------
+const PROFILE: Profile = {
+  email: "pwa-test@example.com",
+  income: 1,
+  savings: 1,
+  habits: [0, 1, 2, 0],
+  onboarded: true,
+  currency: "symbol",
+};
+const GOAL: Goal = {
+  id: "goal-laptop",
+  name: "Laptop",
+  target: 20000,
+  saved: 2000,
+  status: "Active",
+};
+const thisMonth = () => new Date().toISOString().slice(0, 10);
+const seedWith = (request: APIRequestContext, goals: Goal[], entries: Entry[] = []) =>
+  request.post("http://127.0.0.1:4180/__test/seed", {
+    data: { profile: PROFILE, entries, goals, analyses: [], decisions: [], waiting: [] },
+  });
+type Scenario = { purchase: Purchase; reasons: string[]; feeling: string; wait: string };
+// Mostly favourable and mostly unfavourable answers, so both directions are covered.
+const CALM: Scenario = {
+  purchase: {
+    name: "Library card",
+    price: 100,
+    cat: "Shopping",
+    reasons: ["need"],
+    feeling: "Calm",
+    own: false,
+    wait: "1w",
+  },
+  reasons: ["I need it"],
+  feeling: "Calm",
+  wait: "1 week",
+};
+const IMPULSIVE: Scenario = {
+  purchase: {
+    name: "Designer jacket",
+    price: 15000,
+    cat: "Shopping",
+    reasons: ["sale", "attention", "reward"],
+    feeling: "Excited",
+    own: false,
+    wait: "24h",
+  },
+  reasons: ["It's on sale", "It caught my eye", "Treating myself"],
+  feeling: "Excited",
+  wait: "24 hours",
+};
+async function runScenario(page: Page, scenario: Scenario) {
+  await name(page).fill(scenario.purchase.name);
+  await price(page).fill(String(scenario.purchase.price));
+  await next(page);
+  for (const reason of scenario.reasons)
+    await page.getByRole("button", { name: reason, exact: true }).click();
+  await next(page);
+  await page.getByRole("button", { name: scenario.feeling, exact: true }).click();
+  await next(page);
+  await page.getByRole("button", { name: "No", exact: true }).click();
+  await next(page);
+  await page.getByRole("button", { name: scenario.wait, exact: true }).click();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: scenario.purchase.name })).toBeFocused();
+}
+const FACTORS: [Factor, "budget" | "need" | "goalImpact" | "impulse"][] = [
+  ["Budget fit", "budget"],
+  ["Need level", "need"],
+  ["Goal impact", "goalImpact"],
+  ["Impulse signals", "impulse"],
+];
+const card = (page: Page, factor: string) =>
+  page
+    .locator("main section")
+    .filter({ has: page.getByRole("heading", { level: 2, name: factor, exact: true }) });
+
+for (const [label, scenario] of [
+  ["favourable", CALM],
+  ["unfavourable", IMPULSIVE],
+] as const) {
+  test(`outcome labels follow each factor's direction and scores are unchanged (${label})`, async ({
+    page,
+    request,
+  }) => {
+    await seedWith(request, [GOAL]);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openDecide(page);
+    await runScenario(page, scenario);
+    const expected = analyze(scenario.purchase, PROFILE, GOAL, []);
+    await expect(page.getByRole("img", { name: `Overall fit ${expected.fit}/100` })).toBeVisible();
+    for (const [factor, key] of FACTORS) {
+      const score = expected[key];
+      await expect(card(page, factor).locator("span.f-num.text-xl")).toHaveText(`${score}/25`);
+      const pill = card(page, factor).locator("span.rounded-full").first();
+      await expect(pill).toHaveText(outcomeLabel(factor, level(score) as never, true));
+      await expect(pill).not.toHaveText(/^(High|Medium|Low)$/);
+    }
+  });
+}
+
+test("Turkish outcome labels and context wording", async ({ page, request }) => {
+  await seedWith(request, [GOAL]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDecide(page, "tr");
+  await page.getByLabel("Ürün adı").fill("Tasarım ceket");
+  await page.getByLabel("Fiyat (₺)", { exact: true }).fill("15000");
+  await page.getByRole("button", { name: "İleri", exact: true }).click();
+  for (const reason of ["İndirimde", "Gözüme çarptı", "Kendimi ödüllendirmek"])
+    await page.getByRole("button", { name: reason, exact: true }).click();
+  await page.getByRole("button", { name: "İleri", exact: true }).click();
+  await page.getByRole("button", { name: "Heyecanlı", exact: true }).click();
+  await page.getByRole("button", { name: "İleri", exact: true }).click();
+  await page.getByRole("button", { name: "Hayır", exact: true }).click();
+  await page.getByRole("button", { name: "İleri", exact: true }).click();
+  await page.getByRole("button", { name: "24 saat", exact: true }).click();
+  await page.getByRole("button", { name: "Analiz et", exact: true }).click();
+  const expected = analyze(IMPULSIVE.purchase, PROFILE, GOAL, []);
+  const TR: Record<string, string> = {
+    "Fits well": "Rahatça uyuyor",
+    "Fits, but tight": "Uyuyor ama sınırda",
+    "Stretches budget": "Bütçeyi zorluyor",
+    "Strong need": "Güçlü ihtiyaç",
+    "Some need": "Orta düzey ihtiyaç",
+    "Little need": "Az ihtiyaç",
+    "Large impact": "Büyük etki",
+    "Moderate impact": "Orta düzey etki",
+    "Small impact": "Küçük etki",
+    "Many signals": "Çok sayıda sinyal",
+    "Some signals": "Birkaç sinyal",
+    "Few signals": "Az sinyal",
+  };
+  const trNames: Record<Factor, string> = {
+    "Budget fit": "Bütçe uyumu",
+    "Need level": "İhtiyaç düzeyi",
+    "Goal impact": "Hedef etkisi",
+    "Impulse signals": "Anlık istek sinyalleri",
+  };
+  for (const [factor, key] of FACTORS)
+    await expect(card(page, trNames[factor]).locator("span.rounded-full").first()).toHaveText(
+      TR[outcomeLabel(factor, level(expected[key]) as never)],
+    );
+  await expect(page.getByText("Aylık gelire oranı", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("goal impact says there is no active goal, and the context row names its own measure", async ({
+  page,
+  request,
+}) => {
+  await seedWith(request, []);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDecide(page);
+  await runScenario(page, CALM);
+  await expect(card(page, "Goal impact").locator("span.rounded-full").first()).toHaveText(
+    "No active goal",
+  );
+  const context = page
+    .locator("main section")
+    .filter({ has: page.getByRole("heading", { name: "Context", exact: true }) });
+  await expect(context.getByText("Share of monthly income", { exact: true })).toBeVisible();
+  await expect(context.getByText("Budget fit", { exact: true })).toHaveCount(0);
+  // The overall-fit explanation now appears once, with no duplicate tooltip button.
+  await expect(
+    page.locator("main").getByText("Higher means more aligned with your current context."),
+  ).toHaveCount(1);
+  await expect(page.locator("main").getByRole("button", { name: "More info" })).toHaveCount(0);
+});
+
+for (const withIncome of [false, true]) {
+  test(`the receipt ${withIncome ? "uses real income without" : "labels the onboarding"} estimate`, async ({
+    page,
+    request,
+  }) => {
+    const entries: Entry[] = withIncome
+      ? [
+          {
+            id: "income-1",
+            type: "income",
+            name: "Salary",
+            amount: 30000,
+            cat: "Salary",
+            date: thisMonth(),
+          },
+        ]
+      : [];
+    await seedWith(request, [GOAL], entries);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openDecide(page);
+    await name(page).fill("Headphones");
+    await price(page).fill("2500");
+    const receipt = page.locator("main section").filter({ hasText: "Purchase receipt" });
+    const expected = analyze({ ...CALM.purchase, price: 2500 }, PROFILE, undefined, entries);
+    const percent = Math.round((2500 / expected.income) * 100);
+    await expect(receipt.getByText(`That's ${percent}% of what's left this month.`)).toBeVisible();
+    const note = receipt.getByText("Estimate based on your onboarding ranges.");
+    if (withIncome) await expect(note).toHaveCount(0);
+    else await expect(note).toBeVisible();
   });
 }

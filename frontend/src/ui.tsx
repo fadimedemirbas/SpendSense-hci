@@ -94,8 +94,7 @@ const TR: Record<string, string> = {
   "Save new password": "Yeni şifreyi kaydet",
   "Checking your link...": "Bağlantın kontrol ediliyor...",
   "Password updated": "Şifre güncellendi",
-  "Your new password is saved and you're signed in.":
-    "Yeni şifren kaydedildi ve giriş yaptın.",
+  "Your new password is saved and you're signed in.": "Yeni şifren kaydedildi ve giriş yaptın.",
   "Continue to SpendSense": "SpendSense'e devam et",
   "This reset link no longer works": "Bu sıfırlama bağlantısı artık geçerli değil",
   "It may have expired or already been used. Reset links work once and expire after a while. Request a new one to continue.":
@@ -110,8 +109,7 @@ const TR: Record<string, string> = {
   "This email link is invalid or has expired. Log in, or request a new link.":
     "Bu e-posta bağlantısı geçersiz ya da süresi dolmuş. Giriş yap veya yeni bir bağlantı iste.",
   "You are offline. Reconnect and try again.": "Çevrimdışısın. Bağlan ve tekrar dene.",
-  "You are offline. Reconnect before signing in.":
-    "Çevrimdışısın. Giriş yapmadan önce bağlan.",
+  "You are offline. Reconnect before signing in.": "Çevrimdışısın. Giriş yapmadan önce bağlan.",
   "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.":
     "Kaydedilen kayıtların, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
   Home: "Ana Sayfa",
@@ -269,6 +267,20 @@ const TR: Record<string, string> = {
   "Enter a product name.": "Bir ürün adı gir.",
   "Enter a price above zero.": "Sıfırdan büyük bir fiyat gir.",
   "{v} out of {max}": "{max} üzerinden {v}",
+  "Fits well": "Rahatça uyuyor",
+  "Fits, but tight": "Uyuyor ama sınırda",
+  "Stretches budget": "Bütçeyi zorluyor",
+  "Strong need": "Güçlü ihtiyaç",
+  "Some need": "Orta düzey ihtiyaç",
+  "Little need": "Az ihtiyaç",
+  "Large impact": "Büyük etki",
+  "Moderate impact": "Orta düzey etki",
+  "Small impact": "Küçük etki",
+  "Many signals": "Çok sayıda sinyal",
+  "Some signals": "Birkaç sinyal",
+  "Few signals": "Az sinyal",
+  "No active goal": "Aktif hedef yok",
+  "Share of monthly income": "Aylık gelire oranı",
   "Choose at least one reason.": "En az bir neden seç.",
   "Choose how you feel.": "Nasıl hissettiğini seç.",
   "Answer to continue.": "Devam etmek için cevapla.",
@@ -311,7 +323,8 @@ const TR: Record<string, string> = {
   "Select “Add to Home Screen”.": "“Ana Ekrana Ekle”yi seç.",
   "Keep “Open as Web App” on if shown, then tap “Add”.":
     "“Web Uygulaması Olarak Aç” görünürse açık bırak, sonra “Ekle”ye dokun.",
-  "Open SpendSense from its new home screen icon.": "SpendSense'i ana ekrandaki yeni simgesinden aç.",
+  "Open SpendSense from its new home screen icon.":
+    "SpendSense'i ana ekrandaki yeni simgesinden aç.",
   "Open SpendSense in Chrome, Edge or Samsung Internet.":
     "SpendSense'i Chrome, Edge veya Samsung Internet'te aç.",
   "Open the browser menu (⋮).": "Tarayıcı menüsünü (⋮) aç.",
@@ -932,9 +945,7 @@ export const Tube = ({
   <div>
     <div className="flex justify-between gap-2 f-ui text-sm mb-1">
       <span>{label}</span>
-      {showPct && (
-        <span className="f-num shrink-0 whitespace-nowrap">{Math.round(value)}%</span>
-      )}
+      {showPct && <span className="f-num shrink-0 whitespace-nowrap">{Math.round(value)}%</span>}
     </div>
     <div
       className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_#2a1a2c1a]"
