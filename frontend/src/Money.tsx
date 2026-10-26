@@ -13,6 +13,7 @@ import {
   useToast,
   fmt,
   Blob,
+  curLabel,
 } from "./ui";
 import { EXP_CATS, INC_CATS, catIcon, uid, today, type Entry, type EType } from "./store";
 
@@ -112,7 +113,7 @@ export function Money() {
       />
       <div className="flex flex-wrap gap-3 items-center">
         <Segmented
-          label="Type"
+          label={t("Type")}
           value={type}
           onChange={(v) => {
             setType(v);
@@ -178,13 +179,14 @@ export function QuickAdd() {
   const [amt, setAmt] = useState(edit ? String(edit.amount) : "");
   const [cat, setCat] = useState(edit?.cat ?? "");
   const [note, setNote] = useState(edit?.name ?? "");
+  const [date, setDate] = useState(edit?.date ?? today());
   const [err, setErr] = useState<{ a?: string; c?: string }>({});
   const [saved, setSaved] = useState(false);
-  const key = (k: string) => {
-    if (k === "del") return setAmt(amt.slice(0, -1));
-    const n = amt + k;
-    if (/^\d{1,8}(\.\d{0,2})?$/.test(n)) setAmt(n.replace(/^0(\d)/, "$1"));
+  const typed = (n: string) => {
+    n = n.replace(",", ".");
+    if (n === "" || /^\d{1,8}(\.\d{0,2})?$/.test(n)) setAmt(n.replace(/^0(\d)/, "$1"));
   };
+  const key = (k: string) => (k === "del" ? setAmt(amt.slice(0, -1)) : typed(amt + k));
   const v = parseFloat(amt.replace(",", ".")) || 0;
   const close = () => setQuickAdd(null);
   const save = async () => {
@@ -192,6 +194,7 @@ export function QuickAdd() {
       a: v > 0 && cat ? undefined : t("Enter an amount and pick a category."),
       c: undefined as string | undefined,
     };
+    if (!e.a && date > today()) e.a = t("Pick today or an earlier date.");
     setErr(e);
     if (e.a || e.c) return;
     const entry: Entry = {
@@ -200,7 +203,7 @@ export function QuickAdd() {
       amount: v,
       cat,
       name: note.trim() || t(cat),
-      date: edit?.date ?? today(),
+      date,
     };
     const prev = entries;
     if (
@@ -231,7 +234,7 @@ export function QuickAdd() {
       <div className="grid md:grid-cols-2 gap-5">
         <div className="grid gap-3 content-start">
           <Segmented
-            label="Type"
+            label={t("Type")}
             value={type}
             onChange={(x) => {
               setType(x);
@@ -242,19 +245,25 @@ export function QuickAdd() {
               ["income", t("Income")],
             ]}
           />
-          <p
-            aria-live="polite"
-            aria-label={t("Amount")}
-            className="f-num text-5xl m-0 rounded-tile bg-white border border-line px-4 py-4 text-right overflow-hidden"
-          >
-            ₺{amt || "0"}
-          </p>
+          <label className="f-ui grid gap-1">
+            {t("Amount")} ({curLabel()})
+            <input
+              inputMode="decimal"
+              placeholder="0"
+              value={amt}
+              onChange={(e) => typed(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void save()}
+              aria-invalid={!!err.a}
+              aria-describedby={err.a ? "amt-err" : undefined}
+              className="f-num text-5xl rounded-tile bg-white border border-line px-4 py-4 text-right w-full min-w-0"
+            />
+          </label>
           <div className="grid grid-cols-3 gap-2">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del"].map((k) => (
               <button
                 key={k}
                 onClick={() => key(k)}
-                aria-label={k === "del" ? "Backspace" : k}
+                aria-label={k === "del" ? t("Delete last digit") : k}
                 className="btn clay-cream f-num text-[22px] min-h-[54px]! rounded-tile!"
               >
                 {k === "del" ? <Delete size={20} /> : k}
@@ -262,10 +271,20 @@ export function QuickAdd() {
             ))}
           </div>
           {err.a && (
-            <p id="amt-err" role="status" className="m-0 text-sm text-danger">
+            <p id="amt-err" role="alert" className="m-0 text-sm text-danger">
               {err.a}
             </p>
           )}
+          <label className="f-ui grid gap-1">
+            {t("Date")}
+            <input
+              type="date"
+              max={today()}
+              value={date}
+              onChange={(e) => setDate(e.target.value || today())}
+              className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+            />
+          </label>
           <label className="f-ui grid gap-1">
             {t("Note (optional)")}
             <input

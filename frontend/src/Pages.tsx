@@ -45,6 +45,8 @@ import {
   useToast,
   fmt,
   LangCtx,
+  curLabel,
+  rangeLabel,
 } from "./ui";
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
@@ -53,8 +55,11 @@ import {
   SAVINGS_RANGES,
   uid,
   today,
+  monthTotals,
+  purchaseEntry,
   type Goal,
   type GStatus,
+  type Decision,
   type DecisionKind,
 } from "./store";
 import { useContext } from "react";
@@ -66,10 +71,17 @@ const thisMonth = (d: string) => d.slice(0, 7) === today().slice(0, 7);
 export function HomePage() {
   const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide } = useApp();
   const t = useT();
-  const m = entries.filter((e) => thisMonth(e.date));
-  const inc = m.filter((e) => e.type === "income").reduce((a, b) => a + b.amount, 0),
-    sp = m.filter((e) => e.type === "expense").reduce((a, b) => a + b.amount, 0);
+  const { income: inc, spent: sp } = monthTotals(entries);
   const goal = goals.find((g) => g.status === "Active");
+  const avgPrice = (k: DecisionKind) => {
+    const xs = decisions.filter((d) => d.decision === k);
+    return xs.length ? xs.reduce((a, b) => a + b.price, 0) / xs.length : null;
+  };
+  const waitedAvg = avgPrice("Wait"),
+    boughtAvg = avgPrice("Buy");
+  const reflect = decisions.find(
+    (d) => d.decision === "Buy" && !d.reflection && daysUntil(d.date) <= -2,
+  );
   const recent = [...entries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4);
   const due = [...waiting].sort((a, b) => a.review.localeCompare(b.review)).slice(0, 2);
   return (
@@ -120,6 +132,7 @@ export function HomePage() {
         </Button>
       </div>
       <Checklist />
+      {reflect && <ReflectCard d={reflect} />}
       <div className="grid md:grid-cols-2 gap-5">
         {goal && (
           <Card className="flex gap-4 items-center">
@@ -132,7 +145,13 @@ export function HomePage() {
               <p className="f-num m-0">
                 {fmt(goal.saved)} / {fmt(goal.target)}
               </p>
-              <p className="f-voice m-0 mt-1">{t("You're getting closer to your goal.")}</p>
+              <p className="f-voice m-0 mt-1">
+                {t(
+                  goal.saved > 0
+                    ? "You're getting closer to your goal."
+                    : "Add money to this goal whenever you're ready.",
+                )}
+              </p>
             </div>
           </Card>
         )}
@@ -161,7 +180,7 @@ export function HomePage() {
           )}
         </Card>
       </div>
-      {decisions.length + waiting.length >= 3 && (
+      {waitedAvg !== null && boughtAvg !== null && waitedAvg > boughtAvg && (
         <section className="clay-butter rounded-card p-5 flex gap-3 items-center rise">
           <Lightbulb className="text-violet shrink-0" aria-hidden />
           <p className="f-voice text-lg m-0">
@@ -185,6 +204,42 @@ export function HomePage() {
         )}
       </Card>
     </>
+  );
+}
+
+function ReflectCard({ d }: { d: Decision }) {
+  const { decisions, setDecisions } = useApp();
+  const t = useT();
+  const toast = useToast();
+  return (
+    <Card className="grid gap-3">
+      <h2 className="text-lg font-bold m-0">
+        {t("You bought {p} {n} days ago. How do you feel about it now?", {
+          p: d.name,
+          n: -daysUntil(d.date),
+        })}
+      </h2>
+      <div className="grid grid-cols-5 gap-1.5">
+        {REFL.map((r, i) => (
+          <button
+            key={r}
+            onClick={async () => {
+              if (
+                !(await setDecisions(
+                  decisions.map((x) => (x.id === d.id ? { ...x, reflection: i + 1 } : x)),
+                ))
+              )
+                return;
+              toast(t("Reflection saved."));
+            }}
+            className="f-ui text-xs sm:text-sm min-h-14 rounded-inner px-1 clay-cream"
+          >
+            <span className="f-num block">{i + 1}</span>
+            {t(r)}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -234,7 +289,7 @@ function Checklist() {
             className="flex items-center gap-2 min-h-11 text-left f-ui disabled:opacity-100"
           >
             {done ? (
-              <CheckCircle2 size={20} className="text-leaf" aria-label="done" />
+              <CheckCircle2 size={20} className="text-leaf" aria-label={t("Done")} />
             ) : (
               <CircleI size={20} className="text-soft" aria-hidden />
             )}
@@ -285,13 +340,13 @@ export function Goals() {
         }
       />
       <Segmented
-        label="Status"
+        label={t("Status")}
         value={f}
         onChange={setF}
         options={(["Active", "Completed", "Archived"] as GStatus[]).map((s) => [s, t(s)])}
       />
       {note && (
-        <Say expr="calm" size={56}>
+        <Say expr="calm" size={56} live>
           {note}
         </Say>
       )}
@@ -408,7 +463,7 @@ export function Goals() {
             </label>
             {(["target", "saved"] as const).map((k) => (
               <label key={k} className="f-ui grid gap-1">
-                {t(k === "target" ? "Target" : "Saved")} (₺)
+                {t(k === "target" ? "Target" : "Saved")} ({curLabel()})
                 <input
                   inputMode="numeric"
                   aria-invalid={!!err && k === "target" && form.target <= 0}
@@ -461,7 +516,7 @@ export function Goals() {
         <Sheet title={`${t("Add money")} · ${add.name}`} onClose={() => setAdd(null)}>
           <div className="grid gap-3">
             <label className="f-ui grid gap-1">
-              {t("Amount")} (₺)
+              {t("Amount")} ({curLabel()})
               <input
                 autoFocus
                 inputMode="numeric"
@@ -511,23 +566,30 @@ export function Goals() {
 }
 
 export function WaitingPage() {
-  const { waiting, decisions, updateWorkspace, setTab, openDecide } = useApp();
+  const { waiting, decisions, entries, updateWorkspace, setTab, openDecide } = useApp();
   const t = useT();
   const toast = useToast();
   const act = async (id: string, d: DecisionKind) => {
     const w = waiting.find((x) => x.id === id)!;
     const pw = waiting,
-      pd = decisions;
+      pd = decisions,
+      pe = entries;
     if (
       !(await updateWorkspace((previous) => ({
         ...previous,
         waiting: waiting.filter((x) => x.id !== id),
         decisions: [{ ...w, id: uid(), decision: d, date: today() }, ...decisions],
+        entries: d === "Buy" ? [purchaseEntry(w), ...entries] : entries,
       })))
     )
       return;
-    toast(t(`Saved: ${d}.`), () => {
-      void updateWorkspace((previous) => ({ ...previous, waiting: pw, decisions: pd }));
+    toast(t(d === "Buy" ? "Saved: Buy. Added to your expenses." : `Saved: ${d}.`), () => {
+      void updateWorkspace((previous) => ({
+        ...previous,
+        waiting: pw,
+        decisions: pd,
+        entries: pe,
+      }));
     });
   };
   return (
@@ -599,7 +661,7 @@ export function HistoryPage() {
     <>
       <PageHead title={t("History")} />
       <Segmented
-        label="Filter"
+        label={t("Filter")}
         value={f}
         onChange={setF}
         options={[
@@ -660,7 +722,6 @@ export function HistoryPage() {
                             buttons.length) %
                           buttons.length;
                   buttons[next]?.focus();
-                  buttons[next]?.click();
                 }}
               >
                 {REFL.map((r, i) => (
@@ -713,6 +774,14 @@ export function Insights() {
     ).sort((a, b) => b[1] - a[1]);
   const feels = count(all.map((d) => d.feeling)),
     reasons = count(all.flatMap((d) => d.reasons));
+  // Average later rating per feeling at decision time, lowest first.
+  const rated = decisions.filter((d) => d.reflection);
+  const byFeeling = [...new Set(rated.map((d) => d.feeling))]
+    .map((f) => {
+      const xs = rated.filter((d) => d.feeling === f);
+      return [f, xs.reduce((a, b) => a + b.reflection!, 0) / xs.length, xs.length] as const;
+    })
+    .sort((a, b) => a[1] - b[1]);
   return (
     <>
       <PageHead title={t("Insights")} />
@@ -725,7 +794,7 @@ export function Insights() {
             </div>
           ))
         ) : (
-          <Empty text={t("A few more decisions and patterns will appear.")} />
+          <Empty text={t("No expenses this month yet.")} />
         )}
       </Card>
       <Card className="grid gap-3">
@@ -779,9 +848,38 @@ export function Insights() {
               })}
             </div>
             <Expand title={t("How was this calculated?")}>
-              Counts of feelings and reasons across {all.length} decisions and waiting items.
-              Observations only — not a judgment.
+              {t(
+                "Counts of feelings and reasons across {n} decisions and waiting items. Observations only — not a judgment.",
+                { n: all.length },
+              )}
             </Expand>
+          </>
+        )}
+      </Card>
+      <Card className="grid gap-3">
+        <h2 className="text-xl font-bold m-0">{t("How decisions felt later")}</h2>
+        {byFeeling.length < 2 ? (
+          <Empty
+            expr="thinking"
+            text={t("Rate a few past decisions in History and patterns will appear here.")}
+          />
+        ) : (
+          <>
+            <Say expr="thinking" size={48}>
+              {t(
+                "Decisions made while feeling {f} got your lowest later ratings ({n}/5). Just something to notice.",
+                { f: t(byFeeling[0][0]).toLowerCase(), n: byFeeling[0][1].toFixed(1) },
+              )}
+            </Say>
+            {byFeeling.map(([f, avg, n]) => (
+              <Tube
+                key={f}
+                label={`${t(f)} · ${avg.toFixed(1)}/5 · ${t("{n} rated", { n })}`}
+                value={(avg / 5) * 100}
+                color="bg-violet"
+                showPct={false}
+              />
+            ))}
           </>
         )}
       </Card>
@@ -840,7 +938,7 @@ export function SettingsPage({
           {INCOME_RANGES.map((r, i) => (
             <Tile
               key={r}
-              label={r}
+              label={rangeLabel(t(r))}
               on={profile.income === i}
               onClick={() => setProfile({ ...profile, income: i })}
             />
@@ -851,7 +949,7 @@ export function SettingsPage({
           {SAVINGS_RANGES.map((r, i) => (
             <Tile
               key={r}
-              label={t(r)}
+              label={rangeLabel(t(r))}
               on={profile.savings === i}
               onClick={() => setProfile({ ...profile, savings: i })}
             />

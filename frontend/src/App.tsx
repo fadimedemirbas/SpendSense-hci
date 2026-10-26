@@ -109,6 +109,7 @@ export default function App() {
       if (error) throw error;
       setSession(null);
       setStage("landing");
+      history.replaceState(null, "", location.pathname);
       setAuthError("");
     } catch {
       setAuthError("Could not log out. Check your connection and try again.");

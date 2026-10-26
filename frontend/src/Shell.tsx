@@ -14,6 +14,7 @@ import {
 import { Logo, Sheet, Button, Blob, useT } from "./ui";
 import { LangToggle } from "./Onboarding";
 import { useApp, type Tab } from "./context";
+import { today } from "./store";
 
 const MAIN: [Tab, string, typeof Home][] = [
   ["home", "Home", Home],
@@ -49,7 +50,12 @@ export function Shell({ children }: { children: ReactNode }) {
   }, []);
   const menu = useRef<HTMLDivElement>(null);
   const inMore = MORE.some((m) => m[0] === tab);
-  const due = waiting.length;
+  const due = waiting.filter((w) => w.review <= today()).length;
+  const tourRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (tour !== null)
+      tourRef.current?.querySelector<HTMLButtonElement>("[data-tour-next]")?.focus();
+  }, [tour]);
   useEffect(() => {
     document.body.dataset.tour = tour === null ? "" : TOUR[tour][0];
     return () => {
@@ -73,7 +79,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const badge = due > 0 && (
     <span
       className="f-num text-xs bg-violettint text-violet rounded-full px-1.5"
-      aria-label={`${due} waiting`}
+      aria-label={t("{n} ready to revisit", { n: due })}
     >
       {due}
     </span>
@@ -96,12 +102,8 @@ export function Shell({ children }: { children: ReactNode }) {
         {t("Skip to content")}
       </a>
       <header className="max-w-[880px] mx-auto px-4 pt-4 flex flex-wrap items-center gap-2">
-        {canGoBack && mobile && (
-          <button
-            className="btn clay-cream w-11 px-0! md:hidden"
-            aria-label={t("Back")}
-            onClick={goBack}
-          >
+        {canGoBack && (
+          <button className="btn clay-cream w-11 px-0!" aria-label={t("Back")} onClick={goBack}>
             <ArrowLeft size={20} aria-hidden />
           </button>
         )}
@@ -241,8 +243,9 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
       {tour !== null && (
         <div
+          ref={tourRef}
           role="dialog"
-          aria-label="Tour"
+          aria-label={t("Tour")}
           className="fixed z-40 bottom-24 md:bottom-6 right-4 left-4 md:left-auto md:w-96 clay p-4 rise flex gap-3"
         >
           <Blob expr="thinking" size={48} />
@@ -254,7 +257,11 @@ export function Shell({ children }: { children: ReactNode }) {
             <p className="m-0 text-sm">{t(TOUR[tour][2])}</p>
             <div className="flex gap-2 mt-2">
               <Button onClick={() => setTour(null)}>{t("Skip tour")}</Button>
-              <Button variant="coral" onClick={() => setTour(tour < 2 ? tour + 1 : null)}>
+              <Button
+                data-tour-next
+                variant="coral"
+                onClick={() => setTour(tour < 2 ? tour + 1 : null)}
+              >
                 {tour < 2 ? t("Next") : t("Done")}
               </Button>
             </div>
