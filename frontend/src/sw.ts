@@ -29,7 +29,10 @@ precacheAndRoute(self.__WB_MANIFEST, { ignoreURLParametersMatching: [] });
 cleanupOutdatedCaches();
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL("/index.html"), {
-    allowlist: [/^\/(?:index\.html)?(?:\?.*)?$/],
+    // App screens use clean paths (see TABS in context.ts and the landing pages).
+    allowlist: [
+      /^\/(?:index\.html|how-it-works|home|money|decide|goals|insights|waiting|history|settings)?(?:\?.*)?$/,
+    ],
   }),
 );
 

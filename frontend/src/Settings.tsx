@@ -173,6 +173,7 @@ export function SettingsPage({
   const pwa = usePwa();
   const { lang, setLang } = useContext(LangCtx);
   const [confirm, setConfirm] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const [password, setPassword] = useState(false);
   const [installHelp, setInstallHelp] = useState(false);
   const select = "min-h-11 rounded-full clay-cream px-4 f-ui";
@@ -218,11 +219,13 @@ export function SettingsPage({
           {password && <PasswordForm onDone={() => setPassword(false)} />}
         </Row>
         <Row
-          icon={<LogOut size={18} />}
+          icon={<LogOut size={18} className="text-danger" />}
           title={t("Log out")}
           desc={t("Your data stays in your account.")}
         >
-          <Button onClick={logout}>{t("Log out")}</Button>
+          <Button onClick={() => setConfirmLogout(true)} className="text-danger!">
+            {t("Log out")}
+          </Button>
         </Row>
       </Section>
 
@@ -401,6 +404,16 @@ export function SettingsPage({
           confirm={t("Reset data")}
           onClose={() => setConfirm(false)}
           onConfirm={reset}
+        />
+      )}
+      {confirmLogout && (
+        <Dialog
+          danger
+          title={t("Log out?")}
+          body={t("You'll need to log in again to see your data. Your data stays in your account.")}
+          confirm={t("Log out")}
+          onClose={() => setConfirmLogout(false)}
+          onConfirm={logout}
         />
       )}
       {installHelp && <InstallHelp onClose={() => setInstallHelp(false)} />}

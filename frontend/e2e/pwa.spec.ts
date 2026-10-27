@@ -165,6 +165,7 @@ test("login, financial save/reload, offline privacy and logout work with the PWA
   await page.getByRole("button", { name: "Reconnect and reload" }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Log out", exact: true }).click();
   await expect(page.getByRole("button", { name: "Log in", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("button", { name: "Log in", exact: true })).toBeVisible();

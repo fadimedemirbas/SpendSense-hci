@@ -23,7 +23,8 @@ const TR: Record<string, string> = {
   Progress: "İlerleme",
   "Saving your changes…": "Değişikliklerin kaydediliyor…",
   Filter: "Filtre",
-  "Loading your SpendSense data...": "SpendSense verilerin yükleniyor...",
+  "Getting your data ready...": "Verilerin hazırlanıyor...",
+  "Switching language...": "Dil değiştiriliyor...",
   "Reload my data": "Verilerimi yeniden yükle",
   "This screen could not load. Reconnect and reload SpendSense.":
     "Bu ekran yüklenemedi. Bağlantı kurup SpendSense'i yeniden yükle.",
@@ -314,7 +315,6 @@ const TR: Record<string, string> = {
     "{g} hedefini yaklaşık {n} gün geciktirebilir.",
   "It's {n}% of what's left for {g}.": "{g} için kalanın %{n} kadarı.",
   "A reliable delay estimate isn't available yet.": "Güvenilir bir gecikme tahmini henüz yok.",
-  "Why?": "Neden?",
   Context: "Bağlam",
   "Saved: Wait.": "Kaydedildi: Bekle.",
   "Install app": "Uygulamayı yükle",
@@ -351,10 +351,49 @@ const TR: Record<string, string> = {
   "Got it": "Anladım",
   "Context for your purchases. The decision stays yours.":
     "Alışverişlerin için bağlam. Karar sende kalır.",
-  "See how it works": "Nasıl çalışır?",
-  "Add a purchase": "Bir ürün ekle",
-  "See your context": "Bağlamını gör",
-  "You decide": "Sen karar ver",
+  "How it works": "Nasıl çalışır?",
+  "SpendSense home": "SpendSense ana sayfa",
+  "From “I want it” to a decision you feel good about":
+    "“Bunu istiyorum”dan içine sinen bir karara",
+  "SpendSense doesn't block purchases or tell you what to do. It gathers the context you'd want before paying and lays it out in plain words.":
+    "SpendSense alışverişini engellemez, sana ne yapacağını söylemez. Ödemeden önce bilmek isteyeceğin bağlamı toplar ve sade bir dille önüne koyar.",
+  "About a minute per check": "Her kontrol yaklaşık bir dakika",
+  "Five short questions": "Beş kısa soru",
+  "You always decide": "Karar her zaman senin",
+  "The journey, step by step": "Adım adım yolculuk",
+  "Set up your profile": "Profilini oluştur",
+  "Pick your income and savings range and answer a few questions about your habits. No bank connection and no exact figures needed.":
+    "Gelir ve birikim aralığını seç, alışkanlıklarınla ilgili birkaç soruyu yanıtla. Banka bağlantısı ya da kesin rakam gerekmez.",
+  "Log what comes in and goes out": "Gelen ve gideni kaydet",
+  "Quick add takes a few taps. These entries tell SpendSense how much is really left this month.":
+    "Hızlı ekleme birkaç dokunuş sürer. Bu kayıtlar SpendSense'e bu ay gerçekte ne kadar kaldığını söyler.",
+  "Ask “Should I buy it?”": "“Alsam mı?” diye sor",
+  "Answer five short questions: what it is, why you want it, how you feel, whether you already own something similar and how long you could wait.":
+    "Beş kısa soruyu yanıtla: ne olduğu, neden istediğin, nasıl hissettiğin, benzerinin olup olmadığı ve ne kadar bekleyebileceğin.",
+  "See the context": "Bağlamı gör",
+  "Make your call": "Kararını ver",
+  "Buy it, wait a while or skip it. Waiting parks the purchase on your waiting list until it's time to look again.":
+    "Al, biraz bekle ya da vazgeç. Beklemek, alışverişi tekrar bakma zamanı gelene kadar bekleme listene koyar.",
+  "Look back later": "Sonra geriye bak",
+  "A few days after a purchase, SpendSense asks how you feel about it. Insights show which decisions you were glad about.":
+    "Bir alışverişten birkaç gün sonra SpendSense ona dair ne hissettiğini sorar. İçgörüler hangi kararlardan memnun kaldığını gösterir.",
+  "Four scores and an overall fit show, at a glance, how the purchase fits your situation.":
+    "Dört puan ve genel uyum, alışverişin durumuna nasıl uyduğunu bir bakışta gösterir.",
+  "How comfortably the price fits what you have left this month.":
+    "Fiyatın bu ay elinde kalana ne kadar rahat sığdığı.",
+  "How strongly the purchase meets a real need for you.":
+    "Alışverişin senin için gerçek bir ihtiyacı ne kadar karşıladığı.",
+  "How much the purchase could slow down what you're saving for.":
+    "Alışverişin biriktirdiğin hedefi ne kadar yavaşlatabileceği.",
+  "Whether the moment itself may be pushing you to buy.":
+    "O anın kendisinin seni satın almaya itip itmediği.",
+  "What each score tells you about a purchase.":
+    "Her puanın bir alışveriş hakkında sana söyledikleri.",
+  "No. Scores are simple heuristics to help you reflect, not financial advice.":
+    "Hayır. Puanlar düşünmene yardımcı olan basit göstergelerdir, finansal tavsiye değildir.",
+  "What the scores mean": "Puanlar ne anlama geliyor?",
+  "Try it with your own numbers": "Kendi rakamlarınla dene",
+  "Try the demo": "Demoyu dene",
   "Track money": "Parayı takip et",
   "Impulse check": "Anlık istek kontrolü",
   "Your data stays private": "Verilerin gizli kalır",
@@ -390,24 +429,11 @@ const TR: Record<string, string> = {
   "Your answers for this purchase will not be saved.":
     "Bu alım için verdiğin cevaplar kaydedilmeyecek.",
   Discard: "Sil",
-  "The bigger the share of what's left this month, the lower this score. This purchase uses {n}% of it.":
-    "Bu ay kalan paradan aldığı pay büyüdükçe bu puan düşer. Bu alım kalanın %{n}'ini kullanıyor.",
-  "Nothing is left this month, so this score is 0.": "Bu ay para kalmadığı için bu puan 0.",
-  "Saying you need it, that it makes something easier, or that you don't own something similar raises this score. Owning a usable one lowers it.":
-    "İhtiyacın olduğunu, bir şeyi kolaylaştırdığını ya da benzerine sahip olmadığını söylemen bu puanı artırır. Kullanılabilir bir benzerine sahip olmak düşürür.",
-  "The bigger the share of what's left for {g}, the higher this score.":
-    "{g} için kalan tutardan aldığı pay büyüdükçe bu puan artar.",
-  "No active goal, so this score is 0.": "Aktif hedef olmadığı için bu puan 0.",
-  "Sale, catching your eye, treating yourself, friends, and feeling excited, stressed, bored or tired each raise this score. So do a 24-hour wait and matching answers from your spending style.":
-    "İndirim, gözüne çarpması, kendini ödüllendirme, arkadaş etkisi ve heyecanlı, stresli, sıkılmış ya da yorgun hissetmek bu puanı artırır. 24 saatlik bekleme ve harcama tarzındaki eşleşen cevaplar da artırır.",
   "Compare with goal": "Karşılaştırılacak hedef",
-  "Overall fit adds budget fit and need level, plus the room left after goal impact and impulse signals: {a} + {b} + {c} + {d} = {f}. Each factor is 0–25. A simple heuristic for reflection, not financial advice.":
-    "Genel uyum; bütçe uyumu ve ihtiyaç düzeyini, hedef etkisi ve anlık alım işaretlerinden sonra kalan payla toplar: {a} + {b} + {c} + {d} = {f}. Her etken 0–25 arasıdır. Düşünmeye yardımcı basit bir hesap, finansal tavsiye değildir.",
   Type: "Tür",
   "Pick today or an earlier date.": "Bugünü ya da daha önceki bir tarihi seç.",
   "Delete last digit": "Son rakamı sil",
   Date: "Tarih",
-  "Example preview": "Örnek önizleme",
   "HCI prototype": "HCI prototipi",
   "Used only to estimate budget fit until you add this month's income.":
     "Sadece bu ayın gelirini ekleyene kadar bütçe uyumunu tahmin etmek için kullanılır.",
@@ -430,6 +456,8 @@ const TR: Record<string, string> = {
   "{n} ready to revisit": "{n} öğe incelemeye hazır",
   Tour: "Tur",
   "Log out?": "Çıkış yapılsın mı?",
+  "You'll need to log in again to see your data. Your data stays in your account.":
+    "Verilerini görmek için tekrar giriş yapman gerekecek. Verilerin hesabında kalır.",
   "You can finish these questions the next time you log in.":
     "Bu soruları bir sonraki girişinde tamamlayabilirsin.",
   "More info": "Daha fazla bilgi",
@@ -531,13 +559,6 @@ const TR: Record<string, string> = {
   "Everyone has it": "Herkeste var",
   "What friends and feeds show us quietly becomes what we need.":
     "Arkadaşlarımızın ve akışımızın gösterdikleri sessizce ihtiyacımıza dönüşür.",
-  "Three short steps, about a minute.": "Üç kısa adım, yaklaşık bir dakika.",
-  "Name it, add the price and say why you want it.":
-    "Adını ve fiyatını yaz, neden istediğini söyle.",
-  "Budget fit, need, goal impact and impulse signals in one view.":
-    "Bütçe uyumu, ihtiyaç, hedef etkisi ve anlık alım işaretleri tek ekranda.",
-  "Buy, wait a few days or skip. SpendSense never decides for you.":
-    "Al, birkaç gün beklet ya da vazgeç. SpendSense asla senin yerine karar vermez.",
   "Move the price and pick reasons to see how the context changes.":
     "Fiyatı kaydır ve gerekçeleri seç, bağlamın nasıl değiştiğini gör.",
   "Everything in one calm place": "Her şey tek ve sakin bir yerde",
@@ -572,8 +593,6 @@ const TR: Record<string, string> = {
   "No. You add the income, expenses and purchases you want to think about yourself.":
     "Hayır. Üzerine düşünmek istediğin gelir, gider ve alımları kendin eklersin.",
   "Is this financial advice?": "Bu finansal tavsiye mi?",
-  "No. Scores are simple, transparent heuristics to help you reflect. Each one explains how it was calculated.":
-    "Hayır. Puanlar düşünmene yardımcı olan basit ve şeffaf hesaplardır. Her biri nasıl hesaplandığını açıklar.",
   "Where is my data stored?": "Verilerim nerede saklanıyor?",
   "In your SpendSense account. Only you can see it, and you can export or reset it anytime in Settings.":
     "SpendSense hesabında. Sadece sen görebilirsin, istediğin zaman Ayarlar'dan dışa aktarabilir ya da sıfırlayabilirsin.",
@@ -719,6 +738,26 @@ export function useExactAmount() {
 }
 
 /* ---------- display ---------- */
+// Full-screen wait state: the logo coins stack up while a bar slides underneath.
+export function Loading({ text }: { text: string }) {
+  const t = useT();
+  return (
+    <div role="status" className="min-h-dvh grid place-items-center px-5">
+      <div className="grid justify-items-center gap-5 text-center rise">
+        <span className="load-bob clay rounded-full! w-24 h-24 grid place-items-center">
+          <Logo size={56} />
+        </span>
+        <div className="grid gap-1">
+          <b className="text-2xl">SpendSense</b>
+          <p className="f-ui text-soft m-0">{t(text)}</p>
+        </div>
+        <span aria-hidden className="w-48 h-2 rounded-full bg-track overflow-hidden">
+          <span className="load-bar block h-full w-2/5 rounded-full bg-leaf" />
+        </span>
+      </div>
+    </div>
+  );
+}
 export const Logo = ({ size = 36 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
     <ellipse cx="20" cy="33" rx="12" ry="4" fill="#ffc93c" stroke="#2a1a2c" strokeWidth="2" />

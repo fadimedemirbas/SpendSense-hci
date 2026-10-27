@@ -1,4 +1,21 @@
 @import "tailwindcss";
+/* Fredoka has no ğ Ğ ş Ş İ; these are built from its own glyphs (scripts/fredoka-turkish.py). */
+@font-face {
+  font-family: Fredoka;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("./assets/fonts/fredoka-tr-500.woff2") format("woff2");
+  unicode-range: U+011E-011F, U+0130, U+015E-015F;
+}
+@font-face {
+  font-family: Fredoka;
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("./assets/fonts/fredoka-tr-600.woff2") format("woff2");
+  unicode-range: U+011E-011F, U+0130, U+015E-015F;
+}
 .pwa-update {
   position: fixed;
   z-index: 60;
@@ -289,6 +306,70 @@
 .breathe {
   animation: breathe 4.5s ease-in-out infinite;
   transform-origin: bottom;
+}
+/* Range slider: coral fill up to --fill on a soft track, white thumb. */
+.range {
+  width: 100%;
+  height: 28px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-coral) var(--fill, 0%),
+    var(--color-track) var(--fill, 0%)
+  );
+}
+.range::-moz-range-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-track);
+}
+.range::-moz-range-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-coral);
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--color-card);
+  border: 3px solid var(--color-coral);
+  box-shadow: 0 2px 6px rgb(42 26 44 / 0.2);
+}
+.range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-card);
+  border: 3px solid var(--color-coral);
+  box-shadow: 0 2px 6px rgb(42 26 44 / 0.2);
+}
+@keyframes load-bob {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.load-bob {
+  animation: load-bob 1.4s ease-in-out infinite;
+}
+@keyframes load-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+.load-bar {
+  animation: load-bar 1.2s ease-in-out infinite;
 }
 @keyframes wave {
   50% {

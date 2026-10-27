@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { Button, Card, LangCtx, ToastHost, type Lang, useT } from "./ui";
+import { Button, Card, LangCtx, Loading, ToastHost, type Lang, useT } from "./ui";
 import { emptyProfile } from "./store";
 import { LangToggle, Onboarding, type AuthMode } from "./Onboarding";
 import { Landing } from "./Landing";
@@ -50,19 +50,19 @@ function LocalText({ value }: { value: string }) {
   const t = useT();
   return <>{t(value)}</>;
 }
-function LoadingScreen() {
-  const t = useT();
-  return (
-    <p role="status" className="max-w-xl mx-auto px-5 py-6">
-      {t("Loading your SpendSense data...")}
-    </p>
-  );
-}
 
 export default function App() {
   const [lang, setLang] = useState<Lang>(() =>
     localStorage.getItem("ss.lang") === '"tr"' ? "tr" : "en",
   );
+  // A short loading screen makes the language switch feel like a deliberate page change.
+  const [switching, setSwitching] = useState(false);
+  const switchLang = (next: Lang) => {
+    if (next === lang) return;
+    setLang(next);
+    setSwitching(true);
+    setTimeout(() => setSwitching(false), 700);
+  };
   const [session, setSession] = useState<Session | null>(null);
   const [initializing, setInitializing] = useState(Boolean(supabase));
   const [authError, setAuthError] = useState("");
@@ -195,14 +195,19 @@ export default function App() {
       if (error) throw error;
       setSession(null);
       setStage("landing");
-      history.replaceState(null, "", location.pathname);
+      history.replaceState(null, "", "/");
       setAuthError("");
     } catch {
       setAuthError("Could not log out. Check your connection and try again.");
     }
   }
   return (
-    <LangCtx.Provider value={{ lang, setLang }}>
+    <LangCtx.Provider value={{ lang, setLang: switchLang }}>
+      {switching && (
+        <div className="fixed inset-0 z-[100] bg-cream">
+          <Loading text="Switching language..." />
+        </div>
+      )}
       <Pwa>
         <ToastHost key={session?.user.id ?? "signed-out"}>
           {authError && (
@@ -230,12 +235,10 @@ export default function App() {
               onRequestNew={() => openLogin("forgot")}
             />
           ) : initializing ? (
-            <p role="status" className="max-w-xl mx-auto px-5 py-6">
-              <LocalText value="Restoring your session..." />
-            </p>
+            <Loading text="Restoring your session..." />
           ) : session ? (
             <WorkspaceBoundary key={session.user.id} fallback={<LoadError />}>
-              <Suspense fallback={<LoadingScreen />}>
+              <Suspense fallback={<Loading text="Getting your data ready..." />}>
                 <SignedIn key={session.user.id} session={session} logout={logout} />
               </Suspense>
             </WorkspaceBoundary>

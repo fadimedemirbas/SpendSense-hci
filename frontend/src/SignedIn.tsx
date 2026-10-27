@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AppCtx, TABS, type Tab, type Prefill } from "./context";
-import { setCurrencyMode, Button, Card, Dialog, useT } from "./ui";
+import { setCurrencyMode, Button, Card, Dialog, Loading, useT } from "./ui";
 import { uid, type Entry, type Profile, type Purchase } from "./store";
 import { Onboarding } from "./Onboarding";
 import { Shell } from "./Shell";
@@ -22,9 +22,9 @@ export default function SignedIn({
   // Name entered at sign up lives in the auth user's metadata.
   const meta = (session.user.user_metadata ?? {}) as { first_name?: string; full_name?: string };
   const data = useWorkspace(session.user.id, session.user.email ?? "");
-  // Tabs live in the URL hash so browser/OS back gestures move between screens.
-  const fromHash = (): Tab => TABS.find((x) => `#${x}` === location.hash) ?? "home";
-  const [tab, setTabRaw] = useState<Tab>(fromHash);
+  // Tabs live in the URL path (/home, /money…) so browser/OS back gestures move between screens.
+  const fromPath = (): Tab => TABS.find((x) => `/${x}` === location.pathname) ?? "home";
+  const [tab, setTabRaw] = useState<Tab>(fromPath);
   const depth = useRef(0);
   const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [quickAdd, setQuickAdd] = useState<Entry | "new" | "new-income" | null>(null);
@@ -34,9 +34,11 @@ export default function SignedIn({
   const [confirmLogout, setConfirmLogout] = useState(false);
   setCurrencyMode(data.profile.currency);
   useEffect(() => {
+    // "/" or a signed-out page like /how-it-works becomes the current tab's path.
+    if (location.pathname !== `/${tab}`) history.replaceState(null, "", `/${tab}`);
     const pop = () => {
       depth.current = Math.max(0, depth.current - 1);
-      setTabRaw(fromHash());
+      setTabRaw(fromPath());
       scrollTo({ top: 0 });
     };
     addEventListener("popstate", pop);
@@ -44,7 +46,7 @@ export default function SignedIn({
   }, []);
   const setTab = (next: Tab) => {
     if (next !== tab) {
-      history.pushState(null, "", `#${next}`);
+      history.pushState(null, "", `/${next}`);
       depth.current++;
     }
     setTabRaw(next);
@@ -86,14 +88,7 @@ export default function SignedIn({
     );
     return () => cancelAnimationFrame(frame);
   }, [tab, data.loading]);
-  if (data.loading)
-    return (
-      <div className="max-w-xl mx-auto px-5 py-6">
-        <Card>
-          <p role="status">{t("Loading your SpendSense data...")}</p>
-        </Card>
-      </div>
-    );
+  if (data.loading) return <Loading text="Getting your data ready..." />;
   if (data.error)
     return (
       <div className="max-w-xl mx-auto px-5 py-6">

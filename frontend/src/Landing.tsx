@@ -1,6 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import {
-  ShoppingBag,
   MessageCircleQuestionMark,
   Hand,
   Download,
@@ -19,11 +18,13 @@ import {
   WifiOff,
   ChevronDown,
   ArrowRight,
+  Route,
 } from "lucide-react";
 import { Button, Card, Chip, Logo, Ring, Say, Tube, fmt, useT } from "./ui";
 import { analyze, type Profile, type Purchase } from "./store";
 import { usePwa } from "./pwa/Pwa";
 import { InstallHelp, LangToggle } from "./Onboarding";
+import { HowItWorks } from "./HowItWorks";
 
 // Fixed sample context for the demo: mid income range, no goal, no entries.
 const DEMO_PROFILE: Profile = {
@@ -65,7 +66,8 @@ function Demo() {
             step={100}
             value={price}
             onChange={(e) => setPrice(+e.target.value)}
-            className="w-full accent-[var(--color-coral)]"
+            className="range"
+            style={{ "--fill": `${((price - 100) / (20000 - 100)) * 100}%` } as CSSProperties}
           />
         </label>
         <div className="grid gap-2">
@@ -100,6 +102,36 @@ function Demo() {
   );
 }
 
+const randomScores = () => [0, 0, 0, 0].map(() => 15 + Math.round(Math.random() * 75));
+
+// Hero sample: shuffles for a few seconds on load, then settles on random values.
+function HeroScores() {
+  const t = useT();
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [v, setV] = useState(() => (still ? randomScores() : [0, 0, 0, 0]));
+  useEffect(() => {
+    if (still) return;
+    let n = 0;
+    const id = setInterval(() => {
+      setV(randomScores());
+      if (++n === 5) clearInterval(id);
+    }, 600);
+    return () => clearInterval(id);
+  }, [still]);
+  const [budget, need, goal, impulse] = v;
+  const fit = Math.round((budget + need + (100 - goal) + (100 - impulse)) / 4);
+  return (
+    <div className="flex gap-4 items-center">
+      <Ring value={fit} size={110} label={t("Example fit {n}", { n: fit })} />
+      <div className="flex-1 grid gap-2">
+        {["Budget fit", "Need level", "Goal impact", "Impulse signals"].map((c, i) => (
+          <Tube key={c} label={t(c)} value={v[i]} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Section({
   id,
   title,
@@ -122,10 +154,46 @@ function Section({
   );
 }
 
+type Page = "home" | "how";
+const PATHS: Record<Page, string> = { home: "/", how: "/how-it-works" };
+
 export function Landing({ start }: { start: (login: boolean) => void }) {
   const t = useT();
   const pwa = usePwa();
   const [help, setHelp] = useState(false);
+  // "How it works" is its own page at /how-it-works, so back/forward work.
+  const pageOf = (): Page => (location.pathname === "/how-it-works" ? "how" : "home");
+  const [page, setPage] = useState(pageOf);
+  // Section to show once the page has switched (e.g. the demo from the how-it-works page).
+  const [target, setTarget] = useState<string | null>(null);
+  useEffect(() => {
+    const sync = () => {
+      setTarget(null);
+      setPage(pageOf());
+    };
+    addEventListener("popstate", sync);
+    return () => removeEventListener("popstate", sync);
+  }, []);
+  useEffect(() => {
+    const el = target && document.getElementById(target);
+    if (el) el.scrollIntoView();
+    else scrollTo(0, 0);
+  }, [page, target]);
+  const nav = (next: Page, section?: string) => {
+    if (next === page) return section ? go(section) : scrollTo({ top: 0, behavior: "smooth" });
+    history.pushState(null, "", PATHS[next]);
+    setTarget(section ?? null);
+    setPage(next);
+  };
+  // Real links (open in a new tab works), handled in-app on a plain click.
+  const link = (next: Page) => ({
+    href: PATHS[next],
+    onClick: (e: MouseEvent) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      e.preventDefault();
+      nav(next);
+    },
+  });
   // Native prompt where the browser offers one; otherwise step-by-step help.
   const openInstall = async () => {
     if (!(await pwa.install())) setHelp(true);
@@ -141,9 +209,20 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
   return (
     <div className="max-w-5xl mx-auto px-5 py-6 pt-[max(24px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))]">
       <header className="flex items-center gap-2 flex-wrap">
-        <Logo />
-        <b className="text-xl">SpendSense</b>
+        <a {...link("home")} className="flex items-center gap-2" aria-label={t("SpendSense home")}>
+          <Logo />
+          <b className="text-xl">SpendSense</b>
+        </a>
         <span className="flex-1" />
+        <a
+          {...link("how")}
+          aria-current={page === "how" ? "page" : undefined}
+          aria-label={t("How it works")}
+          className={`btn clay-${page === "how" ? "sun" : "cream"} px-3! sm:px-5!`}
+        >
+          <Route size={18} aria-hidden />
+          <span className="hidden sm:inline">{t("How it works")}</span>
+        </a>
         {pwa.mode !== "installed" && (
           <Button
             className="px-3! sm:px-5!"
@@ -161,282 +240,259 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
       </header>
       {help && <InstallHelp onClose={() => setHelp(false)} />}
 
-      <section className="grid md:grid-cols-2 gap-10 items-center py-12 md:py-20">
-        <div className="rise">
-          <h1 className="text-4xl md:text-5xl font-bold leading-tight m-0">
-            {t("Pause. Reflect. Decide.")}
-          </h1>
-          <p className="text-lg text-soft mt-4">
-            {t(
-              "SpendSense shows how a purchase fits your budget, goals and mood before you buy. No lectures, no blocking. The decision stays yours.",
-            )}
-          </p>
-          <div className="flex flex-wrap gap-3 mt-6">
-            <Button variant="coral" big onClick={() => start(false)}>
-              {t("Get started")}
-            </Button>
-            <Button big onClick={() => go("demo")}>
-              {t("Try it now")}
-            </Button>
-          </div>
-          <p className="f-ui text-sm text-soft mt-4 mb-0 flex flex-wrap gap-x-4 gap-y-1">
-            <span className="flex items-center gap-1">
-              <Heart size={14} aria-hidden />
-              {t("No judgment")}
-            </span>
-            <span className="flex items-center gap-1">
-              <ShieldCheck size={14} aria-hidden />
-              {t("Your data stays private")}
-            </span>
-            <span className="flex items-center gap-1">
-              <Smartphone size={14} aria-hidden />
-              {t("Works on your phone")}
-            </span>
-          </p>
-          {pwa.mode !== "installed" && (
-            // On phones the header install control is icon-only, so testers
-            // missed it. This labelled card makes installation visible there.
-            <section
-              aria-label={t("Use SpendSense like an app")}
-              className="sm:hidden mt-6 clay-cream rounded-tile p-4 grid gap-3"
-            >
-              <div className="flex items-start gap-3">
-                <span className="w-10 h-10 rounded-inner clay-sun flex items-center justify-center shrink-0">
-                  <Smartphone size={20} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <b className="f-ui block">{t("Use SpendSense like an app")}</b>
-                  <p className="m-0 text-sm text-soft">
-                    {t("Add it to your home screen for one-tap, full-screen access.")}
-                  </p>
-                </div>
+      {page === "how" ? (
+        <HowItWorks start={() => start(false)} tryDemo={() => nav("home", "demo")} />
+      ) : (
+        <>
+          <section className="grid md:grid-cols-2 gap-10 items-center py-12 md:py-20">
+            <div className="rise">
+              <h1 className="text-4xl md:text-5xl font-bold leading-tight m-0">
+                {t("Pause. Reflect. Decide.")}
+              </h1>
+              <p className="text-lg text-soft mt-4">
+                {t(
+                  "SpendSense shows how a purchase fits your budget, goals and mood before you buy. No lectures, no blocking. The decision stays yours.",
+                )}
+              </p>
+              <div className="flex flex-wrap gap-3 mt-6">
+                <Button variant="coral" big onClick={() => start(false)}>
+                  {t("Get started")}
+                </Button>
+                <Button big onClick={() => go("demo")}>
+                  {t("Try it now")}
+                </Button>
+                <a {...link("how")} className="btn clay-cream min-h-[52px] text-lg px-6">
+                  <Route size={20} aria-hidden />
+                  {t("How it works")}
+                </a>
               </div>
-              <Button className="w-full justify-center" onClick={openInstall} icon={installIcon}>
-                {installLabel}
-              </Button>
-            </section>
-          )}
-        </div>
-        <Card className="flex flex-col gap-4">
-          <Say expr="wave" size={96}>
-            {t("Here's the context. It's your call.")}
-          </Say>
-          <div className="flex gap-4 items-center">
-            <Ring value={68} size={110} label={t("Example fit {n}", { n: 68 })} />
-            <div className="flex-1 grid gap-2">
-              {["Budget fit", "Need level", "Goal impact", "Impulse signals"].map((c, i) => (
-                <Tube key={c} label={t(c)} value={[84, 64, 28, 36][i]} />
+              <p className="f-ui text-sm text-soft mt-4 mb-0 flex flex-wrap gap-x-4 gap-y-1">
+                <span className="flex items-center gap-1">
+                  <Heart size={14} aria-hidden />
+                  {t("No judgment")}
+                </span>
+                <span className="flex items-center gap-1">
+                  <ShieldCheck size={14} aria-hidden />
+                  {t("Your data stays private")}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Smartphone size={14} aria-hidden />
+                  {t("Works on your phone")}
+                </span>
+              </p>
+              {pwa.mode !== "installed" && (
+                // On phones the header install control is icon-only, so testers
+                // missed it. This labelled card makes installation visible there.
+                <section
+                  aria-label={t("Use SpendSense like an app")}
+                  className="sm:hidden mt-6 clay-cream rounded-tile p-4 grid gap-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="w-10 h-10 rounded-inner clay-sun flex items-center justify-center shrink-0">
+                      <Smartphone size={20} aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <b className="f-ui block">{t("Use SpendSense like an app")}</b>
+                      <p className="m-0 text-sm text-soft">
+                        {t("Add it to your home screen for one-tap, full-screen access.")}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    className="w-full justify-center"
+                    onClick={openInstall}
+                    icon={installIcon}
+                  >
+                    {installLabel}
+                  </Button>
+                </section>
+              )}
+            </div>
+            <Card className="flex flex-col gap-4">
+              <Say expr="wave" size={96}>
+                {t("Here's the context. It's your call.")}
+              </Say>
+              <HeroScores />
+            </Card>
+          </section>
+
+          <Section
+            id="why"
+            title={t("Most regret buys start the same way")}
+            sub={t(
+              "Spending isn't only about money. These moments push us to buy before we've thought it through.",
+            )}
+          >
+            <div className="grid md:grid-cols-3 gap-4">
+              {(
+                [
+                  [
+                    Tag,
+                    "It's on sale",
+                    "A countdown or a big red discount makes waiting feel like losing.",
+                  ],
+                  [
+                    CloudRain,
+                    "A hard day",
+                    "Stress, boredom or tiredness turn shopping into a quick mood fix.",
+                  ],
+                  [
+                    Users,
+                    "Everyone has it",
+                    "What friends and feeds show us quietly becomes what we need.",
+                  ],
+                ] as const
+              ).map(([I, title, body]) => (
+                <Card key={title} className="grid gap-2 content-start">
+                  <span className="w-11 h-11 rounded-inner clay-butter flex items-center justify-center">
+                    <I size={22} aria-hidden />
+                  </span>
+                  <h3 className="text-xl font-bold m-0">{t(title)}</h3>
+                  <p className="m-0 text-soft">{t(body)}</p>
+                </Card>
               ))}
             </div>
-          </div>
-          <p className="f-ui text-xs text-soft m-0">{t("Example preview")}</p>
-        </Card>
-      </section>
+          </Section>
 
-      <Section
-        id="why"
-        title={t("Most regret buys start the same way")}
-        sub={t(
-          "Spending isn't only about money. These moments push us to buy before we've thought it through.",
-        )}
-      >
-        <div className="grid md:grid-cols-3 gap-4">
-          {(
-            [
-              [
-                Tag,
-                "It's on sale",
-                "A countdown or a big red discount makes waiting feel like losing.",
-              ],
-              [
-                CloudRain,
-                "A hard day",
-                "Stress, boredom or tiredness turn shopping into a quick mood fix.",
-              ],
-              [
-                Users,
-                "Everyone has it",
-                "What friends and feeds show us quietly becomes what we need.",
-              ],
-            ] as const
-          ).map(([I, title, body]) => (
-            <Card key={title} className="grid gap-2 content-start">
-              <span className="w-11 h-11 rounded-inner clay-butter flex items-center justify-center">
-                <I size={22} aria-hidden />
-              </span>
-              <h3 className="text-xl font-bold m-0">{t(title)}</h3>
-              <p className="m-0 text-soft">{t(body)}</p>
-            </Card>
-          ))}
-        </div>
-      </Section>
+          <Section
+            id="demo"
+            title={t("Try it now")}
+            sub={t("Move the price and pick reasons to see how the context changes.")}
+          >
+            <Demo />
+          </Section>
 
-      <Section id="how" title={t("See how it works")} sub={t("Three short steps, about a minute.")}>
-        <ol className="grid md:grid-cols-3 gap-4 m-0 p-0 list-none">
-          {(
-            [
-              [ShoppingBag, "Add a purchase", "Name it, add the price and say why you want it."],
-              [
-                MessageCircleQuestionMark,
-                "See your context",
-                "Budget fit, need, goal impact and impulse signals in one view.",
-              ],
-              [
-                Hand,
-                "You decide",
-                "Buy, wait a few days or skip. SpendSense never decides for you.",
-              ],
-            ] as const
-          ).map(([I, title, body], i) => (
-            <li key={title}>
-              <Card className="grid gap-2 h-full content-start">
-                <div className="flex items-center gap-3">
-                  <span className="f-num w-9 h-9 rounded-full bg-sun flex items-center justify-center">
-                    {i + 1}
-                  </span>
-                  <I size={22} aria-hidden />
-                </div>
-                <h3 className="text-xl font-bold m-0">{t(title)}</h3>
-                <p className="m-0 text-soft">{t(body)}</p>
-              </Card>
-            </li>
-          ))}
-        </ol>
-      </Section>
-
-      <Section
-        id="demo"
-        title={t("Try it now")}
-        sub={t("Move the price and pick reasons to see how the context changes.")}
-      >
-        <Demo />
-      </Section>
-
-      <Section id="features" title={t("Everything in one calm place")}>
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {(
-            [
-              [
-                Zap,
-                "Quick add",
-                "Log income and expenses in a few taps, with ready-made categories.",
-              ],
-              [
-                MessageCircleQuestionMark,
-                "Should I buy it?",
-                "A five-question check that shows the context before you pay.",
-              ],
-              [
-                Hourglass,
-                "Waiting List",
-                "Park a purchase for 24 hours to a week and revisit it calmly.",
-              ],
-              [Target, "Goals", "See how each purchase could delay what you're saving for."],
-              [BarChart3, "Insights", "Spot the moods and reasons behind your spending."],
-              [Smile, "Reflection", "Rate past decisions and learn which ones you're glad about."],
-            ] as const
-          ).map(([I, title, body]) => (
-            <Card key={title} className="grid gap-2 content-start">
-              <I size={24} aria-hidden className="text-violet" />
-              <h3 className="text-lg font-bold m-0">{t(title)}</h3>
-              <p className="m-0 text-soft">{t(body)}</p>
-            </Card>
-          ))}
-        </div>
-      </Section>
-
-      <Section id="principles" title={t("Built on a few promises")}>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {(
-            [
-              [Heart, "No judgment", "No red warnings or guilt. Just context, in plain words."],
-              [
-                Hand,
-                "You stay in control",
-                "Scores never block a purchase. Every decision is yours.",
-              ],
-              [
-                ShieldCheck,
-                "Your data stays private",
-                "Your entries are saved to your account and visible only to you.",
-              ],
-              [
-                WifiOff,
-                "No bank connection",
-                "You add what you want to track. Nothing is pulled from your accounts.",
-              ],
-            ] as const
-          ).map(([I, title, body]) => (
-            <div key={title} className="flex gap-3 items-start">
-              <span className="w-11 h-11 rounded-inner clay-sun flex items-center justify-center shrink-0">
-                <I size={20} aria-hidden />
-              </span>
-              <div>
-                <h3 className="text-lg font-bold m-0">{t(title)}</h3>
-                <p className="m-0 text-soft">{t(body)}</p>
-              </div>
+          <Section id="features" title={t("Everything in one calm place")}>
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {(
+                [
+                  [
+                    Zap,
+                    "Quick add",
+                    "Log income and expenses in a few taps, with ready-made categories.",
+                  ],
+                  [
+                    MessageCircleQuestionMark,
+                    "Should I buy it?",
+                    "A five-question check that shows the context before you pay.",
+                  ],
+                  [
+                    Hourglass,
+                    "Waiting List",
+                    "Park a purchase for 24 hours to a week and revisit it calmly.",
+                  ],
+                  [Target, "Goals", "See how each purchase could delay what you're saving for."],
+                  [BarChart3, "Insights", "Spot the moods and reasons behind your spending."],
+                  [
+                    Smile,
+                    "Reflection",
+                    "Rate past decisions and learn which ones you're glad about.",
+                  ],
+                ] as const
+              ).map(([I, title, body]) => (
+                <Card key={title} className="grid gap-2 content-start">
+                  <I size={24} aria-hidden className="text-violet" />
+                  <h3 className="text-lg font-bold m-0">{t(title)}</h3>
+                  <p className="m-0 text-soft">{t(body)}</p>
+                </Card>
+              ))}
             </div>
-          ))}
-        </div>
-      </Section>
+          </Section>
 
-      <Section id="faq" title={t("Frequently asked questions")}>
-        <div className="grid gap-3">
-          {(
-            [
-              [
-                "Is SpendSense free?",
-                "Yes. It's a university HCI course project and there's nothing to pay.",
-              ],
-              [
-                "Do I need to connect my bank account?",
-                "No. You add the income, expenses and purchases you want to think about yourself.",
-              ],
-              [
-                "Is this financial advice?",
-                "No. Scores are simple, transparent heuristics to help you reflect. Each one explains how it was calculated.",
-              ],
-              [
-                "Where is my data stored?",
-                "In your SpendSense account. Only you can see it, and you can export or reset it anytime in Settings.",
-              ],
-              [
-                "Can I use it on my phone?",
-                "Yes. Open it in your phone's browser and add it to your home screen to use it like an app.",
-              ],
-            ] as const
-          ).map(([q, a]) => (
-            <details key={q} className="clay rounded-tile! px-5 py-4 group">
-              <summary className="f-ui text-lg cursor-pointer list-none flex items-center justify-between gap-3 min-h-11">
-                {t(q)}
-                <ChevronDown
-                  size={20}
-                  aria-hidden
-                  className="shrink-0 transition group-open:rotate-180"
-                />
-              </summary>
-              <p className="m-0 mt-2 text-soft">{t(a)}</p>
-            </details>
-          ))}
-        </div>
-      </Section>
+          <Section id="principles" title={t("Built on a few promises")}>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {(
+                [
+                  [Heart, "No judgment", "No red warnings or guilt. Just context, in plain words."],
+                  [
+                    Hand,
+                    "You stay in control",
+                    "Scores never block a purchase. Every decision is yours.",
+                  ],
+                  [
+                    ShieldCheck,
+                    "Your data stays private",
+                    "Your entries are saved to your account and visible only to you.",
+                  ],
+                  [
+                    WifiOff,
+                    "No bank connection",
+                    "You add what you want to track. Nothing is pulled from your accounts.",
+                  ],
+                ] as const
+              ).map(([I, title, body]) => (
+                <div key={title} className="flex gap-3 items-start">
+                  <span className="w-11 h-11 rounded-inner clay-sun flex items-center justify-center shrink-0">
+                    <I size={20} aria-hidden />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold m-0">{t(title)}</h3>
+                    <p className="m-0 text-soft">{t(body)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
 
-      <section className="clay-butter rounded-card p-8 md:p-10 my-10 grid md:grid-cols-[1fr_auto] items-center gap-6">
-        <div>
-          <h2 className="text-3xl font-bold m-0">{t("Ready to start?")}</h2>
-          <p className="text-lg m-0 mt-2">
-            {t("Create a free account and check your next purchase in a minute.")}
-          </p>
-        </div>
-        <Button
-          variant="coral"
-          big
-          onClick={() => start(false)}
-          icon={<ArrowRight size={20} aria-hidden />}
-        >
-          {t("Get started")}
-        </Button>
-      </section>
+          <Section id="faq" title={t("Frequently asked questions")}>
+            <div className="grid gap-3">
+              {(
+                [
+                  [
+                    "Is SpendSense free?",
+                    "Yes. It's a university HCI course project and there's nothing to pay.",
+                  ],
+                  [
+                    "Do I need to connect my bank account?",
+                    "No. You add the income, expenses and purchases you want to think about yourself.",
+                  ],
+                  [
+                    "Is this financial advice?",
+                    "No. Scores are simple heuristics to help you reflect, not financial advice.",
+                  ],
+                  [
+                    "Where is my data stored?",
+                    "In your SpendSense account. Only you can see it, and you can export or reset it anytime in Settings.",
+                  ],
+                  [
+                    "Can I use it on my phone?",
+                    "Yes. Open it in your phone's browser and add it to your home screen to use it like an app.",
+                  ],
+                ] as const
+              ).map(([q, a]) => (
+                <details key={q} className="clay rounded-tile! px-5 py-4 group">
+                  <summary className="f-ui text-lg cursor-pointer list-none flex items-center justify-between gap-3 min-h-11">
+                    {t(q)}
+                    <ChevronDown
+                      size={20}
+                      aria-hidden
+                      className="shrink-0 transition group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="m-0 mt-2 text-soft">{t(a)}</p>
+                </details>
+              ))}
+            </div>
+          </Section>
+
+          <section className="clay-butter rounded-card p-8 md:p-10 my-10 grid md:grid-cols-[1fr_auto] items-center gap-6">
+            <div>
+              <h2 className="text-3xl font-bold m-0">{t("Ready to start?")}</h2>
+              <p className="text-lg m-0 mt-2">
+                {t("Create a free account and check your next purchase in a minute.")}
+              </p>
+            </div>
+            <Button
+              variant="coral"
+              big
+              onClick={() => start(false)}
+              icon={<ArrowRight size={20} aria-hidden />}
+            >
+              {t("Get started")}
+            </Button>
+          </section>
+        </>
+      )}
 
       <footer className="border-t border-cardline pt-10 mt-6 grid gap-8">
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr]">
@@ -454,21 +510,23 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
           </div>
           <nav aria-label={t("Product")} className="grid gap-2 content-start">
             <h2 className="f-ui text-sm uppercase tracking-wider text-soft m-0">{t("Product")}</h2>
+            <a {...link("how")} className="f-ui min-h-11 flex items-center hover:underline">
+              {t("How it works")}
+            </a>
             {(
               [
-                ["how", "See how it works"],
                 ["demo", "Try it now"],
                 ["features", "Features"],
                 ["faq", "Frequently asked questions"],
               ] as const
             ).map(([id, l]) => (
-              <a
+              <button
                 key={id}
-                href={`#${id}`}
-                className="f-ui min-h-11 flex items-center hover:underline"
+                className="f-ui min-h-11 text-left hover:underline"
+                onClick={() => nav("home", id)}
               >
                 {t(l)}
-              </a>
+              </button>
             ))}
           </nav>
           <div className="grid gap-2 content-start">
@@ -490,9 +548,12 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
                 {t("Install SpendSense")}
               </button>
             )}
-            <a href="#principles" className="f-ui min-h-11 flex items-center hover:underline">
+            <button
+              className="f-ui min-h-11 text-left hover:underline"
+              onClick={() => nav("home", "principles")}
+            >
               {t("Privacy")}
-            </a>
+            </button>
           </div>
         </div>
         <div className="border-t border-cardline pt-4 pb-2 flex flex-wrap justify-between gap-2 text-sm text-soft f-ui">

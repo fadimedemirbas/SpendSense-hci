@@ -116,7 +116,12 @@ export function Decide() {
     usable: undefined,
     wait: "3d",
   });
-  const [p, setP] = useState<Purchase>({ ...blank(), ...prefill });
+  // Missing prefill fields (e.g. no note in quick add) keep the blank defaults.
+  const start = (): Purchase => ({
+    ...blank(),
+    ...Object.fromEntries(Object.entries(prefill ?? {}).filter(([, v]) => v !== undefined)),
+  });
+  const [p, setP] = useState<Purchase>(start);
   const [own, setOwn] = useState<boolean | null>(prefill?.own ?? null);
   const [waitSet, setWaitSet] = useState(!!prefill?.wait);
   const [s, setS] = useState(0);
@@ -152,7 +157,7 @@ export function Decide() {
     if (phase === "load") loadingRef.current?.focus();
   }, [s, phase]);
   useEffect(() => {
-    setP({ ...blank(), ...prefill });
+    setP(start());
     setPriceStr(prefill?.price ? String(prefill.price) : "");
     setOwn(prefill?.own ?? null);
     setWaitSet(!!prefill?.wait);
@@ -696,50 +701,11 @@ function Analysis({
   const month = monthTotals(entries);
   const left = a.income - month.spent;
   const habits = habitSignals(p, profile);
-  const factors: [string, number, string, typeof Wallet, boolean, string][] = [
-    [
-      "Budget fit",
-      a.budget,
-      "Higher is better.",
-      Wallet,
-      true,
-      left > 0
-        ? t(
-            "The bigger the share of what's left this month, the lower this score. This purchase uses {n}% of it.",
-            { n: Math.round((p.price / left) * 100) },
-          )
-        : t("Nothing is left this month, so this score is 0."),
-    ],
-    [
-      "Need level",
-      a.need,
-      "Higher means a stronger stated need.",
-      HeartHandshake,
-      true,
-      t(
-        "Saying you need it, that it makes something easier, or that you don't own something similar raises this score. Owning a usable one lowers it.",
-      ),
-    ],
-    [
-      "Goal impact",
-      a.goalImpact,
-      "Lower means less effect on your goal.",
-      Target,
-      false,
-      goal
-        ? t("The bigger the share of what's left for {g}, the higher this score.", { g: goal.name })
-        : t("No active goal, so this score is 0."),
-    ],
-    [
-      "Impulse signals",
-      a.impulse,
-      "Lower means fewer impulse signals.",
-      Zap,
-      false,
-      t(
-        "Sale, catching your eye, treating yourself, friends, and feeling excited, stressed, bored or tired each raise this score. So do a 24-hour wait and matching answers from your spending style.",
-      ),
-    ],
+  const factors: [string, number, string, typeof Wallet, boolean][] = [
+    ["Budget fit", a.budget, "Higher is better.", Wallet, true],
+    ["Need level", a.need, "Higher means a stronger stated need.", HeartHandshake, true],
+    ["Goal impact", a.goalImpact, "Lower means less effect on your goal.", Target, false],
+    ["Impulse signals", a.impulse, "Lower means fewer impulse signals.", Zap, false],
   ];
   const decide = async (d: DecisionKind, w?: WaitLen) => {
     const prevD = decisions,
@@ -837,7 +803,7 @@ function Analysis({
         </Card>
       )}
       <div className="grid md:grid-cols-2 gap-4">
-        {factors.map(([n, v, dir, I, higherGood, calc]) => {
+        {factors.map(([n, v, dir, I, higherGood]) => {
           const lv = level(v);
           // Colour and icon keep their existing cut-off; only the wording changes.
           const positive = higherGood ? v >= 13 : v < 13;
@@ -867,9 +833,6 @@ function Analysis({
                 showPct={false}
                 decorative
               />
-              <Expand title={t("Why?")}>
-                <p className="m-0">{calc}</p>
-              </Expand>
             </Card>
           );
         })}
@@ -918,14 +881,6 @@ function Analysis({
               : "Estimate based on your onboarding ranges.",
           )}
         </p>
-        <Expand title={t("How was this calculated?")}>
-          <p className="m-0">
-            {t(
-              "Overall fit adds budget fit and need level, plus the room left after goal impact and impulse signals: {a} + {b} + {c} + {d} = {f}. Each factor is 0–25. A simple heuristic for reflection, not financial advice.",
-              { a: a.budget, b: a.need, c: 25 - a.goalImpact, d: 25 - a.impulse, f: a.fit },
-            )}
-          </p>
-        </Expand>
       </Card>
       <Card className="grid gap-3">
         <h2 className="text-xl font-bold m-0">{t("You decide.")}</h2>
