@@ -3,6 +3,7 @@ import {
   Globe,
   Coins,
   Mail,
+  User,
   KeyRound,
   LogOut,
   Wallet,
@@ -160,10 +161,12 @@ export function SettingsPage({
   reset,
   logout,
   retake,
+  name,
 }: {
   reset: () => Promise<boolean>;
   logout: () => void;
   retake: () => void;
+  name?: string;
 }) {
   const { profile, setProfile, setTour, setTab, entries, goals, decisions, waiting } = useApp();
   const t = useT();
@@ -204,6 +207,7 @@ export function SettingsPage({
     <>
       <PageHead title={t("Settings")} />
       <Section title={t("Account")}>
+        {name && <Row icon={<User size={18} />} title={t("Name")} desc={name} />}
         <Row icon={<Mail size={18} />} title={t("Email")} desc={profile.email} />
         <Row
           icon={<KeyRound size={18} />}

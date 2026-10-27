@@ -30,12 +30,27 @@ export async function authenticateUser(
   password: string,
   mode: "register" | "login",
   redirectUrl: string,
+  name?: { first: string; last: string },
 ): Promise<AuthResult> {
   try {
     const response =
       mode === "login"
         ? await client.auth.signInWithPassword({ email, password })
-        : await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectUrl } });
+        : await client.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: redirectUrl,
+              // Stored in the auth user's metadata, not in the workspace tables.
+              ...(name && {
+                data: {
+                  first_name: name.first,
+                  last_name: name.last,
+                  full_name: `${name.first} ${name.last}`,
+                },
+              }),
+            },
+          });
     if (response.error) return { error: authMessage(response.error.code) };
     return response.data.session
       ? {}

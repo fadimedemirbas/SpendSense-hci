@@ -1,41 +1,10 @@
 import { useRef, useState } from "react";
-import {
-  ShoppingBag,
-  Scale as ScaleI,
-  Hand,
-  ChevronRight,
-  PiggyBank,
-  Target,
-  Zap,
-  Heart,
-  Download,
-  HelpCircle,
-  Share,
-  SquarePlus,
-  Check as CheckI,
-  Wallet,
-  ShieldCheck,
-  Smartphone,
-} from "lucide-react";
-import {
-  Blob,
-  Button,
-  Card,
-  Logo,
-  Ring,
-  Say,
-  Tile,
-  Tube,
-  useT,
-  LangCtx,
-  Segmented,
-  rangeLabel,
-} from "./ui";
+import { Download, Share, SquarePlus, Check as CheckI, ArrowLeft, Lock } from "lucide-react";
+import { Button, Card, Logo, Say, Tile, Tube, useT, LangCtx, Segmented, rangeLabel } from "./ui";
 import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, type Profile } from "./store";
 import { meetsPasswordMinimum } from "./lib/auth";
 import { useContext } from "react";
 import { Sheet } from "./ui";
-import { usePwa } from "./pwa/Pwa";
 import { ConfirmEmail, ForgotPassword, PasswordInput, PasswordRule } from "./AuthPanels";
 import type { AuthResult } from "./lib/auth";
 
@@ -140,184 +109,6 @@ export function InstallHelp({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function Landing({ start }: { start: (login: boolean) => void }) {
-  const t = useT();
-  const pwa = usePwa();
-  const [help, setHelp] = useState(false);
-  // Native prompt where the browser offers one; otherwise step-by-step help.
-  const openInstall = async () => {
-    if (!(await pwa.install())) setHelp(true);
-  };
-  const H2 =({ children }: { children: string }) => (
-    <h2 className="text-2xl font-semibold m-0 mb-4">{t(children)}</h2>
-  );
-  return (
-    <div className="max-w-5xl mx-auto px-5 py-6 pt-[max(24px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))]">
-      <header className="flex items-center gap-2 flex-wrap">
-        <Logo />
-        <b className="text-xl">SpendSense</b>
-        <span className="flex-1" />
-        {pwa.mode !== "installed" && (
-          <Button
-            className="px-3! sm:px-5!"
-            aria-label={t(pwa.mode === "prompt" ? "Install app" : "How to install")}
-            onClick={openInstall}
-            icon={
-              pwa.mode === "prompt" ? (
-                <Download size={18} aria-hidden />
-              ) : (
-                <HelpCircle size={18} aria-hidden />
-              )
-            }
-          >
-            <span className="hidden sm:inline">
-              {t(pwa.mode === "prompt" ? "Install app" : "How to install")}
-            </span>
-          </Button>
-        )}
-        <LangToggle />
-        <Button variant="butter" onClick={() => start(true)}>
-          {t("Log in")}
-        </Button>
-        {/* `!` is needed to beat the unlayered .btn display rule (same as px-0! elsewhere). */}
-        <Button variant="coral" className="hidden! sm:inline-flex!" onClick={() => start(false)}>
-          {t("Get started")}
-        </Button>
-      </header>
-      {help && <InstallHelp onClose={() => setHelp(false)} />}
-      <section className="grid md:grid-cols-2 gap-10 items-center py-12 md:py-20">
-        <div className="rise">
-          <h1 className="text-4xl md:text-5xl font-bold leading-tight m-0">
-            {t("Pause. Reflect. Decide.")}
-          </h1>
-          <p className="text-lg text-soft mt-4">
-            {t("Context for your purchases. The decision stays yours.")}
-          </p>
-          <div className="flex flex-wrap gap-3 mt-6">
-            <Button variant="coral" big onClick={() => start(false)}>
-              {t("Get started")}
-            </Button>
-            <Button
-              big
-              onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              {t("See how it works")}
-            </Button>
-          </div>
-          {pwa.mode !== "installed" && (
-            // On phones the header install control is icon-only, so testers
-            // missed it. This labelled card makes installation visible there.
-            <section
-              aria-label={t("Use SpendSense like an app")}
-              className="sm:hidden mt-6 clay-cream rounded-tile p-4 grid gap-3"
-            >
-              <div className="flex items-start gap-3">
-                <span className="w-10 h-10 rounded-inner clay-sun flex items-center justify-center shrink-0">
-                  <Smartphone size={20} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <b className="f-ui block">{t("Use SpendSense like an app")}</b>
-                  <p className="m-0 text-sm text-soft">
-                    {t("Add it to your home screen for one-tap, full-screen access.")}
-                  </p>
-                </div>
-              </div>
-              <Button
-                className="w-full justify-center"
-                onClick={openInstall}
-                icon={
-                  pwa.mode === "prompt" ? (
-                    <Download size={18} aria-hidden />
-                  ) : (
-                    <HelpCircle size={18} aria-hidden />
-                  )
-                }
-              >
-                {t(pwa.mode === "prompt" ? "Install app" : "How to install")}
-              </Button>
-            </section>
-          )}
-        </div>
-        <Card className="flex flex-col gap-4">
-          <Say expr="wave" size={96}>
-            {t("Here's the context. It's your call.")}
-          </Say>
-          <div className="flex gap-4 items-center">
-            <Ring value={68} size={110} label={t("Example fit {n}", { n: 68 })} />
-            <div className="flex-1 grid gap-2">
-              {["Budget fit", "Need level", "Goal impact", "Impulse signals"].map((c, i) => (
-                <Tube key={c} label={t(c)} value={[84, 64, 28, 36][i]} />
-              ))}
-            </div>
-          </div>
-          <p className="f-ui text-xs text-soft m-0">{t("Example preview")}</p>
-        </Card>
-      </section>
-      <section id="how" className="py-6">
-        <H2>See how it works</H2>
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          {(
-            [
-              ["Add a purchase", ShoppingBag],
-              ["See your context", ScaleI],
-              ["You decide", Hand],
-            ] as const
-          ).map(([l, I], i) => (
-            <div key={l} className="contents">
-              <Card className="flex-1 flex items-center gap-3">
-                <span className="w-12 h-12 rounded-inner clay-sun flex items-center justify-center">
-                  <I size={22} aria-hidden />
-                </span>
-                <b className="f-ui text-lg">{t(l)}</b>
-              </Card>
-              {i < 2 && <ChevronRight className="hidden md:block text-soft shrink-0" aria-hidden />}
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3 py-6">
-        {(
-          [
-            ["Track money", Wallet],
-            ["Budget fit", PiggyBank],
-            ["Goal impact", Target],
-            ["Impulse check", Zap],
-          ] as const
-        ).map(([l, I]) => (
-          <Card key={l} className="flex flex-col items-center text-center gap-2">
-            <I size={26} aria-hidden />
-            <span className="f-ui">{t(l)}</span>
-          </Card>
-        ))}
-      </section>
-      <p className="f-ui text-soft py-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
-        <span className="flex items-center gap-1">
-          <Heart size={16} aria-hidden />
-          {t("No judgment")}
-        </span>
-        <span className="flex items-center gap-1">
-          <Hand size={16} aria-hidden />
-          {t("You stay in control")}
-        </span>
-        <span className="flex items-center gap-1">
-          <ShieldCheck size={16} aria-hidden />
-          {t("Your data stays private")}
-        </span>
-      </p>
-      <section className="clay-butter rounded-card p-8 my-6 flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold m-0">{t("Ready to start?")}</h2>
-        <Button variant="coral" big onClick={() => start(false)}>
-          {t("Get started")}
-        </Button>
-      </section>
-      <footer className="f-ui text-sm text-soft flex items-center gap-2 py-4">
-        <Logo size={24} />
-        SpendSense · {t("HCI prototype")}
-      </footer>
-    </div>
-  );
-}
-
 // Stored score keys stay as-is (the database validates them); only the shown wording is softened.
 export const TENDENCY: Record<string, string> = {
   "Impulsive Decision Maker": "Quick decisions",
@@ -337,6 +128,27 @@ export type AuthActions = {
   resend: (email: string) => Promise<AuthResult>;
   requestReset: (email: string) => Promise<AuthResult>;
 };
+// Google "G" mark for the (not yet connected) social sign-in button.
+const GoogleMark = () => (
+  <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden>
+    <path
+      fill="#FFC107"
+      d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"
+    />
+    <path
+      fill="#FF3D00"
+      d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+    />
+    <path
+      fill="#4CAF50"
+      d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"
+    />
+    <path
+      fill="#1976D2"
+      d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"
+    />
+  </svg>
+);
 const EMAIL = /^\S+@\S+\.\S+$/;
 export function Onboarding({
   initial,
@@ -360,6 +172,7 @@ export function Onboarding({
     email: string,
     password: string,
     mode: AuthMode,
+    name?: { first: string; last: string },
   ) => Promise<{ error?: string; message?: string }>;
   onAuthModeChange?: (mode: AuthMode, email?: string) => void;
   authActions?: AuthActions;
@@ -372,7 +185,11 @@ export function Onboarding({
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   // Which account field the current error belongs to, for aria-invalid and focus.
-  const [errField, setErrField] = useState<"email" | "password" | "form" | null>(null);
+  const [errField, setErrField] = useState<"name" | "email" | "password" | "form" | null>(null);
+  const [first, setFirst] = useState("");
+  const [lastName, setLastName] = useState("");
+  const firstRef = useRef<HTMLInputElement>(null);
+  const lastRef = useRef<HTMLInputElement>(null);
   // Account step sub-views: the form, "check your email", or password reset request.
   const [view, setView] = useState<"form" | "confirm" | "forgot">(authView);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -380,6 +197,8 @@ export function Onboarding({
   const register = authMode === "register";
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // ponytail: visual only for now; Supabase sessions always persist. Wire to storage choice later.
+  const [remember, setRemember] = useState(true);
   const submitting = useRef(false);
   // Signed-out users only see the welcome/account steps; the rest follow sign-in.
   const last = authenticated ? 8 : 1;
@@ -387,6 +206,11 @@ export function Onboarding({
   const next = async () => {
     if (busy || submitting.current) return;
     if (s === 1) {
+      if (register && (!first.trim() || !lastName.trim())) {
+        setErrField("name");
+        (first.trim() ? lastRef : firstRef).current?.focus();
+        return setErr(t("Enter your first and last name."));
+      }
       if (!EMAIL.test(p.email.trim())) {
         setErrField("email");
         emailRef.current?.focus();
@@ -405,7 +229,12 @@ export function Onboarding({
       setErrField(null);
       setNotice("");
       try {
-        const response = await onAuthenticate?.(p.email.trim(), pw, authMode);
+        const response = await onAuthenticate?.(
+          p.email.trim(),
+          pw,
+          authMode,
+          register ? { first: first.trim(), last: lastName.trim() } : undefined,
+        );
         if (response?.error) {
           setErr(t(response.error));
           setErrField("form");
@@ -449,6 +278,20 @@ export function Onboarding({
     setErr("");
     setErrField(null);
   };
+  const errorBox = err && (
+    <p
+      id="onboarding-error"
+      role="alert"
+      className="m-0 text-attn bg-butter rounded-inner px-3 py-2"
+    >
+      {err}
+    </p>
+  );
+  const noticeBox = notice && (
+    <p role="status" className="m-0 text-soft">
+      {notice}
+    </p>
+  );
   const authVoice =
     view === "confirm" ? "Check your email" : view === "forgot" ? "Reset your password" : null;
   const errorId = err ? "onboarding-error" : "";
@@ -463,8 +306,19 @@ export function Onboarding({
   return (
     <div className="onboarding-safe max-w-xl mx-auto px-5 py-6 grid gap-5">
       <div className="flex items-center gap-3">
+        {s === 1 && view === "form" && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={back}
+            className="btn clay-cream min-h-11 px-4! f-ui"
+          >
+            <ArrowLeft size={18} aria-hidden />
+            {t("Back")}
+          </button>
+        )}
         <div className="flex-1">
-          {total > 1 && (
+          {total > 1 && s !== 1 && (
             <>
               <p className="f-ui text-sm m-0 mb-1">
                 {t("Step {n} of {t}", { n: s - startAt + 1, t: total })}
@@ -480,14 +334,16 @@ export function Onboarding({
         </div>
         <LangToggle />
       </div>
-      <Say
-        key={s}
-        live
-        expr={s === 0 ? "wave" : s === 8 ? "calm" : "thinking"}
-        size={s === 0 ? 120 : 64}
-      >
-        {t(s === 1 ? (authVoice ?? (authMode === "login" ? "Log in" : voice)) : voice)}
-      </Say>
+      {!(s === 1 && view === "form") && (
+        <Say
+          key={s}
+          live
+          expr={s === 0 ? "wave" : s === 8 ? "calm" : "thinking"}
+          size={s === 0 ? 120 : 64}
+        >
+          {t(s === 1 ? (authVoice ?? (authMode === "login" ? "Log in" : voice)) : voice)}
+        </Say>
+      )}
       <Card className="grid gap-3" key={"c" + s}>
         {s === 0 && (
           <>
@@ -522,12 +378,45 @@ export function Onboarding({
               void next();
             }}
           >
-            <h1 className="text-2xl font-bold m-0">
-              {t(authMode === "login" ? "Log in" : "Create your account")}
-            </h1>
-            <p className="text-soft m-0 text-sm">
-              {t("Your financial data is saved securely to your account.")}
-            </p>
+            <div className="grid gap-2 justify-items-center text-center">
+              <Logo size={44} />
+              <h1 className="text-3xl font-bold m-0">
+                {t(authMode === "login" ? "Log in" : "Create your account")}
+              </h1>
+              <p className="text-soft m-0">
+                {t(
+                  register
+                    ? "Start making calmer purchase decisions in a minute."
+                    : "Welcome back. Pick up where you left off.",
+                )}
+              </p>
+            </div>
+            {register && (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {(
+                  [
+                    ["First name", first, setFirst, "given-name", firstRef],
+                    ["Last name", lastName, setLastName, "family-name", lastRef],
+                  ] as const
+                ).map(([l, v, set, ac, ref]) => (
+                  <label key={l} className="grid gap-1 f-ui">
+                    {t(l)}
+                    <input
+                      ref={ref}
+                      autoComplete={ac}
+                      value={v}
+                      aria-invalid={(errField === "name" && !v.trim()) || undefined}
+                      aria-describedby={errField === "name" ? errorId : undefined}
+                      onChange={(e) => {
+                        set(e.target.value);
+                        if (errField === "name") clearError();
+                      }}
+                      className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
             <label className="grid gap-1 f-ui">
               {t("Email")}
               <input
@@ -567,21 +456,73 @@ export function Onboarding({
               }
             />
             {register && <PasswordRule id="password-rule" value={pw} />}
-            {!register && authActions && (
-              <button
-                type="button"
-                className="text-leaf f-ui min-h-11 justify-self-start"
-                disabled={busy}
-                onClick={() => {
-                  setErr("");
-                  setErrField(null);
-                  setNotice("");
-                  setView("forgot");
-                }}
-              >
-                {t("Forgot password?")}
-              </button>
+            {!register && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="f-ui flex items-center gap-2 min-h-11 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="w-5 h-5 accent-[var(--color-leaf)]"
+                  />
+                  {t("Remember me")}
+                </label>
+                {authActions && (
+                  <button
+                    type="button"
+                    className="text-leaf f-ui min-h-11"
+                    disabled={busy}
+                    onClick={() => {
+                      setErr("");
+                      setErrField(null);
+                      setNotice("");
+                      setView("forgot");
+                    }}
+                  >
+                    {t("Forgot password?")}
+                  </button>
+                )}
+              </div>
             )}
+            {errorBox}
+            {noticeBox}
+            <Button
+              type="submit"
+              variant="coral"
+              big
+              disabled={busy}
+              className="w-full justify-center"
+            >
+              {busy
+                ? t(register ? "Creating account..." : "Signing in...")
+                : t(register ? "Create your account" : "Log in")}
+            </Button>
+            <div className="flex items-center gap-3 text-sm text-soft f-ui" aria-hidden>
+              <span className="h-px flex-1 bg-line" />
+              {t("or")}
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                clearError();
+                setNotice(t("Google sign-in is coming soon. Use your email for now."));
+              }}
+              className="btn clay-cream w-full justify-center min-h-12 f-ui"
+            >
+              <GoogleMark />
+              {t("Continue with Google")}
+            </button>
+            {register && (
+              <p className="m-0 text-xs text-soft text-center">
+                {t("By creating an account, you agree to the Terms of Use and Privacy Policy.")}
+              </p>
+            )}
+            <p className="m-0 text-sm text-soft flex items-center justify-center gap-1.5">
+              <Lock size={14} aria-hidden />
+              {t("Your financial data is saved securely to your account.")}
+            </p>
           </form>
         )}
         {s === 1 && view === "form" && onAuthModeChange && (
@@ -640,51 +581,39 @@ export function Onboarding({
             ))}
           </>
         )}
-        {err && (
-          <p
-            id="onboarding-error"
-            role="alert"
-            className="m-0 text-attn bg-butter rounded-inner px-3 py-2"
-          >
-            {err}
-          </p>
-        )}
-        {notice && (
-          <p role="status" className="m-0 text-soft">
-            {notice}
-          </p>
-        )}
+        {!(s === 1 && view === "form") && errorBox}
+        {!(s === 1 && view === "form") && noticeBox}
       </Card>
       {/* The confirmation and reset panels carry their own way back to the form. */}
-      {!(s === 1 && view !== "form") && (
-      <div className="flex justify-between">
-        <Button disabled={busy} onClick={back}>
-          {t("Back")}
-        </Button>
-        <Button
-          disabled={busy}
-          variant="coral"
-          big
-          type={s === 1 ? "submit" : "button"}
-          form={s === 1 ? "spendsense-auth" : undefined}
-          onClick={
-            s === 1
-              ? undefined
-              : (event) => {
-                  event.preventDefault();
-                  void next();
-                }
-          }
-        >
-          {busy
-            ? t(s === 1 ? (register ? "Creating account..." : "Signing in...") : "Saving...")
-            : s === 8
-              ? t("Let's go")
-              : s === 1
-                ? t(authMode === "login" ? "Log in" : "Create your account")
-                : t("Next")}
-        </Button>
-      </div>
+      {s !== 1 && (
+        <div className="flex justify-between">
+          <Button disabled={busy} onClick={back}>
+            {t("Back")}
+          </Button>
+          <Button
+            disabled={busy}
+            variant="coral"
+            big
+            type={s === 1 ? "submit" : "button"}
+            form={s === 1 ? "spendsense-auth" : undefined}
+            onClick={
+              s === 1
+                ? undefined
+                : (event) => {
+                    event.preventDefault();
+                    void next();
+                  }
+            }
+          >
+            {busy
+              ? t(s === 1 ? (register ? "Creating account..." : "Signing in...") : "Saving...")
+              : s === 8
+                ? t("Let's go")
+                : s === 1
+                  ? t(authMode === "login" ? "Log in" : "Create your account")
+                  : t("Next")}
+          </Button>
+        </div>
       )}
     </div>
   );

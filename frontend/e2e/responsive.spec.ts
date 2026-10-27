@@ -101,7 +101,8 @@ async function wordsIntact(page: Page) {
         range.setStart(node, match.index!);
         range.setEnd(node, match.index! + match[0].length);
         const rects = [...range.getClientRects()].filter((rect) => rect.width > 0.5);
-        if (new Set(rects.map((rect) => Math.round(rect.bottom / 4))).size > 1) found.push(match[0]);
+        if (new Set(rects.map((rect) => Math.round(rect.bottom / 4))).size > 1)
+          found.push(match[0]);
       }
     }
     return found;
@@ -307,6 +308,8 @@ test("mobile registration, first onboarding and keyboard language controls", asy
   await page.goto("/");
   await page.getByRole("button", { name: "Get started", exact: true }).first().click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByLabel("First name", { exact: true }).fill("Test");
+  await page.getByLabel("Last name", { exact: true }).fill("User");
   await page.getByLabel("Email", { exact: true }).fill("new@example.com");
   await page.getByLabel("Password", { exact: true }).fill("test-only-password");
   await page.getByRole("button", { name: "Create your account", exact: true }).last().click();

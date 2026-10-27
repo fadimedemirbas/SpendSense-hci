@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Scale, Delete } from "lucide-react";
+import { Plus, Pencil, Trash2, MessageCircleQuestionMark, Delete } from "lucide-react";
 import { useApp } from "./context";
 import {
   Button,
@@ -322,7 +322,7 @@ export function QuickAdd() {
         <div className="md:col-span-2 flex flex-wrap gap-2 justify-end">
           {type === "expense" && v > 0 && !edit && (
             <Button
-              icon={<Scale size={18} />}
+              icon={<MessageCircleQuestionMark size={18} />}
               onClick={() => {
                 close();
                 setTab("decide");

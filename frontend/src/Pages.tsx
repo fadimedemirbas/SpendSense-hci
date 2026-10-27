@@ -4,7 +4,7 @@ import {
   CheckCircle2,
   Circle as CircleI,
   Plus,
-  Scale,
+  MessageCircleQuestionMark,
   Clock,
   Pencil,
   Archive,
@@ -55,7 +55,7 @@ const daysUntil = (iso: string) =>
   Math.ceil((new Date(iso).getTime() - new Date(today()).getTime()) / 864e5);
 const thisMonth = (d: string) => d.slice(0, 7) === today().slice(0, 7);
 
-export function HomePage() {
+export function HomePage({ firstName }: { firstName?: string }) {
   const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide } = useApp();
   const t = useT();
   const { income: inc, spent: sp } = monthTotals(entries);
@@ -75,7 +75,9 @@ export function HomePage() {
     <>
       <h1 className="sr-only">{t("Home")}</h1>
       <Say expr="happy" size={64}>
-        {t("Hi there! Let's look at your month together.")}
+        {firstName
+          ? t("Hi {n}! Let's look at your month together.", { n: firstName })
+          : t("Hi there! Let's look at your month together.")}
       </Say>
       <Card>
         <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
@@ -109,7 +111,7 @@ export function HomePage() {
         <Button
           variant="butter"
           big
-          icon={<Scale size={20} />}
+          icon={<MessageCircleQuestionMark size={20} />}
           onClick={() => {
             openDecide(undefined);
             setTab("decide");
@@ -126,6 +128,7 @@ export function HomePage() {
             <Ring
               value={(goal.saved / goal.target) * 100}
               label={`${goal.name} ${Math.round((goal.saved / goal.target) * 100)}%`}
+              suffix="%"
             />
             <div>
               <h2 className="text-xl font-bold m-0">{goal.name}</h2>
@@ -365,7 +368,7 @@ function GoalFlow({
         </div>
       </div>
       <Card className="flex gap-4 items-center">
-        <Ring value={pct} size={88} label={`${g.name || t("Your goal")} ${pct}%`} />
+        <Ring value={pct} size={88} label={`${g.name || t("Your goal")} ${pct}%`} suffix="%" />
         <div className="min-w-0">
           <h2 className="text-xl font-bold m-0 truncate">{g.name || t("Your goal")}</h2>
           <p className="f-num m-0">
@@ -572,7 +575,7 @@ export function Goals() {
             return (
               <Card key={g.id} className="grid gap-3">
                 <div className="flex gap-4 items-center">
-                  <Ring value={pct} label={`${g.name} ${pct}%`} />
+                  <Ring value={pct} label={`${g.name} ${pct}%`} suffix="%" />
                   <div className="min-w-0">
                     <h2 className="text-xl font-bold m-0">{g.name}</h2>
                     <Pill

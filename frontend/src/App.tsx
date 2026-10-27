@@ -2,7 +2,8 @@ import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { Button, Card, LangCtx, ToastHost, type Lang, useT } from "./ui";
 import { emptyProfile } from "./store";
-import { Landing, LangToggle, Onboarding, type AuthMode } from "./Onboarding";
+import { LangToggle, Onboarding, type AuthMode } from "./Onboarding";
+import { Landing } from "./Landing";
 import {
   initialAuthRedirect,
   requireSupabase,
@@ -70,6 +71,8 @@ export default function App() {
   // Keeps the typed e-mail when switching between log in and registration.
   const [authEmail, setAuthEmail] = useState("");
   const [authView, setAuthView] = useState<"form" | "forgot">("form");
+  // Switching from log in to sign up goes straight to the form, skipping the welcome step.
+  const [skipWelcome, setSkipWelcome] = useState(false);
   // Password recovery opened from the reset e-mail ("invalid" = expired/used link).
   const [recovery, setRecovery] = useState<"none" | "active" | "done" | "invalid">(() =>
     initialAuthRedirect.kind === "recovery"
@@ -124,11 +127,16 @@ export default function App() {
       subscription.unsubscribe();
     };
   }, []);
-  async function authenticate(email: string, password: string, mode: AuthMode) {
+  async function authenticate(
+    email: string,
+    password: string,
+    mode: AuthMode,
+    name?: { first: string; last: string },
+  ) {
     if (supabaseConfigurationError) return { error: supabaseConfigurationError };
     try {
       return await onlineOperation(() =>
-        authenticateUser(requireSupabase(), email, password, mode, window.location.origin),
+        authenticateUser(requireSupabase(), email, password, mode, window.location.origin, name),
       );
     } catch {
       return { error: "You are offline. Reconnect before signing in." };
@@ -178,13 +186,7 @@ export default function App() {
   }
   // A recovery link without a valid session (expired, reused or tampered) is invalid.
   const recoveryState =
-    recovery === "active"
-      ? initializing
-        ? "checking"
-        : session
-          ? "form"
-          : "invalid"
-      : recovery;
+    recovery === "active" ? (initializing ? "checking" : session ? "form" : "invalid") : recovery;
   async function logout() {
     try {
       const { error } = await onlineOperation(() =>
@@ -242,6 +244,7 @@ export default function App() {
               start={(login) => {
                 setAuthMode(login ? "login" : "register");
                 setAuthView("form");
+                setSkipWelcome(false);
                 setStage("onb");
               }}
             />
@@ -249,7 +252,7 @@ export default function App() {
             <Onboarding
               key={`${authMode}-${authView}`}
               initial={{ ...emptyProfile, habits: [], email: authEmail }}
-              startAt={authMode === "login" ? 1 : 0}
+              startAt={authMode === "login" || skipWelcome ? 1 : 0}
               authMode={authMode}
               authView={authView}
               authActions={authActions}
@@ -257,6 +260,7 @@ export default function App() {
               onAuthModeChange={(mode, email) => {
                 if (email !== undefined) setAuthEmail(email);
                 setAuthView("form");
+                setSkipWelcome(true);
                 setAuthMode(mode);
               }}
               exit={() => setStage("landing")}

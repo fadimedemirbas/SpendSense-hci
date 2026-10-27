@@ -513,6 +513,98 @@ const TR: Record<string, string> = {
     "Finansal verilerin hesabına kaydedilir ve sadece sen görebilirsin.",
   Version: "Sürüm",
   Note: "Not",
+  "Example assumes a monthly income of about {m}.": "Örnek, aylık yaklaşık {m} gelir varsayar.",
+  "Free · No bank connection needed": "Ücretsiz · Banka bağlantısı gerekmez",
+  "SpendSense shows how a purchase fits your budget, goals and mood before you buy. No lectures, no blocking. The decision stays yours.":
+    "SpendSense, bir alımın bütçene, hedeflerine ve o anki ruh haline nasıl uyduğunu satın almadan önce gösterir. Nutuk yok, engel yok. Karar her zaman senin.",
+  "Try it now": "Hemen dene",
+  "Works on your phone": "Telefonunda çalışır",
+  "Most regret buys start the same way": "Pişman olunan alımların çoğu aynı şekilde başlar",
+  "Spending isn't only about money. These moments push us to buy before we've thought it through.":
+    "Harcamak sadece parayla ilgili değil. Bu anlar, düşünmeye fırsat bulmadan almamıza yol açar.",
+  "It's on sale": "İndirimde",
+  "A countdown or a big red discount makes waiting feel like losing.":
+    "Geri sayım ya da büyük kırmızı bir indirim, beklemeyi kaybetmek gibi hissettirir.",
+  "A hard day": "Zor bir gün",
+  "Stress, boredom or tiredness turn shopping into a quick mood fix.":
+    "Stres, can sıkıntısı ya da yorgunluk alışverişi hızlı bir moral ilacına çevirir.",
+  "Everyone has it": "Herkeste var",
+  "What friends and feeds show us quietly becomes what we need.":
+    "Arkadaşlarımızın ve akışımızın gösterdikleri sessizce ihtiyacımıza dönüşür.",
+  "Three short steps, about a minute.": "Üç kısa adım, yaklaşık bir dakika.",
+  "Name it, add the price and say why you want it.":
+    "Adını ve fiyatını yaz, neden istediğini söyle.",
+  "Budget fit, need, goal impact and impulse signals in one view.":
+    "Bütçe uyumu, ihtiyaç, hedef etkisi ve anlık alım işaretleri tek ekranda.",
+  "Buy, wait a few days or skip. SpendSense never decides for you.":
+    "Al, birkaç gün beklet ya da vazgeç. SpendSense asla senin yerine karar vermez.",
+  "Move the price and pick reasons to see how the context changes.":
+    "Fiyatı kaydır ve gerekçeleri seç, bağlamın nasıl değiştiğini gör.",
+  "Everything in one calm place": "Her şey tek ve sakin bir yerde",
+  "Log income and expenses in a few taps, with ready-made categories.":
+    "Gelir ve giderlerini hazır kategorilerle birkaç dokunuşta kaydet.",
+  "A five-question check that shows the context before you pay.":
+    "Ödemeden önce bağlamı gösteren beş soruluk bir kontrol.",
+  "Park a purchase for 24 hours to a week and revisit it calmly.":
+    "Bir alımı 24 saatten bir haftaya kadar beklet, sonra sakin kafayla yeniden bak.",
+  "See how each purchase could delay what you're saving for.":
+    "Her alımın biriktirdiğin hedefi ne kadar geciktirebileceğini gör.",
+  "Spot the moods and reasons behind your spending.":
+    "Harcamalarının ardındaki duyguları ve gerekçeleri fark et.",
+  Reflection: "Yansıtma",
+  "Rate past decisions and learn which ones you're glad about.":
+    "Geçmiş kararlarını puanla, hangilerinden memnun kaldığını öğren.",
+  "Built on a few promises": "Birkaç söz üzerine kurulu",
+  "No red warnings or guilt. Just context, in plain words.":
+    "Kırmızı uyarı ya da suçluluk yok. Sadece sade bir dille bağlam.",
+  "Scores never block a purchase. Every decision is yours.":
+    "Puanlar hiçbir alımı engellemez. Her karar senin.",
+  "Your entries are saved to your account and visible only to you.":
+    "Kayıtların hesabına kaydedilir ve sadece sen görebilirsin.",
+  "No bank connection": "Banka bağlantısı yok",
+  "You add what you want to track. Nothing is pulled from your accounts.":
+    "Takip etmek istediklerini sen eklersin. Hesaplarından hiçbir şey çekilmez.",
+  "Frequently asked questions": "Sık sorulan sorular",
+  "Is SpendSense free?": "SpendSense ücretsiz mi?",
+  "Yes. It's a university HCI course project and there's nothing to pay.":
+    "Evet. Bir üniversite HCI ders projesi, ödenecek bir şey yok.",
+  "Do I need to connect my bank account?": "Banka hesabımı bağlamam gerekiyor mu?",
+  "No. You add the income, expenses and purchases you want to think about yourself.":
+    "Hayır. Üzerine düşünmek istediğin gelir, gider ve alımları kendin eklersin.",
+  "Is this financial advice?": "Bu finansal tavsiye mi?",
+  "No. Scores are simple, transparent heuristics to help you reflect. Each one explains how it was calculated.":
+    "Hayır. Puanlar düşünmene yardımcı olan basit ve şeffaf hesaplardır. Her biri nasıl hesaplandığını açıklar.",
+  "Where is my data stored?": "Verilerim nerede saklanıyor?",
+  "In your SpendSense account. Only you can see it, and you can export or reset it anytime in Settings.":
+    "SpendSense hesabında. Sadece sen görebilirsin, istediğin zaman Ayarlar'dan dışa aktarabilir ya da sıfırlayabilirsin.",
+  "Can I use it on my phone?": "Telefonumda kullanabilir miyim?",
+  "Yes. Open it in your phone's browser and add it to your home screen to use it like an app.":
+    "Evet. Telefonunun tarayıcısında aç ve ana ekrana ekle, bir uygulama gibi kullan.",
+  "Create a free account and check your next purchase in a minute.":
+    "Ücretsiz bir hesap oluştur ve bir sonraki alımını bir dakikada kontrol et.",
+  Product: "Ürün",
+  Features: "Özellikler",
+  "Create an account": "Hesap oluştur",
+  "Log in to your account": "Hesabına giriş yap",
+  App: "Uygulama",
+  "Scores are simple heuristics, not financial advice.":
+    "Puanlar basit hesaplardır, finansal tavsiye değildir.",
+  "Start making calmer purchase decisions in a minute.":
+    "Bir dakikada daha sakin alım kararları vermeye başla.",
+  "Welcome back. Pick up where you left off.": "Tekrar hoş geldin. Kaldığın yerden devam et.",
+  "Google sign-in is coming soon. Use your email for now.":
+    "Google ile giriş yakında geliyor. Şimdilik e-postanla devam edebilirsin.",
+  "Continue with Google": "Google ile devam et",
+  "or with email": "veya e-posta ile",
+  "Remember me": "Beni hatırla",
+  "By creating an account, you agree to the Terms of Use and Privacy Policy.":
+    "Hesap oluşturarak Kullanım Koşulları'nı ve Gizlilik Politikası'nı kabul etmiş olursun.",
+  "First name": "Ad",
+  "Last name": "Soyad",
+  Name: "Ad soyad",
+  "Enter your first and last name.": "Adını ve soyadını gir.",
+  or: "veya",
+  "Hi {n}! Let's look at your month together.": "Merhaba {n}! Bu ayına birlikte bakalım.",
   "Saved: Buy. Added to your expenses.": "Kaydedildi: Al. Harcamalarına eklendi.",
   "It would use {n}% of what's left this month.": "Bu ay kalan paranın %{n}'ini kullanır.",
   "Nothing is left this month after your expenses.": "Harcamalarından sonra bu ay para kalmadı.",
@@ -901,11 +993,13 @@ export function Ring({
   size = 96,
   label,
   color = "#1f7a58",
+  suffix = "",
 }: {
   value: number;
   size?: number;
   label?: string;
   color?: string;
+  suffix?: string;
 }) {
   const r = 40,
     c = 2 * Math.PI * r,
@@ -933,8 +1027,16 @@ export function Ring({
         transform="rotate(-90 50 50)"
         style={{ transition: "stroke-dashoffset .8s var(--ease-clay)" }}
       />
-      <text x="50" y="57" textAnchor="middle" className="f-num" fontSize="22" fill="#2a1a2c">
+      <text
+        x="50"
+        y="57"
+        textAnchor="middle"
+        className="f-num"
+        fontSize={suffix ? 20 : 22}
+        fill="#2a1a2c"
+      >
         {Math.round(value)}
+        {suffix}
       </text>
     </svg>
   );

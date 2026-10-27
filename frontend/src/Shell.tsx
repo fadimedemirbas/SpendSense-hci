@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Home,
   Wallet,
-  Scale,
+  MessageCircleQuestionMark,
   Target,
   BarChart3,
   MoreHorizontal,
@@ -18,7 +18,7 @@ import { today } from "./store";
 const MAIN: [Tab, string, typeof Home][] = [
   ["home", "Home", Home],
   ["money", "Money", Wallet],
-  ["decide", "Decide", Scale],
+  ["decide", "Decide", MessageCircleQuestionMark],
   ["goals", "Goals", Target],
   ["insights", "Insights", BarChart3],
 ];

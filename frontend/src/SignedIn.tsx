@@ -19,6 +19,8 @@ export default function SignedIn({
   logout: () => Promise<void>;
 }) {
   const t = useT();
+  // Name entered at sign up lives in the auth user's metadata.
+  const meta = (session.user.user_metadata ?? {}) as { first_name?: string; full_name?: string };
   const data = useWorkspace(session.user.id, session.user.email ?? "");
   // Tabs live in the URL hash so browser/OS back gestures move between screens.
   const fromHash = (): Tab => TABS.find((x) => `#${x}` === location.hash) ?? "home";
@@ -133,7 +135,7 @@ export default function SignedIn({
           />
         ) : (
           <Shell>
-            {tab === "home" && <HomePage />}
+            {tab === "home" && <HomePage firstName={meta.first_name?.trim() || undefined} />}
             {tab === "money" && <Money />}
             {tab === "decide" && <Decide />}
             {tab === "goals" && <Goals />}
@@ -142,6 +144,7 @@ export default function SignedIn({
             {tab === "history" && <HistoryPage />}
             {tab === "settings" && (
               <SettingsPage
+                name={meta.full_name?.trim() || undefined}
                 reset={() =>
                   data.updateWorkspace((previous) => ({
                     ...previous,

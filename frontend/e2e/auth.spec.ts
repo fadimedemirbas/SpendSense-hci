@@ -61,6 +61,13 @@ test("registration shows the password rule, links errors to fields and confirms 
   await expect(rule).toContainText("Requirement not met yet");
   expect(await describedBy(page, "Password")).toContain("password-rule");
 
+  // Missing name: the first name field is focused and marked invalid.
+  await page.getByRole("button", { name: "Create your account", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("Enter your first and last name.");
+  await expect(page.getByLabel("First name", { exact: true })).toBeFocused();
+  await page.getByLabel("First name", { exact: true }).fill("Test");
+  await page.getByLabel("Last name", { exact: true }).fill("User");
+
   // Invalid e-mail: error is linked to the e-mail field, which receives focus.
   await page.getByLabel("Email", { exact: true }).fill("new@example");
   await page.getByRole("button", { name: "Create your account", exact: true }).click();
@@ -74,7 +81,10 @@ test("registration shows the password rule, links errors to fields and confirms 
   await page.getByLabel("Password", { exact: true }).fill("short");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("alert")).toHaveText("Use at least 8 characters for a new password.");
-  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   await expect(page.getByLabel("Email", { exact: true })).not.toHaveAttribute("aria-invalid");
   await expect(page.getByLabel("Password", { exact: true })).toBeFocused();
   expect(await describedBy(page, "Password")).toContain("onboarding-error");
@@ -104,7 +114,9 @@ test("registration shows the password rule, links errors to fields and confirms 
   await page.clock.fastForward(61_000);
   await expect(resend).toBeEnabled();
   await resend.click();
-  await expect(page.getByRole("status").filter({ hasText: "new link is on its way" })).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "new link is on its way" }),
+  ).toBeVisible();
   await expect(resend).toBeDisabled();
   const sent = (await authRequests(request)).filter((r) => r.url.includes("/auth/v1/resend"));
   expect(sent).toHaveLength(1);
@@ -123,6 +135,8 @@ test("Turkish registration and login texts", async ({ page }) => {
   await page.getByRole("button", { name: "Başlayalım", exact: true }).first().click();
   await page.getByRole("button", { name: "İleri", exact: true }).click();
   await expect(page.locator("#password-rule")).toContainText("En az 8 karakter");
+  await page.getByLabel("Ad", { exact: true }).fill("Test");
+  await page.getByLabel("Soyad", { exact: true }).fill("Kullanıcı");
   await page.getByLabel("E-posta", { exact: true }).fill("yeni@example.com");
   await page.getByLabel("Şifre", { exact: true }).fill("test-only-password");
   await slowSignup(page);
@@ -167,7 +181,9 @@ test("forgot password works by keyboard and never reveals whether an account exi
   const reset = (await authRequests(request)).filter((r) => r.url.includes("/auth/v1/recover"));
   expect(reset).toHaveLength(1);
   expect(reset[0].body).toMatchObject({ email: "pwa-test@example.com" });
-  expect(decodeURIComponent(reset[0].url)).toMatch(/redirect_to=http:\/\/127\.0\.0\.1:4179\/\?recovery=1/);
+  expect(decodeURIComponent(reset[0].url)).toMatch(
+    /redirect_to=http:\/\/127\.0\.0\.1:4179\/\?recovery=1/,
+  );
 
   // Same answer for an address with no account.
   await page.getByRole("button", { name: "Back to log in" }).click();
@@ -264,6 +280,8 @@ test("every new auth state meets automated WCAG AA rules", async ({ page }) => {
   await page.getByLabel("Password", { exact: true }).fill("short");
   await page.keyboard.press("Enter");
   await audit("register with errors");
+  await page.getByLabel("First name", { exact: true }).fill("Test");
+  await page.getByLabel("Last name", { exact: true }).fill("User");
   await page.getByLabel("Email", { exact: true }).fill("new@example.com");
   await page.getByLabel("Password", { exact: true }).fill("test-only-password");
   await page.keyboard.press("Enter");
