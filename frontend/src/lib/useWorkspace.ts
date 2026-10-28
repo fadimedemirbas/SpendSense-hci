@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState, type SetStateAction } from "r
 import { requireSupabase } from "./supabase";
 import { profileTubes } from "../store";
 import {
+  CLIENT_PROTOCOL,
   assertLoadedWorkspace,
-  detectServerProtocol,
   normalizeLoadedWorkspace,
   prepareVersionedWorkspaceSave,
-  type ServerProtocol,
+  workspaceLoadRequest,
 } from "./workspaceProtocol";
 import { onlineOperation } from "../pwa/network";
 import {
@@ -20,8 +20,6 @@ export function useWorkspace(userId: string, email: string) {
   const [workspace, setWorkspace] = useState<Workspace>(() => emptyWorkspace(email));
   const current = useRef(workspace);
   const revision = useRef(0);
-  // Learned from each load; decides schemaVersion 1 or 2 (see prepareVersionedWorkspaceSave).
-  const protocol = useRef<ServerProtocol>("unknown");
   const active = useRef(true);
   const ready = useRef(false);
   const loadRequest = useRef(0);
@@ -38,18 +36,17 @@ export function useWorkspace(userId: string, email: string) {
     setLoading(true);
     setError("");
     try {
+      // Protocol 1 (TRY-only screens) or 3 (currency-aware); see workspaceProtocol.ts.
+      const load = workspaceLoadRequest(CLIENT_PROTOCOL, userId);
       const { data, error: readError } = await onlineOperation(() =>
-        requireSupabase().rpc("spendsense_load_workspace", {
-          expected_user_id: userId,
-        }),
+        requireSupabase().rpc(load.fn, load.args),
       );
       if (readError) throw readError;
       if (!active.current || loadRequest.current !== request) return;
-      if (data !== null) assertLoadedWorkspace(data);
+      if (data !== null) assertLoadedWorkspace(data, CLIENT_PROTOCOL);
       // Legacy records without a currency are lira; normalised copies, inputs untouched.
       const loaded = data ? normalizeLoadedWorkspace(data.workspace) : emptyWorkspace(email);
       const next = { ...loaded, profile: { ...loaded.profile, email } };
-      protocol.current = detectServerProtocol(data);
       current.current = next;
       revision.current = data?.revision ?? 0;
       setWorkspace(next);
@@ -90,7 +87,7 @@ export function useWorkspace(userId: string, email: string) {
               current.current,
               change(current.current),
               userId,
-              protocol.current,
+              CLIENT_PROTOCOL,
             );
             const { data, error: saveError } = await onlineOperation(() =>
               requireSupabase().rpc("spendsense_save_workspace", {

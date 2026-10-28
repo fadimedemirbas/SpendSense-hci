@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   WorkspaceProtocolError,
+  CLIENT_PROTOCOL,
   assertLoadedWorkspace,
-  detectServerProtocol,
   normalizeLoadedWorkspace,
   prepareVersionedWorkspaceSave,
   prepareWorkspaceSave,
+  workspaceLoadRequest,
 } from "../src/lib/workspaceProtocol.ts";
 import {
   CURRENCY_UNSUPPORTED_MESSAGE,
@@ -82,8 +83,8 @@ function legacyLoaded() {
     ],
   };
 }
-/** The same data as a migrated (version 2) database returns it. */
-function v2Loaded() {
+/** The same data as spendsense_load_workspace_v3 (protocol 3) returns it. */
+function v3Loaded() {
   const loaded = legacyLoaded();
   loaded.profile.displayCurrency = "TRY";
   for (const record of [...loaded.entries, ...loaded.goals]) record.currency = "TRY";
@@ -114,7 +115,7 @@ test("legacy records are normalised to TRY without changing amounts or mutating 
 });
 
 test("new TRY/USD/EUR records keep their own currency through normalisation", () => {
-  const loaded = v2Loaded();
+  const loaded = v3Loaded();
   loaded.profile.displayCurrency = "EUR";
   loaded.entries.push({ ...loaded.entries[0], id: "entry-2", amount: 500, currency: "USD" });
   loaded.goals[0].currency = "EUR";
@@ -135,13 +136,23 @@ test("new TRY/USD/EUR records keep their own currency through normalisation", ()
   assert.equal(workspace.decisions[0].currency, "TRY");
 });
 
-test("load responses with invalid currency values are rejected, valid ones accepted", () => {
-  assertLoadedWorkspace({ revision: 3, workspace: legacyLoaded() });
-  assertLoadedWorkspace({ revision: 3, workspace: v2Loaded() });
+test("protocol 3 load responses need the v3 marker and valid explicit currencies", () => {
+  assertLoadedWorkspace({ protocol: 3, revision: 3, workspace: v3Loaded() }, 3);
+  // A legacy response (no marker, no currencies) is not a protocol 3 response.
+  assert.throws(
+    () => assertLoadedWorkspace({ revision: 3, workspace: v3Loaded() }, 3),
+    /Incomplete/,
+  );
+  assert.throws(
+    () => assertLoadedWorkspace({ protocol: 3, revision: 3, workspace: legacyLoaded() }, 3),
+    /Incomplete/,
+  );
   const corruptions = [
     (w) => (w.profile.displayCurrency = "GBP"),
     (w) => (w.profile.displayCurrency = null),
+    (w) => delete w.profile.displayCurrency,
     (w) => (w.entries[0].currency = "usd"),
+    (w) => delete w.entries[0].currency,
     (w) => (w.goals[0].currency = ""),
     (w) => (w.analyses[0].purchase.currency = 1),
     (w) => (w.analyses[0].purchase = null),
@@ -149,21 +160,53 @@ test("load responses with invalid currency values are rejected, valid ones accep
     (w) => (w.waiting[0].currency = "symbol"),
   ];
   for (const corrupt of corruptions) {
-    const workspace = v2Loaded();
+    const workspace = v3Loaded();
     corrupt(workspace);
-    assert.throws(() => assertLoadedWorkspace({ revision: 3, workspace }), /Incomplete/);
+    assert.throws(
+      () => assertLoadedWorkspace({ protocol: 3, revision: 3, workspace }, 3),
+      /Incomplete/,
+    );
   }
 });
 
-test("the database protocol is detected from the load response itself", () => {
-  assert.equal(detectServerProtocol(null), "unknown"); // new account: no profile yet
-  assert.equal(detectServerProtocol(undefined), "unknown");
-  assert.equal(detectServerProtocol({ revision: 1, workspace: legacyLoaded() }), "v1");
-  assert.equal(detectServerProtocol({ revision: 1, workspace: v2Loaded() }), "v2");
+test("protocol 1 (TRY-only screens) never accepts a foreign amount, even nested", () => {
+  assertLoadedWorkspace({ revision: 3, workspace: legacyLoaded() });
+  assertLoadedWorkspace({ revision: 3, workspace: legacyLoaded() }, 1);
+  assertLoadedWorkspace({ revision: 3, workspace: v3Loaded() }, 1); // explicit TRY is fine
+  for (const foreign of [
+    (w) => (w.entries[0].currency = "USD"),
+    (w) => (w.goals[0].currency = "EUR"),
+    (w) => (w.analyses[0].purchase.currency = "USD"),
+    (w) => (w.analyses[0].result.goal.currency = "EUR"),
+    (w) => (w.decisions[0].currency = "USD"),
+    (w) => (w.waiting[0].currency = "EUR"),
+  ]) {
+    const workspace = legacyLoaded();
+    foreign(workspace);
+    assert.throws(() => assertLoadedWorkspace({ revision: 3, workspace }, 1), /Incomplete/);
+  }
 });
 
-test("schemaVersion 2 serialises every currency and the display currency exactly", () => {
-  const previous = normalizeLoadedWorkspace(v2Loaded());
+test("the client protocol chooses the load RPC; this build is still TRY-only", () => {
+  assert.equal(CLIENT_PROTOCOL, 1); // protocol 3 arrives with the currency-aware screens
+  assert.deepEqual(workspaceLoadRequest(1, "user-1"), {
+    fn: "spendsense_load_workspace",
+    args: { expected_user_id: "user-1" },
+  });
+  assert.deepEqual(workspaceLoadRequest(3, "user-1"), {
+    fn: "spendsense_load_workspace_v3",
+    args: { expected_user_id: "user-1", client_protocol: 3 },
+  });
+  for (const protocol of [0, 2, 4, NaN])
+    assert.throws(
+      () => workspaceLoadRequest(protocol, "user-1"),
+      (error) =>
+        error instanceof WorkspaceProtocolError && error.code === "SS_PROTOCOL_UNSUPPORTED",
+    );
+});
+
+test("protocol 3 serialises every currency and the display currency as schemaVersion 3", () => {
+  const previous = normalizeLoadedWorkspace(v3Loaded());
   const next = structuredClone(previous);
   next.profile.displayCurrency = "USD";
   next.entries.push({
@@ -175,8 +218,8 @@ test("schemaVersion 2 serialises every currency and the display currency exactly
     name: "Music",
     date: "2026-10-26",
   });
-  const { payload } = prepareVersionedWorkspaceSave(previous, next, "owner-1", "v2");
-  assert.equal(payload.schemaVersion, 2);
+  const { payload } = prepareVersionedWorkspaceSave(previous, next, "owner-1", 3);
+  assert.equal(payload.schemaVersion, 3);
   assert.equal(payload.ownerId, "owner-1");
   assert.equal(payload.profile.displayCurrency, "USD");
   assert.equal(payload.profile.currency, "code");
@@ -198,7 +241,7 @@ test("schemaVersion 2 serialises every currency and the display currency exactly
 });
 
 test("missing or invalid currencies are never saved and never stripped", () => {
-  const previous = normalizeLoadedWorkspace(v2Loaded());
+  const previous = normalizeLoadedWorkspace(v3Loaded());
   const breaks = [
     (w) => delete w.entries[0].currency,
     (w) => (w.entries[0].currency = "GBP"),
@@ -208,7 +251,7 @@ test("missing or invalid currencies are never saved and never stripped", () => {
     (w) => (w.waiting[0].currency = "eur"),
     (w) => delete w.profile.displayCurrency,
   ];
-  for (const server of ["v2", "v1", "unknown"]) {
+  for (const server of [3, 1]) {
     for (const broken of breaks) {
       const next = structuredClone(previous);
       broken(next);
@@ -221,9 +264,15 @@ test("missing or invalid currencies are never saved and never stripped", () => {
   }
 });
 
-test("an older or unknown database only receives lira workspaces, as schemaVersion 1", () => {
+test("protocol 1 only saves lira, as schemaVersion 1; other protocols are refused", () => {
   const previous = normalizeLoadedWorkspace(legacyLoaded());
-  for (const server of ["v1", "unknown"]) {
+  for (const protocol of [2, 0, 4])
+    assert.throws(
+      () => prepareVersionedWorkspaceSave(previous, previous, "owner-1", protocol),
+      (error) =>
+        error instanceof WorkspaceProtocolError && error.code === "SS_PROTOCOL_UNSUPPORTED",
+    );
+  for (const server of [1]) {
     const { payload } = prepareVersionedWorkspaceSave(previous, previous, "owner-1", server);
     assert.equal(payload.schemaVersion, 1);
     assert.equal(payload.entries[0].currency, "TRY"); // kept, not stripped
@@ -246,10 +295,10 @@ test("an older or unknown database only receives lira workspaces, as schemaVersi
 });
 
 test("explicit deletion intent and history handling are identical to the existing protocol", () => {
-  const previous = normalizeLoadedWorkspace(v2Loaded());
+  const previous = normalizeLoadedWorkspace(v3Loaded());
   const next = { ...previous, entries: [], goals: [], decisions: [], waiting: [] };
   const legacy = prepareWorkspaceSave(previous, next, "owner-1");
-  const versioned = prepareVersionedWorkspaceSave(previous, next, "owner-1", "v2");
+  const versioned = prepareVersionedWorkspaceSave(previous, next, "owner-1", 3);
   assert.deepEqual(versioned.payload.deletions, legacy.payload.deletions);
   assert.deepEqual(versioned.payload.deletions, {
     entries: ["entry-1"],
@@ -264,7 +313,7 @@ test("explicit deletion intent and history handling are identical to the existin
   assert.equal(versioned.workspace.analyses[0].goalId, undefined);
   assert.deepEqual(versioned.workspace.analyses[0].result, previous.analyses[0].result);
   // Ordinary saves still carry no deletion intent.
-  const same = prepareVersionedWorkspaceSave(previous, structuredClone(previous), "o", "v2");
+  const same = prepareVersionedWorkspaceSave(previous, structuredClone(previous), "o", 3);
   assert.ok(Object.values(same.payload.deletions).every((ids) => ids.length === 0));
   // The existing (version 1) serializer is unchanged.
   assert.equal(legacy.payload.schemaVersion, 1);
@@ -291,6 +340,9 @@ test("error codes map to safe, translatable messages without server details", ()
   assert.match(persistenceMessage({ code: "40001" }), /changed in another session/);
   assert.match(persistenceMessage({ code: "22023" }), /incomplete or invalid/);
   assert.match(persistenceMessage({ code: "42501" }), /sign in again/);
+  // A missing RPC (for example load_workspace_v3 before the migration) fails safely.
+  for (const code of ["PGRST202", "42883"])
+    assert.match(persistenceMessage({ code }), /database setup is not ready/);
   assert.match(persistenceMessage(new Error("boom")), /could not be saved/);
 });
 
@@ -299,7 +351,7 @@ test("profiles default to TRY display currency and keep the symbol/code preferen
   assert.equal(emptyProfile.currency, "symbol");
   const workspace = emptyWorkspace("new@example.com");
   assert.equal(workspace.profile.displayCurrency, "TRY");
-  const { payload } = prepareVersionedWorkspaceSave(workspace, workspace, "owner", "unknown");
+  const { payload } = prepareVersionedWorkspaceSave(workspace, workspace, "owner", 1);
   assert.equal(payload.schemaVersion, 1); // a brand-new lira account saves on either database
 });
 

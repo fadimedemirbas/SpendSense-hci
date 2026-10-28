@@ -1,21 +1,145 @@
 -- SpendSense multi-currency support (TRY, USD, EUR). Prepared for review only.
 -- Do not apply to the shared project without approval. Requires 202610250001.
+-- Runbook: docs/multi-currency-migration-runbook.md
+--
+-- RUN AS: a role that bypasses RLS and owns (or is a member of the owner of) the
+-- eight spendsense_* tables. In the Supabase SQL Editor this is "postgres"
+-- (rolbypassrls = true). Any other role is refused before anything changes.
+--
+-- Safety checks (all inside one transaction; any failure changes nothing):
+--   * row_security = off for this transaction: a query that RLS would filter
+--     raises an error instead of silently seeing fewer rows.
+--   * role: superuser or BYPASSRLS; table ownership; RLS enabled and forced.
+--   * baseline: all eight tables exist, the currency columns do not, and the 14
+--     migration-1 function bodies match their md5 (computed from 202610250001).
+--   * repeat protection: spendsense_meta.schema_migrations must not list this
+--     migration as applied, and none of its new objects may exist.
+--   * data: every stored purchase and analysis must satisfy the new validators.
 --
 -- Additive only: three new columns with a constant TRY default (existing rows
--- read as TRY without being rewritten), one new validator, and replacements for
--- the validators and the two workspace RPCs. No row is deleted, no amount is
--- converted, RLS policies and grants are untouched.
+-- read as TRY without being rewritten), new helper functions, a private ledger,
+-- and replacements for the validators and the workspace RPCs. No row is deleted,
+-- no amount is converted, RLS policies and table grants are untouched.
 --
--- Workspace protocol
---   schemaVersion 1 (current frontend): accepted while the account holds only
---     TRY data. Currency keys, if echoed back, must be "TRY". Stored currencies and
---     display_currency are never changed by a version 1 save.
---   schemaVersion 2: every entry, goal and purchase carries a currency and the
---     profile carries displayCurrency; a missing or unknown code rejects the save.
---   Once an account holds any non-TRY data (or a non-TRY display currency),
---   version 1 saves are rejected (SQLSTATE 0A000) so an older client cannot
---   overwrite USD/EUR records with lira semantics.
+-- Client protocols (what the client can show, not just store)
+--   1  TRY-only screens (every frontend before the currency-aware UI).
+--      Loads with spendsense_load_workspace(uuid): the migration-1 response,
+--      refused with 0A000 once the account holds any USD/EUR monetary record
+--      (entries, goals, purchases in analyses/decisions/waiting, goal snapshots
+--      inside analysis history). Saves with schemaVersion 1: TRY only; refused
+--      with 0A000 for such accounts; never changes stored currencies.
+--   3  Currency-aware screens. Loads with spendsense_load_workspace_v3(uuid, 3),
+--      which returns explicit currencies and "protocol": 3. Saves with
+--      schemaVersion 3: every entry, goal and purchase and displayCurrency
+--      must carry a valid code.
+--   schemaVersion 2 (an unreleased storage-only draft) and any other value are
+--   rejected (22023).
+--
+-- Rollback (only before any USD/EUR record exists):
+--   supabase/rollback/202610280001_spendsense_currency_rollback.sql
+--
+-- spendsense_meta.schema_migrations is a private SpendSense ledger. It is NOT the
+-- Supabase CLI history (supabase_migrations.schema_migrations) and is not read by
+-- "supabase db push" or "supabase migration repair".
 begin;
+-- Fail instead of filtering: no check below can pass by seeing too few rows.
+set local row_security = off;
+
+do $$
+declare
+  t text;
+  rel record;
+  fn record;
+  already boolean := false;
+  expected constant jsonb := '{"spendsense_json_date": "d7b7b85ba213f9a0983a29b9819e7360",
+    "spendsense_json_number": "990f89d17aaf61580544d9695416fc39",
+    "spendsense_json_text": "781b67adceff59bff525ea35c3ebc209",
+    "spendsense_json_timestamp": "df1eb6209dad693d77dac73ca5c69330",
+    "spendsense_json_uuid": "e42ba2cf7b749a0d8c1a4303c9fa3f37",
+    "spendsense_load_workspace": "ef7db0aaf14dd44276bffa146301c2de",
+    "spendsense_profile_revision": "777813fab2ea8f51924ba11e7ef6a5c6",
+    "spendsense_save_workspace": "c361b5f50374d1deb29846d1256271a3",
+    "spendsense_touch_workspace": "e6143592768724941a66be78d6459c09",
+    "spendsense_valid_analysis": "1459e26ecaf5d206e670790ded6c76ae",
+    "spendsense_valid_behavior": "f6e7424ba3f7802c958cc3bf569a9d03",
+    "spendsense_valid_goal": "0af8a561ac6b822846c38c432309aeab",
+    "spendsense_valid_purchase": "ad9f1fbd17661882dcf5b3eed48d202f",
+    "spendsense_valid_workspace": "7f7e0831df50199b938f2d2ae9a6bc12"}';
+begin
+  if current_setting('server_version_num')::integer < 150000 then
+    raise exception 'SpendSense requires PostgreSQL 15 or newer' using errcode = '0A000';
+  end if;
+  if not exists (select 1 from pg_roles where rolname = current_user and (rolsuper or rolbypassrls)) then
+    raise exception 'Run this migration as a role that bypasses RLS (Supabase SQL Editor: postgres); role % cannot see every row', current_user
+      using errcode = '42501';
+  end if;
+  foreach t in array array['spendsense_user_profiles','spendsense_money_entries','spendsense_savings_goals','spendsense_spending_profiles','spendsense_purchase_analyses','spendsense_purchase_decisions','spendsense_purchase_reflections','spendsense_waiting_items'] loop
+    select c.relowner, c.relrowsecurity, c.relforcerowsecurity into rel
+      from pg_class c where c.oid = to_regclass('public.' || t);
+    if not found then
+      raise exception 'Baseline table public.% is missing; migration 202610250001 must be applied first', t using errcode = '55000';
+    end if;
+    if not pg_has_role(current_user, rel.relowner, 'MEMBER') then
+      raise exception 'Table public.% is owned by %, not by the migration role %', t, pg_get_userbyid(rel.relowner), current_user
+        using errcode = '42501';
+    end if;
+    if not (rel.relrowsecurity and rel.relforcerowsecurity) then
+      raise exception 'Row level security is not enabled and forced on public.%', t using errcode = '55000';
+    end if;
+  end loop;
+  if to_regclass('spendsense_meta.schema_migrations') is not null then
+    execute 'select exists (select 1 from spendsense_meta.schema_migrations where version = $1 and status = $2)'
+      into already using '202610280001', 'applied';
+  end if;
+  if already then
+    raise exception 'Migration 202610280001 is already applied (spendsense_meta.schema_migrations)' using errcode = '55000';
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+      and ((table_name in ('spendsense_money_entries','spendsense_savings_goals') and column_name = 'currency')
+        or (table_name = 'spendsense_user_profiles' and column_name = 'display_currency'))) then
+    raise exception 'Currency columns already exist; migration 202610280001 (or a draft of it) was applied before' using errcode = '55000';
+  end if;
+  if exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname in
+      ('spendsense_json_currency','spendsense_valid_currency_field','spendsense_has_foreign_currency','spendsense_load_workspace_v3')) then
+    raise exception 'Functions of migration 202610280001 already exist; it (or a draft of it) was applied before' using errcode = '55000';
+  end if;
+  for fn in select key as name, value #>> '{}' as hash from jsonb_each(expected) loop
+    if (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname = fn.name) <> 1
+      or not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = fn.name
+        and md5(replace(prosrc, E'\r', '')) = fn.hash) then
+      raise exception 'public.% differs from migration 202610250001 (expected body md5 %); review the database before migrating', fn.name, fn.hash
+        using errcode = '55000';
+    end if;
+  end loop;
+end $$;
+
+-- Private ledger (not exposed through the Data API, no client access).
+create schema if not exists spendsense_meta;
+create table if not exists spendsense_meta.schema_migrations (
+  version text primary key check (version ~ '^[0-9]{12}$'),
+  name text not null,
+  status text not null check (status in ('baseline-verified','applied','reverted')),
+  recorded_at timestamptz not null default now(),
+  recorded_by text not null default current_user,
+  notes text
+);
+alter table spendsense_meta.schema_migrations enable row level security;
+revoke all on schema spendsense_meta from public;
+revoke all on spendsense_meta.schema_migrations from public;
+do $$
+declare r text;
+begin
+  foreach r in array array['anon','authenticated','service_role'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('revoke all on schema spendsense_meta from %I', r);
+      execute format('revoke all on spendsense_meta.schema_migrations from %I', r);
+    end if;
+  end loop;
+end $$;
+insert into spendsense_meta.schema_migrations(version, name, status, notes)
+  values ('202610250001', 'spendsense', 'baseline-verified',
+    'Applied before this ledger existed; tables, RLS and function bodies verified by 202610280001')
+  on conflict (version) do nothing;
 
 alter table public.spendsense_money_entries
   add column currency text not null default 'TRY'
@@ -32,21 +156,24 @@ create function public.spendsense_json_currency(v jsonb)
 returns boolean language sql immutable set search_path = '' as $$
   select coalesce(jsonb_typeof(v) = 'string' and (v #>> '{}') in ('TRY','USD','EUR'), false);
 $$;
--- Version 2 requires a currency; version 1 (legacy) may only omit it or echo TRY.
+-- Protocol 3 requires a currency; protocol 1 (TRY-only clients) may only omit it or echo TRY.
 create function public.spendsense_valid_currency_field(item jsonb, version integer)
 returns boolean language sql immutable set search_path = '' as $$
-  select case when version = 2 then public.spendsense_json_currency(item->'currency')
+  select case when version = 3 then public.spendsense_json_currency(item->'currency')
     else coalesce(not item ? 'currency' or item->'currency' = '"TRY"'::jsonb, false) end;
 $$;
 
--- True when the caller's stored workspace holds anything other than lira.
+-- True when the account holds any USD/EUR monetary record: entries, goals, and
+-- purchases in analyses, decisions and the waiting list, plus the goal snapshots
+-- inside analysis history. The display currency alone is not monetary data and
+-- does not count (a TRY-only client shows correct lira amounts for such accounts).
 -- Runs as the caller (RLS applies), so it can only ever see the caller's rows.
 create function public.spendsense_has_foreign_currency(owner_id uuid)
 returns boolean language sql stable security invoker set search_path = '' as $$
-  select exists (select 1 from public.spendsense_user_profiles where user_id = owner_id and display_currency <> 'TRY')
-    or exists (select 1 from public.spendsense_money_entries where user_id = owner_id and currency <> 'TRY')
+  select exists (select 1 from public.spendsense_money_entries where user_id = owner_id and currency <> 'TRY')
     or exists (select 1 from public.spendsense_savings_goals where user_id = owner_id and currency <> 'TRY')
-    or exists (select 1 from public.spendsense_purchase_analyses where user_id = owner_id and coalesce(purchase->>'currency','TRY') <> 'TRY')
+    or exists (select 1 from public.spendsense_purchase_analyses where user_id = owner_id
+      and (coalesce(purchase->>'currency','TRY') <> 'TRY' or coalesce(result#>>'{goal,currency}','TRY') <> 'TRY'))
     or exists (select 1 from public.spendsense_purchase_decisions where user_id = owner_id and coalesce(purchase->>'currency','TRY') <> 'TRY')
     or exists (select 1 from public.spendsense_waiting_items where user_id = owner_id and coalesce(purchase->>'currency','TRY') <> 'TRY');
 $$;
@@ -125,7 +252,7 @@ returns boolean language plpgsql stable set search_path = '' as $$
 declare k text; item jsonb; p jsonb; version integer;
 begin
   if jsonb_typeof(v) is distinct from 'object'
-    or not coalesce(v->'schemaVersion' in ('1'::jsonb, '2'::jsonb), false)
+    or not coalesce(v->'schemaVersion' in ('1'::jsonb, '3'::jsonb), false)
     or not public.spendsense_json_uuid(v->'ownerId') or jsonb_typeof(v->'deletions') is distinct from 'object' then return false; end if;
   version := (v->>'schemaVersion')::integer;
   p := v->'profile';
@@ -134,8 +261,8 @@ begin
     or jsonb_typeof(p->'onboarded') is distinct from 'boolean' or p->>'currency' not in ('symbol','code')
     or not public.spendsense_valid_behavior(p->'habits',v->'behaviorScores')
     or (p->>'onboarded' = 'true' and jsonb_array_length(p->'habits') <> 4) then return false; end if;
-  -- Version 1 clients may echo a loaded displayCurrency; it is never written from them.
-  if (version = 2 or p ? 'displayCurrency') and not public.spendsense_json_currency(p->'displayCurrency') then return false; end if;
+  -- Protocol 1 clients may echo a displayCurrency; it is never written from them.
+  if (version = 3 or p ? 'displayCurrency') and not public.spendsense_json_currency(p->'displayCurrency') then return false; end if;
   foreach k in array array['entries','goals','analyses','decisions','waiting','reflections'] loop
     if jsonb_typeof(v->'deletions'->k) is distinct from 'array' then return false; end if;
     for item in select value from jsonb_array_elements(v->'deletions'->k) loop
@@ -179,12 +306,59 @@ exception when others then return false;
 end;
 $$;
 
--- Same contract as before, plus displayCurrency and each entry/goal currency.
--- Purchases are returned exactly as stored (legacy ones have no currency = TRY).
+-- Protocol 1 (TRY-only clients): exactly the migration-1 response, so no currency
+-- field is returned, and no data at all once the account holds USD/EUR records.
 create or replace function public.spendsense_load_workspace(expected_user_id uuid)
-returns jsonb language sql stable security invoker set search_path = ''
+returns jsonb language plpgsql stable security invoker set search_path = ''
 set datestyle = 'ISO, YMD' set timezone = 'UTC' as $$
+begin
+  if public.spendsense_has_foreign_currency(auth.uid()) then
+    raise exception 'This workspace uses multiple currencies; update SpendSense to open it' using errcode = '0A000';
+  end if;
+  return (
   select jsonb_build_object(
+    'revision', p.revision,
+    'workspace', jsonb_build_object(
+      'profile', jsonb_build_object('email', auth.jwt()->>'email', 'income', p.income_range,
+        'savings', p.savings_range, 'onboarded', p.onboarded, 'currency', p.currency,
+        'habits', coalesce((select answers from public.spendsense_spending_profiles where user_id = auth.uid()), '[]'::jsonb)),
+      'entries', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'type', entry_type,
+        'amount', amount, 'cat', category, 'name', name, 'date', entry_date) order by entry_date desc, created_at desc)
+        from public.spendsense_money_entries where user_id = auth.uid()), '[]'::jsonb),
+      'goals', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', id,
+        'name', name, 'target', target, 'saved', saved, 'date', target_date, 'status', status)) order by created_at desc)
+        from public.spendsense_savings_goals where user_id = auth.uid()), '[]'::jsonb),
+      -- Do not recursively strip nulls from result: pctGoal/delayDays are
+      -- deliberately null in the current React analysis when no goal applies.
+      'analyses', coalesce((select jsonb_agg((jsonb_build_object('id', id,
+        'purchase', purchase, 'result', result, 'createdAt', created_at)
+        || case when goal_id is null then '{}'::jsonb else jsonb_build_object('goalId',goal_id) end) order by created_at)
+        from public.spendsense_purchase_analyses where user_id = auth.uid()), '[]'::jsonb),
+      'decisions', coalesce((select jsonb_agg(d.purchase || jsonb_strip_nulls(jsonb_build_object('id', d.id,
+        'analysisId', d.analysis_id, 'decision', d.decision, 'date', d.decision_date, 'fit', d.fit, 'reflection', r.rating)) order by d.created_at desc)
+        from public.spendsense_purchase_decisions d left join public.spendsense_purchase_reflections r
+          on r.decision_id = d.id and r.user_id = d.user_id where d.user_id = auth.uid()), '[]'::jsonb),
+      'waiting', coalesce((select jsonb_agg(purchase || jsonb_build_object('id', id, 'analysisId', analysis_id,
+        'added', added_date, 'review', review_date, 'fit', fit) order by created_at desc)
+        from public.spendsense_waiting_items where user_id = auth.uid()), '[]'::jsonb)
+    )
+  ) from public.spendsense_user_profiles p where p.user_id = auth.uid() and p.user_id = expected_user_id
+  );
+end;
+$$;
+
+-- Protocol 3 (currency-aware clients): original amounts with explicit currencies.
+-- Purchases are returned exactly as stored (legacy ones have no currency = TRY).
+create function public.spendsense_load_workspace_v3(expected_user_id uuid, client_protocol integer)
+returns jsonb language plpgsql stable security invoker set search_path = ''
+set datestyle = 'ISO, YMD' set timezone = 'UTC' as $$
+begin
+  if client_protocol is distinct from 3 then
+    raise exception 'Unsupported client protocol' using errcode = '22023';
+  end if;
+  return (
+  select jsonb_build_object(
+    'protocol', 3,
     'revision', p.revision,
     'workspace', jsonb_build_object(
       'profile', jsonb_build_object('email', auth.jwt()->>'email', 'income', p.income_range,
@@ -211,7 +385,9 @@ set datestyle = 'ISO, YMD' set timezone = 'UTC' as $$
         'added', added_date, 'review', review_date, 'fit', fit) order by created_at desc)
         from public.spendsense_waiting_items where user_id = auth.uid()), '[]'::jsonb)
     )
-  ) from public.spendsense_user_profiles p where p.user_id = auth.uid() and p.user_id = expected_user_id;
+  ) from public.spendsense_user_profiles p where p.user_id = auth.uid() and p.user_id = expected_user_id
+  );
+end;
 $$;
 
 create or replace function public.spendsense_save_workspace(payload jsonb, expected_revision bigint)
@@ -232,9 +408,9 @@ begin
   if payload->>'ownerId' is distinct from owner_id::text then
     raise exception 'Session changed; reload before saving' using errcode = '42501';
   end if;
-  -- An older (version 1) client only knows lira. Once the account holds anything
-  -- else, it must update before saving rather than overwrite that data. Checked
-  -- first so echoed USD/EUR fields report this, not a validation error.
+  -- A protocol 1 client only knows lira. Once the account holds USD/EUR records it
+  -- must update before saving rather than overwrite them. Checked first so echoed
+  -- USD/EUR fields report this, not a validation error.
   if payload->'schemaVersion' = '1'::jsonb and public.spendsense_has_foreign_currency(owner_id) then
     raise exception 'This workspace uses multiple currencies; update SpendSense before saving' using errcode = '0A000';
   end if;
@@ -245,7 +421,7 @@ begin
   if expected_revision = 0 then
     insert into public.spendsense_user_profiles(user_id, income_range, savings_range, display_currency)
       values (owner_id, (payload#>>'{profile,income}')::smallint, (payload#>>'{profile,savings}')::smallint,
-        case when version = 2 then payload#>>'{profile,displayCurrency}' else 'TRY' end)
+        case when version = 3 then payload#>>'{profile,displayCurrency}' else 'TRY' end)
       on conflict (user_id) do nothing;
   end if;
   select revision into stored_revision from public.spendsense_user_profiles where user_id = owner_id for update;
@@ -288,7 +464,7 @@ begin
   update public.spendsense_user_profiles set income_range = (payload#>>'{profile,income}')::smallint,
     savings_range = (payload#>>'{profile,savings}')::smallint, onboarded = (payload#>>'{profile,onboarded}')::boolean,
     currency = payload#>>'{profile,currency}',
-    display_currency = case when version = 2 then payload#>>'{profile,displayCurrency}' else display_currency end
+    display_currency = case when version = 3 then payload#>>'{profile,displayCurrency}' else display_currency end
     where user_id = owner_id;
   insert into public.spendsense_spending_profiles(user_id, answers, scores)
     values (owner_id, payload#>'{profile,habits}', coalesce(payload->'behaviorScores','{}'::jsonb))
@@ -308,13 +484,13 @@ begin
   delete from public.spendsense_money_entries where user_id = owner_id and id in
     (select (x #>> '{}')::uuid from jsonb_array_elements(payload->'deletions'->'entries') x);
 
-  -- Version 1 never changes a stored currency (new version 1 rows are TRY).
+  -- Protocol 1 never changes a stored currency (new protocol 1 rows are TRY).
   for item in select value from jsonb_array_elements(payload->'entries') loop
     insert into public.spendsense_money_entries(id, user_id, entry_type, amount, currency, category, name, entry_date)
       values ((item->>'id')::uuid, owner_id, item->>'type', (item->>'amount')::numeric,
         coalesce(item->>'currency', 'TRY'), item->>'cat', item->>'name', (item->>'date')::date)
       on conflict (id) do update set entry_type = excluded.entry_type, amount = excluded.amount,
-        currency = case when version = 2 then excluded.currency else spendsense_money_entries.currency end,
+        currency = case when version = 3 then excluded.currency else spendsense_money_entries.currency end,
         category = excluded.category, name = excluded.name, entry_date = excluded.entry_date
         where spendsense_money_entries.user_id = owner_id;
     get diagnostics affected = row_count;
@@ -325,7 +501,7 @@ begin
       values ((item->>'id')::uuid, owner_id, item->>'name', (item->>'target')::numeric,
         (item->>'saved')::numeric, coalesce(item->>'currency', 'TRY'), (item->>'date')::date, item->>'status')
       on conflict (id) do update set name = excluded.name, target = excluded.target, saved = excluded.saved,
-        currency = case when version = 2 then excluded.currency else spendsense_savings_goals.currency end,
+        currency = case when version = 3 then excluded.currency else spendsense_savings_goals.currency end,
         target_date = excluded.target_date, status = excluded.status
         where spendsense_savings_goals.user_id = owner_id;
     get diagnostics affected = row_count;
@@ -373,8 +549,8 @@ end;
 $$;
 
 -- Every stored purchase and analysis must still pass the replaced validators, so no
--- existing record becomes unsaveable. Run by the migration owner; if this role is
--- subject to RLS the check sees no rows, so also run the documented review query.
+-- existing record becomes unsaveable. The role check above guarantees this sees
+-- every row (and row_security = off would make a filtered query fail, not pass).
 do $$
 begin
   if exists (select 1 from public.spendsense_purchase_analyses
@@ -388,7 +564,13 @@ end $$;
 
 -- Replacing a function keeps its owner and grants; restate the RPC grants explicitly.
 revoke all on function public.spendsense_load_workspace(uuid) from public, anon;
+revoke all on function public.spendsense_load_workspace_v3(uuid, integer) from public, anon;
 revoke all on function public.spendsense_save_workspace(jsonb, bigint) from public, anon;
 grant execute on function public.spendsense_load_workspace(uuid) to authenticated;
+grant execute on function public.spendsense_load_workspace_v3(uuid, integer) to authenticated;
 grant execute on function public.spendsense_save_workspace(jsonb, bigint) to authenticated;
+
+insert into spendsense_meta.schema_migrations(version, name, status)
+  values ('202610280001', 'spendsense_currency', 'applied')
+  on conflict (version) do update set status = 'applied', recorded_at = now(), recorded_by = current_user, notes = null;
 commit;

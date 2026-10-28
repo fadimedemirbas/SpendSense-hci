@@ -3,8 +3,11 @@
 The existing SpendSense Supabase project is the only deployment target:
 `https://ahggqvqkpkfwchqdcaaa.supabase.co`.
 
-No Supabase project has been created, no remote schema inspected, and no remote
-migration has been executed by this work. The migration is proposed for review.
+No Supabase project has been created and no remote migration has been executed
+by this work. The project owner's read-only check (2026-10-28) found migration
+`202610250001` applied by hand (PostgreSQL 17.11, tables owned by `postgres`, RLS
+forced, function bodies matching). The multi-currency migration `202610280001`
+is prepared and tested locally only; it has **not** been applied anywhere.
 
 ## Environment
 
@@ -70,6 +73,36 @@ file through the project's normal migration workflow. Do not run `db reset`,
 create a new project, or use an automatic push as part of frontend installation.
 The shared database must be backed up and its existing object names checked by
 the project owner before an approved deployment.
+
+## Multi-currency migration (`202610280001`)
+
+`migrations/202610280001_spendsense_currency.sql` adds `currency` to money
+entries and savings goals and `display_currency` to profiles (all `TRY` by
+default, checked to `TRY`/`USD`/`EUR`), without rewriting or converting any row.
+Follow [the runbook](../docs/multi-currency-migration-runbook.md); in short:
+
+- **Role:** run it in the SQL Editor as `postgres` (BYPASSRLS, owner of the
+  tables). Any role that cannot see every row, or does not own the tables, is
+  refused before anything changes. `row_security = off` makes any filtered
+  check fail instead of passing silently.
+- **Baseline checks:** the eight tables, forced RLS, the absence of the new
+  columns/functions, and the md5 of all 14 migration-1 function bodies must
+  match, or the whole transaction aborts. Existing purchases and analyses must
+  satisfy the new validators.
+- **Client protocols:** `spendsense_load_workspace(uuid)` keeps the migration-1
+  response for TRY-only clients and refuses (`0A000`) accounts that hold any
+  USD/EUR monetary record, including purchases in analyses, decisions and the
+  waiting list and goal snapshots in analysis history.
+  `spendsense_load_workspace_v3(uuid, 3)` serves currency-aware clients. Saves use
+  `schemaVersion` 1 (TRY only, refused for such accounts) or 3 (explicit
+  currencies); 2 and anything else are rejected.
+- **Ledger:** `spendsense_meta.schema_migrations` records the verified baseline
+  and this migration and blocks a second run. It is private (no `anon`,
+  `authenticated` or `service_role` access) and is **not** the Supabase CLI
+  history (`supabase_migrations`), which this project does not use.
+- **Rollback:** `rollback/202610280001_spendsense_currency_rollback.sql` is never
+  run automatically and refuses to run once any USD/EUR data or non-TRY display
+  currency exists. After that point recover forward, never by dropping columns.
 
 ## Auth Configuration
 

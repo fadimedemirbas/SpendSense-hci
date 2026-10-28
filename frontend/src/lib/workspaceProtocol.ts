@@ -46,9 +46,10 @@ export function prepareWorkspaceSave(previous: Workspace, next: Workspace, owner
 
 export function assertLoadedWorkspace(
   value: unknown,
+  protocol: ClientProtocol = 1,
 ): asserts value is { revision: number; workspace: LoadedWorkspace } {
   if (!value || typeof value !== "object") throw new Error("Invalid workspace response");
-  const envelope = value as { revision?: number; workspace?: Workspace };
+  const envelope = value as { revision?: number; workspace?: Workspace; protocol?: unknown };
   if (
     !Number.isSafeInteger(envelope.revision) ||
     envelope.revision! < 0 ||
@@ -86,13 +87,40 @@ export function assertLoadedWorkspace(
         (typeof analysis.purchase === "object" &&
           analysis.purchase !== null &&
           optionalCurrency(analysis.purchase.currency)),
-    )
+    ) ||
+    !matchesProtocol(envelope as { protocol?: unknown; workspace: Workspace }, protocol)
   ) {
     throw new Error("Incomplete workspace response");
   }
 }
 
-/* ---------- multi-currency protocol (schemaVersion 2) ---------- */
+/* ---------- client protocols ---------- */
+
+/**
+ * What this client can SHOW, which the database uses to decide what it may load
+ * and save (migration 202610280001):
+ * - 1: TRY-only screens. Loads spendsense_load_workspace(uuid), which returns the
+ *   original lira response and refuses (0A000) accounts holding USD/EUR records;
+ *   saves schemaVersion 1 with TRY only.
+ * - 3: currency-aware screens. Loads spendsense_load_workspace_v3(uuid, 3) with
+ *   explicit currencies; saves schemaVersion 3 with a currency on every record.
+ * Storage support alone is not enough: a build may claim 3 only together with
+ * screens that show USD/EUR correctly (Phase 5).
+ */
+export type ClientProtocol = 1 | 3;
+export const CLIENT_PROTOCOL: ClientProtocol = 1;
+
+/** The load RPC for a protocol. Anything else fails before a request is made. */
+export function workspaceLoadRequest(protocol: number, userId: string) {
+  if (protocol === 1)
+    return { fn: "spendsense_load_workspace", args: { expected_user_id: userId } };
+  if (protocol === 3)
+    return {
+      fn: "spendsense_load_workspace_v3",
+      args: { expected_user_id: userId, client_protocol: 3 },
+    };
+  throw new WorkspaceProtocolError("SS_PROTOCOL_UNSUPPORTED", "Unsupported client protocol.");
+}
 
 type Legacy<T extends { currency: Currency }> = Omit<T, "currency"> & { currency?: Currency };
 /** A workspace as the database returns it: legacy records may lack currency fields. */
@@ -107,17 +135,39 @@ export interface LoadedWorkspace {
 
 const optionalCurrency = (value: unknown) => value === undefined || isCurrency(value);
 
+/** Every monetary currency in a loaded workspace, including goal snapshots in analyses. */
+function loadedCurrencies(workspace: Workspace): unknown[] {
+  return [
+    ...workspace.entries.map((entry) => entry.currency),
+    ...workspace.goals.map((goal) => goal.currency),
+    ...workspace.decisions.map((decision) => decision.currency),
+    ...workspace.waiting.map((item) => item.currency),
+    ...workspace.analyses.flatMap((analysis) => [
+      analysis.purchase?.currency,
+      (analysis.result?.goal as { currency?: unknown } | undefined)?.currency,
+    ]),
+  ];
+}
+
 /**
- * Which database contract served a load. Migration 202610280001 always returns
- * profile.displayCurrency, so its presence is a reliable capability signal that
- * needs no extra request. A missing profile (new account) reveals nothing.
+ * Protocol 1 must never accept foreign amounts, even if a server sent them: a
+ * TRY-only screen would show them as lira. Protocol 3 requires the v3 response
+ * marker and explicit currencies on the profile, entries and goals.
  */
-export type ServerProtocol = "v1" | "v2" | "unknown";
-export function detectServerProtocol(
-  data: { workspace: LoadedWorkspace } | null | undefined,
-): ServerProtocol {
-  if (!data) return "unknown";
-  return data.workspace.profile.displayCurrency === undefined ? "v1" : "v2";
+function matchesProtocol(
+  envelope: { protocol?: unknown; workspace: Workspace },
+  protocol: ClientProtocol,
+): boolean {
+  const { workspace } = envelope;
+  if (protocol === 1)
+    return loadedCurrencies(workspace).every(
+      (currency) => currency === undefined || currency === "TRY",
+    );
+  return (
+    envelope.protocol === 3 &&
+    isCurrency(workspace.profile.displayCurrency) &&
+    [...workspace.entries, ...workspace.goals].every((record) => isCurrency(record.currency))
+  );
 }
 
 function withCurrency<T extends { currency?: Currency }>(record: T): T & { currency: Currency } {
@@ -165,20 +215,23 @@ function currencies(workspace: Workspace): unknown[] {
 
 /**
  * The save used by the app. Builds the same deletion intent as
- * prepareWorkspaceSave and then applies the database contract:
- * - "v2" server: schemaVersion 2; every entry, goal and purchase and the profile's
- *   displayCurrency must carry a valid currency. Nothing is filled in here: a
- *   missing value is a bug and fails the save instead of being saved as lira.
- * - "v1" or "unknown" server: schemaVersion 1, allowed only while everything is
- *   TRY (version 1 means lira). Anything else is refused, never stripped or
- *   downgraded, so currency information cannot be lost on an older database.
+ * prepareWorkspaceSave and then applies the database contract for the client
+ * protocol. Every entry, goal and purchase and the profile's displayCurrency must
+ * carry a valid currency; nothing is filled in here, so a missing value is a bug
+ * that fails the save instead of being saved as lira.
+ * - 3: schemaVersion 3.
+ * - 1: schemaVersion 1, allowed only while everything is TRY. Anything else is
+ *   refused, never stripped or downgraded, so currency information is not lost.
+ * - anything else: refused.
  */
 export function prepareVersionedWorkspaceSave(
   previous: Workspace,
   next: Workspace,
   ownerId: string,
-  server: ServerProtocol,
+  protocol: number,
 ) {
+  if (protocol !== 1 && protocol !== 3)
+    throw new WorkspaceProtocolError("SS_PROTOCOL_UNSUPPORTED", "Unsupported client protocol.");
   const prepared = prepareWorkspaceSave(previous, next, ownerId);
   const { workspace } = prepared;
   const values = currencies(workspace);
@@ -188,12 +241,12 @@ export function prepareVersionedWorkspaceSave(
       "SS_CURRENCY_CONTRACT",
       "Every amount needs a valid currency before saving.",
     );
-  if (server === "v2")
-    return { workspace, payload: { ...prepared.payload, schemaVersion: 2 as const } };
+  if (protocol === 3)
+    return { workspace, payload: { ...prepared.payload, schemaVersion: 3 as const } };
   if (display !== "TRY" || values.some((currency) => currency !== "TRY"))
     throw new WorkspaceProtocolError(
       "SS_PROTOCOL_UNSUPPORTED",
-      "This database cannot store non-TRY amounts yet.",
+      "This app version can only save TRY amounts.",
     );
   return { workspace, payload: { ...prepared.payload, schemaVersion: 1 as const } };
 }

@@ -1,230 +1,94 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { after, before, beforeEach, test } from "node:test";
 import { randomUUID } from "node:crypto";
-import { PGlite } from "@electric-sql/pglite";
-import { prepareWorkspaceSave, assertLoadedWorkspace } from "../src/lib/workspaceProtocol.ts";
+import { prepareWorkspaceSave } from "../src/lib/workspaceProtocol.ts";
+import {
+  MIGRATION_1,
+  MIGRATION_2,
+  NEW_FUNCTIONS,
+  TABLES,
+  COLLECTIONS,
+  addUser,
+  allRows,
+  as,
+  createDatabase,
+  currencyColumns,
+  deletionList,
+  failsWith,
+  functionHashes,
+  ledger,
+  legacyFixture,
+  loadLegacy,
+  loadV3,
+  migrationSql,
+  save,
+  v3Of,
+} from "./support/spendsense-db.mjs";
 
-// Local PGlite only: migration 202610250001 (as deployed) + the proposed currency
-// migration 202610280001 on top of data saved by the current (schemaVersion 1)
-// frontend. No network or remote Supabase access.
-const MIGRATIONS = new URL("../../supabase/migrations/", import.meta.url);
-const base = () => readFile(new URL("202610250001_spendsense.sql", MIGRATIONS), "utf8");
-const currencyMigration = () =>
-  readFile(new URL("202610280001_spendsense_currency.sql", MIGRATIONS), "utf8");
-
-const AUTH_STUBS = `create role anon; create role authenticated; create schema auth;
-  create table auth.users(id uuid primary key);
-  create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
-  create function auth.jwt() returns jsonb language sql stable as $$ select jsonb_build_object('email','test@example.com') $$;
-  grant usage on schema auth,public to anon,authenticated;
-  grant execute on function auth.uid(),auth.jwt() to anon,authenticated;
-  create table public.existing_team_table(value text); insert into public.existing_team_table values ('preserved');`;
-const tables = [
-  "user_profiles",
-  "money_entries",
-  "savings_goals",
-  "spending_profiles",
-  "purchase_analyses",
-  "purchase_decisions",
-  "purchase_reflections",
-  "waiting_items",
-];
-const collections = ["entries", "goals", "analyses", "decisions", "waiting"];
-const scores = {
-  "Impulsive Decision Maker": 70,
-  "Planned Spender": 30,
-  "Bargain Hunter": 50,
-  "Reward-Driven Spender": 15,
-  "Social Spender": 70,
-};
-const deletionList = () => Object.fromEntries([...collections, "reflections"].map((k) => [k, []]));
-
-/** A workspace exactly as the current frontend saves it: no currency anywhere. */
-function legacyFixture() {
-  const purchase = {
-    name: "Headphones",
-    price: 2500,
-    cat: "Shopping",
-    reasons: ["need"],
-    feeling: "Calm",
-    own: false,
-    wait: "3d",
-  };
-  const goal = { id: randomUUID(), name: "Laptop", target: 35000, saved: 1000, status: "Active" };
-  const analysisId = randomUUID();
-  const result = {
-    budget: 17,
-    need: 24,
-    goalImpact: 4,
-    impulse: 3,
-    fit: 84,
-    income: 22500,
-    pctIncome: 11,
-    pctGoal: 7,
-    delayDays: 21,
-    goal,
-  };
-  return {
-    profile: {
-      email: "unused@example.com",
-      income: 1,
-      savings: 2,
-      habits: [0, 1, 2, 0],
-      onboarded: true,
-      currency: "symbol",
-    },
-    behaviorScores: scores,
-    entries: [
-      {
-        id: randomUUID(),
-        type: "income",
-        amount: 32000.5,
-        cat: "Salary",
-        name: "Salary",
-        date: "2026-10-25",
-      },
-    ],
-    goals: [goal],
-    analyses: [
-      { id: analysisId, purchase, result, goalId: goal.id, createdAt: "2026-10-25T12:00:00Z" },
-    ],
-    decisions: [
-      {
-        ...purchase,
-        id: randomUUID(),
-        analysisId,
-        decision: "Wait",
-        date: "2026-10-25",
-        fit: 84,
-        reflection: 4,
-      },
-    ],
-    waiting: [
-      {
-        ...purchase,
-        id: randomUUID(),
-        analysisId,
-        added: "2026-10-25",
-        review: "2026-10-28",
-        fit: 84,
-      },
-    ],
-  };
-}
-/** The same workspace in schemaVersion 2 form: every amount carries a currency. */
-function v2Of(workspace, currency = "TRY") {
-  const next = structuredClone(workspace);
-  next.profile.displayCurrency ??= "TRY";
-  for (const entry of next.entries) entry.currency ??= currency;
-  for (const goal of next.goals) goal.currency ??= currency;
-  for (const analysis of next.analyses) analysis.purchase.currency ??= currency;
-  for (const item of [...next.decisions, ...next.waiting]) item.currency ??= currency;
-  return next;
-}
-
-async function createDatabase({ withCurrency = true } = {}) {
-  const db = new PGlite();
-  await db.exec(AUTH_STUBS);
-  await db.exec(await base());
-  if (withCurrency) await db.exec(await currencyMigration());
-  return db;
-}
-
+// Migration 202610250001 (as deployed) with data saved by the current protocol 1
+// frontend, then the proposed 202610280001 on top. Local PGlite only.
 let db;
-const users = [randomUUID(), randomUUID(), randomUUID()];
-let saved, versions, currentIndex;
-let migrationReport;
+let users;
+let saved;
+let revisions;
+let report;
 
 async function asUser(index) {
-  currentIndex = index;
-  await db.exec("reset role; set role authenticated");
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [users[index]]);
+  await as(db, users[index]);
 }
-async function save(payload, { version = 1, revision = versions[currentIndex] } = {}) {
-  const response = await db.query(
-    "select public.spendsense_save_workspace($1::jsonb,$2::bigint) as revision",
-    [
-      JSON.stringify({
-        ownerId: users[currentIndex],
-        schemaVersion: version,
-        deletions: deletionList(),
-        ...payload,
-      }),
-      revision,
-    ],
+async function saveAs(index, payload, { version = 1, revision = revisions[index] } = {}) {
+  await asUser(index);
+  revisions[index] = await save(db, users[index], payload, revision, version);
+  return revisions[index];
+}
+async function legacy(index) {
+  await asUser(index);
+  return loadLegacy(db, users[index]);
+}
+async function v3(index) {
+  await asUser(index);
+  return loadV3(db, users[index]);
+}
+/** Saves with the real frontend deletion protocol, as schemaVersion 1 or 3. */
+async function commit(index, next, version = 3) {
+  const previous = (version === 3 ? await v3(index) : await legacy(index)).workspace;
+  const { payload } = prepareWorkspaceSave(previous, next, users[index]);
+  return saveAs(index, { ...payload, schemaVersion: version }, { version });
+}
+/** Rejected with `code` and nothing visible to either protocol changed. */
+async function unchanged(index, payload, code, { version = 1, revision } = {}) {
+  await asUser(index);
+  const before = await loadV3(db, users[index]);
+  await assert.rejects(
+    save(db, users[index], payload, revision === undefined ? revisions[index] : revision, version),
+    { code },
   );
-  return (versions[currentIndex] = response.rows[0].revision);
-}
-async function load() {
-  return (
-    await db.query("select public.spendsense_load_workspace($1::uuid) as result", [
-      users[currentIndex],
-    ])
-  ).rows[0].result;
-}
-/** Saves `next` with the real frontend deletion protocol, as version 1 or 2. */
-async function commit(next, version = 1) {
-  const previous = (await load()).workspace;
-  const { payload } = prepareWorkspaceSave(previous, next, users[currentIndex]);
-  return save({ ...payload, schemaVersion: version, behaviorScores: scores }, { version });
-}
-async function unchangedAfter(payload, code, options = {}) {
-  const { version = 1 } = options;
-  const revision = "revision" in options ? options.revision : versions[currentIndex];
-  const previous = await load();
-  await assert.rejects(save(payload, { version, revision }), { code });
-  assert.deepEqual(await load(), previous);
-}
-async function rawRows() {
-  await db.exec("reset role");
-  const rows = {};
-  for (const table of tables)
-    rows[table] = (
-      await db.query(
-        `select to_jsonb(t) as row from public.spendsense_${table} t
-          order by (to_jsonb(t) - 'currency' - 'display_currency')::text`,
-      )
-    ).rows.map((r) => r.row);
-  return rows;
-}
-// The only keys the migration may add to existing rows.
-const ADDED = {
-  money_entries: "currency",
-  savings_goals: "currency",
-  user_profiles: "display_currency",
-};
-function withoutAdded(table, row) {
-  const copy = { ...row };
-  if (ADDED[table]) delete copy[ADDED[table]];
-  return copy;
+  assert.deepEqual(await loadV3(db, users[index]), before);
 }
 
 before(async () => {
-  // 1. The database as deployed today, with data saved by the current frontend.
-  db = await createDatabase({ withCurrency: false });
-  for (const user of users) await db.query("insert into auth.users values ($1)", [user]);
+  db = await createDatabase([MIGRATION_1]);
+  users = [await addUser(db), await addUser(db), await addUser(db)];
   saved = [legacyFixture(), legacyFixture()];
-  versions = [0, 0, 0];
-  for (let i = 0; i < 2; i++) {
-    await asUser(i);
-    await save(saved[i], { revision: 0 });
-  }
-  const before = { rows: await rawRows(), loads: [] };
-  for (let i = 0; i < 2; i++) {
-    await asUser(i);
-    before.loads.push(await load());
-  }
-  // 2. Apply the proposed migration on top (as the migration owner).
+  revisions = [0, 0, 0];
+  for (let i = 0; i < 2; i++) await saveAs(i, saved[i], { revision: 0 });
+  const beforeRows = await allRows(db);
+  const beforeLoads = [await legacy(0), await legacy(1)];
   await db.exec("reset role");
-  await db.exec(await currencyMigration());
-  const afterRows = await rawRows();
-  const afterLoads = [];
-  for (let i = 0; i < 2; i++) {
-    await asUser(i);
-    afterLoads.push(await load());
-  }
-  migrationReport = { before, after: { rows: afterRows, loads: afterLoads } };
+  await db.exec(await migrationSql(MIGRATION_2));
+  report = {
+    beforeRows,
+    beforeLoads,
+    afterRows: await allRows(db, {
+      money_entries: ["currency"],
+      savings_goals: ["currency"],
+      user_profiles: ["display_currency"],
+    }),
+    afterRaw: await allRows(db),
+    afterLegacy: [await legacy(0), await legacy(1)],
+    afterV3: [await v3(0), await v3(1)],
+    ledger: await ledger(db),
+  };
 });
 beforeEach(async () => {
   await db.exec("reset role");
@@ -240,41 +104,34 @@ beforeEach(async () => {
   ])
     await db.exec("delete from public.spendsense_" + table);
   saved = [legacyFixture(), legacyFixture()];
-  versions = [0, 0, 0];
-  for (let i = 0; i < 2; i++) {
-    await asUser(i);
-    assert.ok((await save(saved[i], { revision: 0 })) > 0);
-  }
+  revisions = [0, 0, 0];
+  for (let i = 0; i < 2; i++) await saveAs(i, saved[i], { revision: 0 });
 });
 after(async () => await db.close());
 
-test("migration on an existing database keeps every row, amount, revision and snapshot", () => {
-  const { before, after } = migrationReport;
-  for (const table of tables) {
-    assert.equal(after.rows[table].length, before.rows[table].length, table);
-    assert.deepEqual(
-      after.rows[table].map((row) => withoutAdded(table, row)),
-      before.rows[table],
-      table,
-    );
+test("existing rows, amounts, revisions and history survive the migration unchanged", () => {
+  for (const table of TABLES) {
+    assert.equal(report.afterRows[table].length, report.beforeRows[table].length, table);
+    assert.deepEqual(report.afterRows[table], report.beforeRows[table], table);
   }
-  // Amounts are exactly as stored (numeric text, no conversion or rounding).
   assert.deepEqual(
-    after.rows.money_entries.map((row) => [row.amount, row.currency]),
+    report.afterRaw.money_entries.map((row) => [row.amount, row.currency]),
     [
       [32000.5, "TRY"],
       [32000.5, "TRY"],
     ],
   );
-  for (const row of after.rows.savings_goals) assert.equal(row.currency, "TRY");
-  for (const row of after.rows.user_profiles) {
+  for (const row of report.afterRaw.user_profiles) {
     assert.equal(row.display_currency, "TRY");
-    assert.equal(row.currency, "symbol"); // the existing format preference is untouched
+    assert.equal(row.currency, "symbol"); // the format preference keeps its meaning
   }
+  // Protocol 1 clients receive exactly what migration 1 returned: no currency fields.
+  assert.deepEqual(report.afterLegacy, report.beforeLoads);
+  // Protocol 3 sees the same data with explicit currencies and the protocol marker.
   for (let i = 0; i < 2; i++) {
-    const [old, next] = [before.loads[i], after.loads[i]];
-    assert.equal(next.revision, old.revision); // adding columns writes nothing
-    assertLoadedWorkspace(next);
+    const [old, next] = [report.beforeLoads[i], report.afterV3[i]];
+    assert.equal(next.protocol, 3);
+    assert.equal(next.revision, old.revision);
     assert.equal(next.workspace.profile.displayCurrency, "TRY");
     assert.deepEqual(
       next.workspace.entries,
@@ -284,28 +141,26 @@ test("migration on an existing database keeps every row, amount, revision and sn
       next.workspace.goals,
       old.workspace.goals.map((g) => ({ ...g, currency: "TRY" })),
     );
-    // Purchases and analysis history come back byte-for-byte as before.
     for (const key of ["analyses", "decisions", "waiting"])
       assert.deepEqual(next.workspace[key], old.workspace[key], key);
   }
-});
-
-test("the migration adds checked columns, keeps RLS, grants and constraints, and preserves other tables", async () => {
-  await db.exec("reset role");
-  const columns = (
-    await db.query(`select table_name, column_name, is_nullable, column_default from information_schema.columns
-      where table_schema='public' and column_name in ('currency','display_currency') order by 1,2`)
-  ).rows;
   assert.deepEqual(
-    columns.map((c) => [c.table_name, c.column_name, c.is_nullable, c.column_default]),
+    report.ledger.map((row) => [row.version, row.status]),
     [
-      ["spendsense_money_entries", "currency", "NO", "'TRY'::text"],
-      ["spendsense_savings_goals", "currency", "NO", "'TRY'::text"],
-      ["spendsense_user_profiles", "currency", "NO", "'symbol'::text"],
-      ["spendsense_user_profiles", "display_currency", "NO", "'TRY'::text"],
+      ["202610250001", "baseline-verified"],
+      ["202610280001", "applied"],
     ],
   );
-  for (const table of tables) {
+});
+
+test("schema: checked columns, untouched RLS and grants, private ledger, other tables preserved", async () => {
+  assert.deepEqual(await currencyColumns(db), [
+    "spendsense_money_entries.currency",
+    "spendsense_savings_goals.currency",
+    "spendsense_user_profiles.display_currency",
+  ]);
+  await db.exec("reset role");
+  for (const table of TABLES) {
     const rls = (
       await db.query(
         "select relrowsecurity, relforcerowsecurity from pg_class where oid=('public.spendsense_'||$1)::regclass",
@@ -330,19 +185,16 @@ test("the migration adds checked columns, keeps RLS, grants and constraints, and
         where pronamespace='public'::regnamespace and proname like 'spendsense_%'`)
     ).rows.map((r) => [r.proname, r.provolatile]),
   );
-  for (const name of [
-    "json_currency",
-    "valid_currency_field",
-    "valid_goal",
-    "valid_purchase",
-    "valid_analysis",
-  ])
+  for (const name of ["json_currency", "valid_currency_field", "valid_goal", "valid_purchase"])
     assert.equal(volatility["spendsense_" + name], "i", name);
-  for (const name of ["valid_workspace", "load_workspace"])
-    assert.equal(volatility["spendsense_" + name], "s");
+  for (const name of [
+    "valid_workspace",
+    "load_workspace",
+    "load_workspace_v3",
+    "has_foreign_currency",
+  ])
+    assert.equal(volatility["spendsense_" + name], "s", name);
   assert.equal(volatility.spendsense_save_workspace, "v");
-  assert.equal(volatility.spendsense_has_foreign_currency, "s");
-  // Pre-existing amount and integrity constraints still exist alongside the new ones.
   const checks = (
     await db.query(`select pg_get_constraintdef(oid) as d from pg_constraint
       where conrelid='public.spendsense_money_entries'::regclass and contype='c'`)
@@ -353,72 +205,121 @@ test("the migration adds checked columns, keeps RLS, grants and constraints, and
     (await db.query("select value from public.existing_team_table")).rows[0].value,
     "preserved",
   );
-  // Anonymous callers still cannot use the RPCs or tables.
-  await db.exec("set role anon");
-  await assert.rejects(db.query("select public.spendsense_load_workspace($1::uuid)", [users[0]]), {
-    code: "42501",
-  });
-  await assert.rejects(db.query("select currency from public.spendsense_money_entries"), {
-    code: "42501",
-  });
-  await db.exec("reset role");
-});
-
-test("the migration fails as a whole instead of changing anything when it cannot apply cleanly", async () => {
-  // Applying it twice: the columns already exist, so nothing is altered.
-  await db.exec("reset role");
-  await assert.rejects(db.exec(await currencyMigration()), { code: "42701" });
-  await db.exec("rollback");
-
-  // A legacy row with an unknown currency key (accepted by the old validator)
-  // aborts the migration instead of becoming an unsaveable record.
-  const other = await createDatabase({ withCurrency: false });
-  try {
-    const user = randomUUID();
-    await other.query("insert into auth.users values ($1)", [user]);
-    const workspace = legacyFixture();
-    workspace.analyses[0].purchase.currency = "GBP";
-    await other.exec("set role authenticated");
-    await other.query("select set_config('request.jwt.claim.sub',$1,false)", [user]);
-    await other.query("select public.spendsense_save_workspace($1::jsonb, 0)", [
-      JSON.stringify({ ownerId: user, schemaVersion: 1, deletions: deletionList(), ...workspace }),
-    ]);
-    await other.exec("reset role");
-    await assert.rejects(other.exec(await currencyMigration()), { code: "23514" });
-    await other.exec("rollback");
-    const columns = await other.query(
-      "select 1 from information_schema.columns where table_name='spendsense_money_entries' and column_name='currency'",
-    );
-    assert.equal(columns.rows.length, 0); // nothing from the failed migration remains
-  } finally {
-    await other.close();
+  // The ledger is private: no API role can use the schema or read the table.
+  for (const role of ["anon", "authenticated", "service_role"]) {
+    await db.exec(`reset role; set role ${role}`);
+    await assert.rejects(db.query("select * from spendsense_meta.schema_migrations"), {
+      code: "42501",
+    });
   }
+  await db.exec("reset role");
+  const privileges = (
+    await db.query(`select has_schema_privilege(r, 'spendsense_meta', 'USAGE') as usage,
+      has_table_privilege(r, 'spendsense_meta.schema_migrations', 'SELECT,INSERT,UPDATE,DELETE') as tbl
+      from unnest(array['anon','authenticated','service_role']) r`)
+  ).rows;
+  assert.ok(privileges.every((p) => !p.usage && !p.tbl));
+  // Anonymous callers cannot use either load RPC or the helper.
+  await db.exec("set role anon");
+  for (const sql of [
+    `select public.spendsense_load_workspace('${users[0]}'::uuid)`,
+    `select public.spendsense_load_workspace_v3('${users[0]}'::uuid, 3)`,
+    `select public.spendsense_has_foreign_currency('${users[0]}'::uuid)`,
+  ])
+    await assert.rejects(db.query(sql), { code: "42501" }, sql);
+  await db.exec("reset role");
 });
 
-test("a fresh database with both migrations accepts new TRY/USD/EUR workspaces", async () => {
-  const fresh = await createDatabase();
+test("the expected baseline hashes in the migration are computed from migration 1 itself", async () => {
+  const fresh = await createDatabase([MIGRATION_1]);
   try {
-    const user = randomUUID();
-    await fresh.query("insert into auth.users values ($1)", [user]);
-    await fresh.exec("set role authenticated");
-    await fresh.query("select set_config('request.jwt.claim.sub',$1,false)", [user]);
-    const workspace = v2Of(legacyFixture(), "EUR");
-    workspace.profile.displayCurrency = "USD";
-    await fresh.query("select public.spendsense_save_workspace($1::jsonb, 0)", [
-      JSON.stringify({ ownerId: user, schemaVersion: 2, deletions: deletionList(), ...workspace }),
-    ]);
-    const loaded = (await fresh.query("select public.spendsense_load_workspace($1) as r", [user]))
-      .rows[0].r.workspace;
-    assert.equal(loaded.profile.displayCurrency, "USD");
-    assert.equal(loaded.entries[0].currency, "EUR");
+    const actual = await functionHashes(fresh);
+    const sql = await migrationSql(MIGRATION_2);
+    const embedded = Object.fromEntries(
+      [...sql.matchAll(/"(spendsense_\w+)": "([0-9a-f]{32})"/g)].map((m) => [m[1], m[2]]),
+    );
+    assert.equal(Object.keys(actual).length, 14);
+    assert.deepEqual(embedded, actual);
   } finally {
     await fresh.close();
   }
 });
 
-test("schemaVersion 2 round-trips TRY, USD and EUR records with original amounts", async () => {
-  await asUser(0);
-  const next = v2Of((await load()).workspace);
+test("safety checks stop the migration atomically when assumptions do not hold", async () => {
+  const sql = await migrationSql(MIGRATION_2);
+  // Repeated execution on the migrated database.
+  await failsWith(db, sql, "55000", /already applied/);
+  assert.equal((await ledger(db)).length, 2);
+
+  const cases = [
+    [
+      "a migration-1 function body differs",
+      `create or replace function public.spendsense_valid_goal(v jsonb)
+       returns boolean language sql immutable set search_path = '' as $$ select true $$;`,
+      /spendsense_valid_goal differs from migration 202610250001/,
+    ],
+    [
+      "a currency column already exists",
+      "alter table public.spendsense_money_entries add column currency text",
+      /Currency columns already exist/,
+    ],
+    [
+      "a function of this migration already exists",
+      `create function public.spendsense_json_currency(v jsonb) returns boolean language sql as $$ select true $$;`,
+      /already exist/,
+    ],
+    [
+      "row level security is not forced",
+      "alter table public.spendsense_waiting_items no force row level security",
+      /not enabled and forced on public.spendsense_waiting_items/,
+    ],
+    [
+      "a baseline table is missing",
+      "drop table public.spendsense_purchase_reflections",
+      /spendsense_purchase_reflections is missing/,
+    ],
+    [
+      "the ledger already lists the migration as applied",
+      `create schema spendsense_meta; create table spendsense_meta.schema_migrations(version text primary key,
+        name text, status text, recorded_at timestamptz default now(), recorded_by text default current_user, notes text);
+       insert into spendsense_meta.schema_migrations(version, name, status) values ('202610280001','x','applied');`,
+      /already applied/,
+    ],
+  ];
+  for (const [label, tamper, message] of cases) {
+    const other = await createDatabase([MIGRATION_1]);
+    try {
+      await other.exec(tamper);
+      const hashesBefore = await functionHashes(other);
+      const columnsBefore = await currencyColumns(other);
+      await failsWith(other, sql, "55000", message);
+      assert.deepEqual(await functionHashes(other), hashesBefore, label);
+      assert.deepEqual(await currencyColumns(other), columnsBefore, label);
+      if (!label.startsWith("the ledger")) assert.equal(await ledger(other), null, label);
+    } finally {
+      await other.close();
+    }
+  }
+});
+
+test("a stored purchase that breaks the new rules stops the migration (data preflight)", async () => {
+  const other = await createDatabase([MIGRATION_1]);
+  try {
+    const user = await addUser(other);
+    const workspace = legacyFixture();
+    workspace.analyses[0].purchase.currency = "GBP"; // accepted by the migration-1 validator
+    await as(other, user);
+    await save(other, user, workspace, 0);
+    await failsWith(other, await migrationSql(MIGRATION_2), "23514", /currency rules/);
+    assert.deepEqual(await currencyColumns(other), []);
+    assert.equal(await ledger(other), null);
+  } finally {
+    await other.close();
+  }
+});
+
+test("protocol 3 round-trips TRY, USD and EUR with original amounts and history", async () => {
+  const next = v3Of((await v3(0)).workspace);
   next.profile.displayCurrency = "EUR";
   next.entries.push(
     {
@@ -433,15 +334,6 @@ test("schemaVersion 2 round-trips TRY, USD and EUR records with original amounts
     {
       id: randomUUID(),
       type: "expense",
-      amount: 15.99,
-      currency: "EUR",
-      cat: "Subscriptions",
-      name: "Music",
-      date: "2026-10-26",
-    },
-    {
-      id: randomUUID(),
-      type: "expense",
       amount: 999999999999.99,
       currency: "TRY",
       cat: "Other",
@@ -449,14 +341,15 @@ test("schemaVersion 2 round-trips TRY, USD and EUR records with original amounts
       date: "2026-10-26",
     },
   );
-  next.goals.push({
+  const trip = {
     id: randomUUID(),
     name: "Trip",
     target: 1500,
     saved: 250.5,
     currency: "EUR",
     status: "Active",
-  });
+  };
+  next.goals.push(trip);
   const analysisId = randomUUID();
   const purchase = { ...structuredClone(next.analyses[0].purchase), price: 120, currency: "USD" };
   next.analyses.push({
@@ -464,16 +357,11 @@ test("schemaVersion 2 round-trips TRY, USD and EUR records with original amounts
     purchase,
     result: {
       ...structuredClone(next.analyses[0].result),
+      goal: { ...trip },
       basis: "TRY",
-      rates: {
-        source: "TCMB",
-        bulletin: "2026/166",
-        date: "2026-09-04",
-        USD: "48.27605",
-        EUR: "56.1076",
-      },
+      rates: { source: "TCMB", bulletin: "2026/166", date: "2026-09-04" },
     },
-    goalId: next.goals[0].id,
+    goalId: trip.id,
     createdAt: "2026-10-26T10:00:00Z",
   });
   next.decisions.push({
@@ -492,62 +380,58 @@ test("schemaVersion 2 round-trips TRY, USD and EUR records with original amounts
     review: "2026-10-29",
     fit: 84,
   });
-  await commit(next, 2);
-  const loaded = (await load()).workspace;
-  assert.equal(loaded.profile.displayCurrency, "EUR");
-  assert.equal(loaded.profile.currency, "symbol");
-  const byName = Object.fromEntries(loaded.entries.map((e) => [e.name, [e.amount, e.currency]]));
-  assert.deepEqual(byName, {
+  await commit(0, next, 3);
+  const loaded = await v3(0);
+  assert.equal(loaded.protocol, 3);
+  const w = loaded.workspace;
+  assert.equal(w.profile.displayCurrency, "EUR");
+  assert.deepEqual(Object.fromEntries(w.entries.map((e) => [e.name, [e.amount, e.currency]])), {
     Salary: [32000.5, "TRY"],
     Client: [500, "USD"],
-    Music: [15.99, "EUR"],
     Max: [999999999999.99, "TRY"],
   });
-  const trip = loaded.goals.find((g) => g.name === "Trip");
-  assert.deepEqual([trip.target, trip.saved, trip.currency], [1500, 250.5, "EUR"]);
-  const analysis = loaded.analyses.find((a) => a.id === analysisId);
+  const goal = w.goals.find((g) => g.name === "Trip");
+  assert.deepEqual([goal.target, goal.saved, goal.currency], [1500, 250.5, "EUR"]);
+  const analysis = w.analyses.find((a) => a.id === analysisId);
   assert.deepEqual(analysis.purchase, purchase);
+  assert.equal(analysis.result.goal.currency, "EUR");
   assert.equal(analysis.result.rates.bulletin, "2026/166");
-  assert.equal(loaded.decisions.find((d) => d.decision === "Buy").currency, "USD");
-  assert.equal(loaded.waiting.find((w) => w.analysisId === analysisId).currency, "USD");
-  // A second identical save changes nothing.
-  await commit(loaded, 2);
-  assert.deepEqual((await load()).workspace, loaded);
+  assert.deepEqual(w.analyses.find((a) => a.id !== analysisId).result, saved[0].analyses[0].result);
+  // Saving the loaded workspace again changes nothing.
+  await commit(0, w, 3);
+  assert.deepEqual((await v3(0)).workspace, w);
 });
 
-test("invalid or missing currencies are rejected through the RPC and direct writes", async () => {
+test("protocol 2, unknown protocols and missing or invalid currencies are rejected", async () => {
+  const good = v3Of((await v3(0)).workspace);
   await asUser(0);
-  const good = v2Of((await load()).workspace);
+  for (const version of [2, 0, 4, "3", null])
+    await unchanged(0, { ...good, schemaVersion: version }, "22023", { version: 3 });
   const corruptions = [
     (p) => (p.entries[0].currency = "GBP"),
     (p) => (p.entries[0].currency = "usd"),
-    (p) => (p.entries[0].currency = ""),
     (p) => (p.entries[0].currency = null),
-    (p) => (p.entries[0].currency = 1),
     (p) => delete p.entries[0].currency,
-    (p) => (p.goals[0].currency = "XAU"),
     (p) => delete p.goals[0].currency,
-    (p) => (p.analyses[0].purchase.currency = "JPY"),
     (p) => delete p.analyses[0].purchase.currency,
     (p) => delete p.decisions[0].currency,
     (p) => (p.waiting[0].currency = "TL"),
     (p) => delete p.profile.displayCurrency,
     (p) => (p.profile.displayCurrency = "symbol"),
-    (p) => (p.profile.currency = "USD"), // the format preference keeps its own meaning
+    (p) => (p.profile.currency = "USD"),
     (p) => (p.analyses[0].result.basis = "USD"),
+    (p) => (p.analyses[0].result.goal.currency = "GBP"),
     (p) =>
       (p.analyses[0].result.rates = { source: "ECB", bulletin: "2026/166", date: "2026-09-04" }),
-    (p) => (p.analyses[0].result.rates = { source: "TCMB", bulletin: "166", date: "2026-09-04" }),
-    (p) => (p.analyses[0].result.goal.currency = "GBP"),
   ];
   for (const corrupt of corruptions) {
     const payload = structuredClone(good);
     corrupt(payload);
-    await unchangedAfter({ ...payload, behaviorScores: scores }, "22023", { version: 2 });
+    await unchanged(0, payload, "22023", { version: 3 });
   }
-  for (const version of [0, 3, "2", null]) {
-    await unchangedAfter({ ...good, behaviorScores: scores, schemaVersion: version }, "22023");
-  }
+  // load_workspace_v3 accepts only client protocol 3.
+  for (const protocol of [1, 2, 4, null])
+    await assert.rejects(loadV3(db, users[0], protocol), { code: "22023" });
   const direct = [
     [
       "update public.spendsense_money_entries set currency='GBP' where id=$1",
@@ -560,11 +444,6 @@ test("invalid or missing currencies are rejected through the RPC and direct writ
       "23502",
     ],
     [
-      "update public.spendsense_savings_goals set currency='usd' where id=$1",
-      saved[0].goals[0].id,
-      "23514",
-    ],
-    [
       "update public.spendsense_user_profiles set display_currency='XYZ' where user_id=$1",
       users[0],
       "23514",
@@ -574,46 +453,44 @@ test("invalid or missing currencies are rejected through the RPC and direct writ
       saved[0].analyses[0].id,
       "23514",
     ],
-    [
-      `update public.spendsense_waiting_items set purchase=purchase||'{"currency":7}' where id=$1`,
-      saved[0].waiting[0].id,
-      "23514",
-    ],
   ];
   for (const [sql, id, code] of direct) await assert.rejects(db.query(sql, [id]), { code }, sql);
 });
 
-test("schemaVersion 1 keeps working unchanged for accounts that hold only lira", async () => {
-  await asUser(0);
-  const next = structuredClone((await load()).workspace); // includes echoed currency keys
-  const expense = {
+test("protocol 1 keeps working for TRY-only accounts and can never write another currency", async () => {
+  const next = structuredClone((await legacy(0)).workspace);
+  next.entries.push({
     id: randomUUID(),
     type: "expense",
     amount: 50.25,
     cat: "Food",
     name: "Lunch",
     date: "2026-10-26",
-  };
-  next.entries.push(expense); // a new record from an old client has no currency
+  });
   next.entries[0].amount = 33000;
   next.goals[0].saved = 2000;
-  next.decisions[0].decision = "Buy";
-  await commit(next, 1);
-  const loaded = (await load()).workspace;
-  assert.deepEqual(loaded.entries.map((e) => [e.name, e.amount, e.currency]).sort(), [
-    ["Lunch", 50.25, "TRY"],
-    ["Salary", 33000, "TRY"],
+  await commit(0, next, 1);
+  const loaded = (await legacy(0)).workspace;
+  assert.deepEqual(loaded.entries.map((e) => [e.name, e.amount]).sort(), [
+    ["Lunch", 50.25],
+    ["Salary", 33000],
   ]);
-  assert.equal(loaded.goals[0].saved, 2000);
-  assert.equal(loaded.goals[0].currency, "TRY");
-  assert.equal(loaded.profile.displayCurrency, "TRY");
-  // Explicit deletion through version 1 still works and still requires intent.
+  assert.ok(loaded.entries.every((e) => !("currency" in e)));
+  assert.deepEqual(
+    (await v3(0)).workspace.entries.map((e) => e.currency),
+    ["TRY", "TRY"],
+  );
+  // Explicit deletion still requires intent.
   const removed = structuredClone(loaded);
   removed.entries = removed.entries.filter((e) => e.name !== "Lunch");
-  await unchangedAfter({ ...removed, behaviorScores: scores }, "22023");
-  await commit(removed, 1);
-  assert.equal((await load()).workspace.entries.length, 1);
-  // A version 1 payload cannot introduce another currency or change the display currency.
+  await unchanged(0, removed, "22023");
+  await commit(0, removed, 1);
+  assert.equal((await legacy(0)).workspace.entries.length, 1);
+  // Echoed TRY keys are accepted; any other currency in a protocol 1 payload is not.
+  const echoed = v3Of((await legacy(0)).workspace);
+  echoed.profile.displayCurrency = "USD"; // never written by protocol 1
+  await saveAs(0, echoed);
+  assert.equal((await v3(0)).workspace.profile.displayCurrency, "TRY");
   for (const corrupt of [
     (p) => (p.entries[0].currency = "USD"),
     (p) => (p.goals[0].currency = "EUR"),
@@ -621,74 +498,76 @@ test("schemaVersion 1 keeps working unchanged for accounts that hold only lira",
     (p) => (p.decisions[0].currency = "EUR"),
     (p) => (p.profile.displayCurrency = "GBP"),
   ]) {
-    const payload = structuredClone((await load()).workspace);
+    const payload = v3Of((await legacy(0)).workspace);
     corrupt(payload);
-    await unchangedAfter({ ...payload, behaviorScores: scores }, "22023");
+    await unchanged(0, payload, "22023");
   }
-  const echoed = structuredClone((await load()).workspace);
-  echoed.profile.displayCurrency = "USD"; // valid code, but version 1 never writes it
-  await save({ ...echoed, behaviorScores: scores });
-  assert.equal((await load()).workspace.profile.displayCurrency, "TRY");
 });
 
-test("legacy data upgrades through schemaVersion 2 without touching analysis results", async () => {
-  await asUser(0);
-  const before = (await load()).workspace;
-  await commit(v2Of(before), 2);
-  const after = (await load()).workspace;
-  assert.deepEqual(after.analyses[0].result, before.analyses[0].result);
-  assert.deepEqual(after.analyses[0].purchase, { ...before.analyses[0].purchase, currency: "TRY" });
-  assert.equal(after.entries[0].amount, before.entries[0].amount);
-  // The account is still all lira, so an older client may keep saving.
-  await commit(after, 1);
-  assert.equal((await load()).workspace.entries[0].currency, "TRY");
-});
-
-test("old clients cannot overwrite an account once it holds USD/EUR data", async () => {
-  const cases = [
-    (w) => (w.entries[0].currency = "USD"),
-    (w) => (w.goals[0].currency = "EUR"),
-    (w) => (w.analyses[0].purchase.currency = "USD"),
-    (w) => (w.waiting[0].currency = "EUR"),
-    (w) => (w.profile.displayCurrency = "USD"),
-  ];
-  for (const make of cases) {
-    await asUser(0);
-    const start = v2Of((await load()).workspace);
+test("protocol 1 can neither load nor save once any monetary surface holds USD/EUR", async () => {
+  const surfaces = {
+    "money entry": (w) => (w.entries[0].currency = "USD"),
+    "savings goal": (w) => (w.goals[0].currency = "EUR"),
+    "analysis purchase": (w) => (w.analyses[0].purchase.currency = "USD"),
+    "goal snapshot inside analysis history": (w) => (w.analyses[0].result.goal.currency = "EUR"),
+    "decision purchase": (w) => (w.decisions[0].currency = "USD"),
+    "waiting-list purchase": (w) => (w.waiting[0].currency = "EUR"),
+  };
+  for (const [label, make] of Object.entries(surfaces)) {
+    const start = v3Of((await v3(0)).workspace);
     make(start);
-    await commit(start, 2);
-    const current = (await load()).workspace;
-    // Echo, edit and deletion attempts from a version 1 client are all refused.
-    const echo = structuredClone(current);
-    await unchangedAfter({ ...echo, behaviorScores: scores }, "0A000");
+    await commit(0, start, 3);
+    // Reads: no data at all for a TRY-only client.
+    await asUser(0);
+    await assert.rejects(loadLegacy(db, users[0]), { code: "0A000" }, label);
+    // Writes: echo, edit and deletion attempts are all refused before any change.
+    const current = (await v3(0)).workspace;
+    await unchanged(0, current, "0A000");
     const edited = structuredClone(current);
     edited.entries[0].amount = 1;
     delete edited.entries[0].currency;
-    await unchangedAfter({ ...edited, behaviorScores: scores }, "0A000");
+    await unchanged(0, edited, "0A000");
     const { payload } = prepareWorkspaceSave(current, { ...current, entries: [] }, users[0]);
-    await unchangedAfter({ ...payload, behaviorScores: scores }, "0A000");
-    // Version 2 still saves, and other (lira-only) accounts are unaffected.
-    await commit(v2Of(current), 2);
-    await asUser(1);
-    await commit((await load()).workspace, 1);
-    // Reset user 0 to the lira fixture for the next case.
-    await asUser(0);
-    const reset = v2Of(saved[0]);
-    await commit(reset, 2);
+    await unchanged(0, payload, "0A000");
+    // Other accounts are unaffected; protocol 3 still works for this one.
+    assert.ok(await legacy(1));
+    await commit(1, (await legacy(1)).workspace, 1);
+    // Back to lira only: protocol 1 works again.
+    await commit(0, v3Of(saved[0]), 3);
+    assert.ok(await legacy(0), label);
   }
 });
 
-test("RLS isolates the new currency data between users", async () => {
-  await asUser(1);
-  await commit(
-    {
-      ...v2Of((await load()).workspace, "USD"),
-      profile: { ...v2Of(saved[1]).profile, displayCurrency: "EUR" },
-    },
-    2,
-  );
-  const otherBefore = await load();
+test("a display currency alone does not block TRY-only clients, and they never see it", async () => {
+  const next = v3Of((await v3(0)).workspace);
+  next.profile.displayCurrency = "USD";
+  await commit(0, next, 3);
+  const loaded = await legacy(0);
+  assert.equal(loaded.workspace.profile.displayCurrency, undefined);
+  assert.ok(loaded.workspace.entries.every((e) => !("currency" in e)));
+  await commit(0, loaded.workspace, 1);
+  assert.equal((await v3(0)).workspace.profile.displayCurrency, "USD"); // protocol 1 did not change it
+});
+
+test("a protocol 1 save prepared before USD/EUR data appeared is refused afterwards", async () => {
+  // The TRY-only client loaded its workspace and revision while the account was lira-only.
+  const stale = (await legacy(0)).workspace;
+  // Another (protocol 3) session adds a USD record; the TRY-only client then saves with the
+  // latest revision token: the server re-checks under the profile lock and refuses.
+  const usd = v3Of((await v3(0)).workspace);
+  usd.entries[0].currency = "USD";
+  await commit(0, usd, 3);
+  await unchanged(0, stale, "0A000");
+  // With its own (older) revision it is refused as well, never applied.
+  await unchanged(0, stale, "0A000", { revision: revisions[0] - 1 });
+});
+
+test("RLS and ownership: no cross-user reads or writes through either protocol", async () => {
+  await commit(1, v3Of((await v3(1)).workspace, "USD"), 3);
+  const otherBefore = await v3(1);
   await asUser(0);
+  assert.equal(await loadV3(db, users[1]), null);
+  assert.equal(await loadLegacy(db, users[1]), null); // own account is lira: no 0A000, no data
   for (const table of ["money_entries", "savings_goals", "user_profiles"]) {
     const rows = (await db.query(`select user_id from public.spendsense_${table}`)).rows;
     assert.deepEqual(
@@ -706,90 +585,85 @@ test("RLS isolates the new currency data between users", async () => {
     ).rows.length,
     0,
   );
-  assert.equal(
-    (
-      await db.query(
-        "update public.spendsense_user_profiles set display_currency='TRY' where user_id=$1 returning user_id",
-        [users[1]],
-      )
-    ).rows.length,
-    0,
-  );
-  assert.equal(
-    (await db.query("select public.spendsense_load_workspace($1::uuid) as r", [users[1]])).rows[0]
-      .r,
-    null,
-  );
-  // Upserting another user's record IDs through version 2 is still refused.
-  for (const key of collections) {
-    const attempted = v2Of(saved[0]);
-    const foreign = structuredClone(otherBefore.workspace[key][0]);
-    attempted[key].push(foreign);
-    await unchangedAfter({ ...attempted, behaviorScores: scores }, "42501", { version: 2 });
+  for (const key of COLLECTIONS) {
+    const attempted = v3Of((await v3(0)).workspace);
+    attempted[key].push(structuredClone(otherBefore.workspace[key][0]));
+    await unchanged(0, attempted, "42501", { version: 3 });
   }
-  await unchangedAfter({ ...v2Of(saved[0]), ownerId: users[1], behaviorScores: scores }, "42501", {
-    version: 2,
+  await unchanged(0, { ...v3Of((await v3(0)).workspace), ownerId: users[1] }, "42501", {
+    version: 3,
   });
-  await asUser(1);
-  assert.deepEqual(await load(), otherBefore);
+  assert.deepEqual(await v3(1), otherBefore);
 });
 
-test("optimistic locking and explicit deletion rules are unchanged for schemaVersion 2", async () => {
+test("optimistic locking and explicit deletion rules are unchanged for protocol 3", async () => {
+  const current = v3Of((await v3(0)).workspace);
+  await unchanged(0, current, "40001", { version: 3, revision: 0 });
+  await unchanged(0, current, "22023", { version: 3, revision: null });
+  const stale = revisions[0];
   await asUser(0);
-  const current = v2Of((await load()).workspace);
-  await unchangedAfter({ ...current, behaviorScores: scores }, "40001", {
-    version: 2,
-    revision: 0,
-  });
-  await unchangedAfter({ ...current, behaviorScores: scores }, "22023", {
-    version: 2,
-    revision: null,
-  });
-  // A direct currency edit advances the revision, so a cached snapshot cannot undo it.
-  const stale = versions[0];
-  await db.query("update public.spendsense_money_entries set currency='USD' where id=$1", [
+  await db.query("update public.spendsense_money_entries set amount=33000 where id=$1", [
     saved[0].entries[0].id,
   ]);
-  assert.ok((await load()).revision > stale);
-  await unchangedAfter({ ...current, behaviorScores: scores }, "40001", {
-    version: 2,
-    revision: stale,
-  });
-  assert.equal((await load()).workspace.entries[0].currency, "USD");
-  versions[0] = (await load()).revision;
-  // Missing, empty or partial collections never delete; explicit foreign deletions are refused.
-  for (const key of collections) {
+  assert.ok((await v3(0)).revision > stale);
+  await unchanged(0, current, "40001", { version: 3, revision: stale });
+  revisions[0] = (await v3(0)).revision;
+  for (const key of COLLECTIONS) {
     for (const replacement of [undefined, null, []]) {
-      const payload = structuredClone(v2Of((await load()).workspace));
+      const payload = v3Of((await v3(0)).workspace);
       payload[key] = replacement;
-      await unchangedAfter({ ...payload, behaviorScores: scores }, "22023", { version: 2 });
+      await unchanged(0, payload, "22023", { version: 3 });
     }
   }
-  const foreign = {
-    ...v2Of((await load()).workspace),
-    behaviorScores: scores,
-    deletions: { ...deletionList(), entries: [saved[1].entries[0].id] },
-  };
-  await unchangedAfter(foreign, "42501", { version: 2 });
-  // Explicit deletion by the owner works.
-  const next = v2Of((await load()).workspace);
+  await unchanged(
+    0,
+    {
+      ...v3Of((await v3(0)).workspace),
+      deletions: { ...deletionList(), entries: [saved[1].entries[0].id] },
+    },
+    "42501",
+    { version: 3 },
+  );
+  const next = v3Of((await v3(0)).workspace);
   next.entries = [];
-  await commit(next, 2);
-  assert.equal((await load()).workspace.entries.length, 0);
-  await asUser(1);
-  assert.equal((await load()).workspace.entries.length, 1);
+  await commit(0, next, 3);
+  assert.equal((await v3(0)).workspace.entries.length, 0);
+  assert.equal((await v3(1)).workspace.entries.length, 1);
 });
 
-test("existing analysis history survives goal deletion and version 2 saves unchanged", async () => {
-  await asUser(0);
-  const original = (await load()).workspace.analyses[0];
-  const next = v2Of((await load()).workspace);
+test("historical analyses keep their snapshot through upgrades and goal deletion", async () => {
+  const original = (await v3(0)).workspace.analyses[0];
+  const next = v3Of((await v3(0)).workspace);
   next.goals = [];
-  await commit(next, 2);
-  const after = (await load()).workspace;
-  assert.equal(after.analyses[0].goalId, undefined);
-  assert.deepEqual(after.analyses[0].result, original.result); // goal snapshot kept, no recalculation
-  assert.equal(after.analyses[0].result.goal.id, saved[0].goals[0].id);
-  assert.equal(after.analyses[0].result.goal.currency, undefined);
-  assert.equal(after.analyses[0].createdAt, original.createdAt);
+  await commit(0, next, 3);
+  const analysis = (await v3(0)).workspace.analyses[0];
+  assert.equal(analysis.goalId, undefined);
+  assert.deepEqual(analysis.result, original.result);
+  assert.deepEqual(analysis.purchase, { ...original.purchase, currency: "TRY" });
+  assert.equal(analysis.createdAt, original.createdAt);
+});
+
+test("a fresh database with both migrations accepts new protocol 1 and protocol 3 accounts", async () => {
+  const fresh = await createDatabase([MIGRATION_1, MIGRATION_2]);
+  try {
+    const legacyUser = await addUser(fresh);
+    await as(fresh, legacyUser);
+    assert.equal(await loadLegacy(fresh, legacyUser), null);
+    await save(fresh, legacyUser, legacyFixture(), 0, 1);
+    assert.equal((await loadV3(fresh, legacyUser)).workspace.profile.displayCurrency, "TRY");
+    const modern = await addUser(fresh);
+    await as(fresh, modern);
+    assert.equal(await loadV3(fresh, modern), null);
+    const workspace = v3Of(legacyFixture(), "EUR");
+    workspace.profile.displayCurrency = "USD";
+    await save(fresh, modern, workspace, 0, 3);
+    const loaded = (await loadV3(fresh, modern)).workspace;
+    assert.equal(loaded.profile.displayCurrency, "USD");
+    assert.equal(loaded.entries[0].currency, "EUR");
+    await assert.rejects(loadLegacy(fresh, modern), { code: "0A000" });
+    const hashes = await functionHashes(fresh);
+    for (const name of NEW_FUNCTIONS) assert.ok(hashes[name], name);
+  } finally {
+    await fresh.close();
+  }
 });
