@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
         filename: "sw.ts",
         registerType: "prompt",
         injectRegister: false,
-        includeAssets: ["favicon.svg", "icon.svg", "icons/*.png"],
+        includeAssets: ["icons/*.png"],
         manifest: {
           id: "/",
           name: "SpendSense",
@@ -52,7 +52,8 @@ export default defineConfig(({ mode }) => {
         },
         injectManifest: {
           globPatterns: ["**/*.{js,css,html,woff2,png,svg,webmanifest}"],
-          globIgnores: ["**/*.map"],
+          // The 1254 px original is only the source for public/icons/; keep it out of the offline cache.
+          globIgnores: ["**/*.map", "spendsense-logo.png"],
         },
         devOptions: { enabled: false },
       }),

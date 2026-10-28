@@ -379,7 +379,7 @@ export function Onboarding({
             }}
           >
             <div className="grid gap-2 justify-items-center text-center">
-              <Logo size={44} />
+              <Logo size={44} alt="SpendSense" />
               <h1 className="text-3xl font-bold m-0">
                 {t(authMode === "login" ? "Log in" : "Create your account")}
               </h1>

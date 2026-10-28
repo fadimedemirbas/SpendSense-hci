@@ -758,14 +758,18 @@ export function Loading({ text }: { text: string }) {
     </div>
   );
 }
-export const Logo = ({ size = 36 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
-    <ellipse cx="20" cy="33" rx="12" ry="4" fill="#ffc93c" stroke="#2a1a2c" strokeWidth="2" />
-    <ellipse cx="20" cy="27" rx="12" ry="4" fill="#ffc93c" stroke="#2a1a2c" strokeWidth="2" />
-    <path d="M20 23V11" stroke="#2a1a2c" strokeWidth="2" />
-    <path d="M20 13c0-6 8-8 11-6-1 6-7 7-11 6Z" fill="#ff6b4a" stroke="#2a1a2c" strokeWidth="2" />
-    <path d="M20 15c0-4-5-5-7-4 1 4 4 5 7 4Z" fill="#1f7a58" stroke="#2a1a2c" strokeWidth="1.5" />
-  </svg>
+// The official logo (public/spendsense-logo.png) cropped to its rounded tile by
+// scripts/generate-icons.py. Decorative by default, because it sits next to the
+// "SpendSense" name; pass alt="SpendSense" where the image is the only brand label.
+export const Logo = ({ size = 36, alt = "" }: { size?: number; alt?: string }) => (
+  <img
+    src="/icons/spendsense-mark.png"
+    width={size}
+    height={size}
+    alt={alt}
+    draggable={false}
+    className="shrink-0 select-none"
+  />
 );
 export type Expr = "neutral" | "happy" | "thinking" | "calm" | "curious" | "sleepy" | "wave";
 export function Blob({

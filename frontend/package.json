@@ -6,7 +6,7 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "test:pwa": "playwright test",
-    "icons": "node scripts/generate-icons.mjs",
+    "icons": "python scripts/generate-icons.py",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

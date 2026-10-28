@@ -18,7 +18,7 @@ No database tables, RLS policies, migrations, or remote settings were changed.
 | `frontend/src/Onboarding.tsx` | Reuse existing install button/help with global install handling |
 | `frontend/src/main.tsx`, `src/index.css` | Local copies of existing font families and PWA status styling |
 | `frontend/index.html`, `src/vite-env.d.ts` | Apple metadata/icon and PWA TypeScript definitions |
-| `frontend/public/icons/*.png`, `scripts/generate-icons.mjs` | Existing `icon.svg` rendered at required sizes |
+| `frontend/public/icons/*.png`, `scripts/generate-icons.py` | Official `spendsense-logo.png` cropped and scaled to the required sizes (any, maskable, Apple touch, favicon, in-app mark) |
 | `frontend/playwright.config.ts`, `e2e/pwa.spec.ts`, `scripts/pwa-test-server.mjs` | Isolated browser tests |
 | `frontend/tests/pwa-policy.test.mjs` | Cache bypass and offline request guard tests |
 
