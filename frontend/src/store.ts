@@ -21,11 +21,14 @@ import {
   Undo2,
   type LucideIcon,
 } from "lucide-react";
+import type { Currency } from "./lib/currency";
 export type EType = "income" | "expense";
 export interface Entry {
   id: string;
   type: EType;
+  /** Original amount in `currency`; never converted in place. */
   amount: number;
+  currency: Currency;
   cat: string;
   name: string;
   date: string;
@@ -34,15 +37,19 @@ export type GStatus = "Active" | "Completed" | "Archived";
 export interface Goal {
   id: string;
   name: string;
+  /** Target and saved amounts are both in the goal's own currency. */
   target: number;
   saved: number;
+  currency: Currency;
   date?: string;
   status: GStatus;
 }
 export type WaitLen = "24h" | "3d" | "1w";
 export interface Purchase {
   name: string;
+  /** Original price in `currency`. */
   price: number;
+  currency: Currency;
   cat: string;
   reasons: string[];
   feeling: string;
@@ -72,7 +79,10 @@ export interface Profile {
   savings: number;
   habits: number[];
   onboarded: boolean;
+  /** Formatting preference only: ₺1.000 ("symbol") or 1.000 TRY ("code"). Not a currency. */
   currency: "symbol" | "code";
+  /** The currency totals are shown in. Records keep their own currency. */
+  displayCurrency: Currency;
 }
 
 export const EXP_CATS: [string, LucideIcon][] = [
@@ -127,6 +137,7 @@ export const emptyProfile: Profile = {
   habits: [],
   onboarded: false,
   currency: "symbol",
+  displayCurrency: "TRY",
 };
 
 const clamp = (v: number) => Math.max(0, Math.min(25, Math.round(v)));
@@ -135,6 +146,7 @@ export const purchaseEntry = (p: Purchase): Entry => ({
   id: uid(),
   type: "expense",
   amount: p.price,
+  currency: p.currency,
   cat: p.cat,
   name: p.name,
   date: today(),

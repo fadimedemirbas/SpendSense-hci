@@ -109,6 +109,7 @@ export function Decide() {
   const blank = (): Purchase => ({
     name: "",
     price: 0,
+    currency: "TRY",
     cat: lastCat,
     reasons: [],
     feeling: "",

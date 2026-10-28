@@ -1,5 +1,5 @@
 import type { Decision, Entry, Goal, Profile, Purchase, Waiting } from "../store";
-import { emptyProfile } from "../store";
+import { emptyProfile } from "../store.ts";
 
 export interface AnalysisRecord {
   id: string;
@@ -26,8 +26,19 @@ export const emptyWorkspace = (email: string): Workspace => ({
   analyses: [],
 });
 
+// Shown (and translated) by the existing error display; no SQL or server detail.
+export const UPDATE_REQUIRED_MESSAGE =
+  "A newer version of the app is available. Please update the app to keep your data safe.";
+export const CURRENCY_UNSUPPORTED_MESSAGE =
+  "Saving USD or EUR amounts is not available yet. Your data was not changed.";
+
 export function persistenceMessage(error: unknown): string {
   const code = typeof error === "object" && error && "code" in error ? error.code : "";
+  // 0A000: the database refused a version 1 save for an account with USD/EUR data.
+  if (code === "0A000") return UPDATE_REQUIRED_MESSAGE;
+  if (code === "SS_PROTOCOL_UNSUPPORTED") return CURRENCY_UNSUPPORTED_MESSAGE;
+  if (code === "SS_CURRENCY_CONTRACT")
+    return "Some data was incomplete or invalid. Reload your saved data before trying again.";
   if (code === "40001")
     return "Your data changed in another session. Reload your data before trying again.";
   if (code === "22023" || code === "23514")

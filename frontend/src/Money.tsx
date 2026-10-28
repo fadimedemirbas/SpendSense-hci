@@ -203,6 +203,8 @@ export function QuickAdd() {
       id: edit?.id ?? uid(),
       type,
       amount: v,
+      // The form still enters lira; an edited entry keeps its original currency.
+      currency: edit?.currency ?? "TRY",
       cat,
       name: note.trim() || t(cat),
       date,

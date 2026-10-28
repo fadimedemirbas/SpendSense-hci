@@ -546,7 +546,14 @@ export function Goals() {
             icon={<Plus size={18} />}
             onClick={() => {
               setErr("");
-              setForm({ id: uid(), name: "", target: 0, saved: 0, status: "Active" });
+              setForm({
+                id: uid(),
+                name: "",
+                target: 0,
+                saved: 0,
+                currency: "TRY",
+                status: "Active",
+              });
             }}
           >
             {t("Add goal")}

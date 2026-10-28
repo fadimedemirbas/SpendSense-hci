@@ -43,6 +43,25 @@ const TR: Record<string, string> = {
     "Değişikliklerin kaydedilemedi. Bağlantını kontrol et ve tekrar dene. İşlem başarılı olarak gösterilmedi.",
   "Your session could not access this data. Please sign in again.":
     "Oturumun bu verilere erişemedi. Lütfen yeniden giriş yap.",
+  // Multi-currency (Phase 4: prepared, shown by later phases).
+  "A newer version of the app is available. Please update the app to keep your data safe.":
+    "Uygulamanın yeni bir sürümü mevcut. Verilerinizi korumak için lütfen uygulamayı güncelleyin.",
+  "Saving USD or EUR amounts is not available yet. Your data was not changed.":
+    "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
+  "Display currency": "Görüntüleme para birimi",
+  "Totals are shown in this currency. Your records keep their original amounts.":
+    "Toplamlar bu para biriminde gösterilir. Kayıtların orijinal tutarlarını korur.",
+  "Transaction currency": "İşlem para birimi",
+  Currency: "Para birimi",
+  "Approximate amount": "Yaklaşık tutar",
+  "Approximate, converted with TCMB rates.": "TCMB kurlarıyla yaklaşık olarak çevrildi.",
+  "TCMB bulletin {date}": "TCMB {date} bülteni",
+  "Exchange rates may be outdated (TCMB bulletin {date}).":
+    "Döviz kurları güncel olmayabilir (TCMB {date} bülteni).",
+  "You're offline. Showing the last saved exchange rates (TCMB bulletin {date}).":
+    "Çevrimdışısın. Son kaydedilen döviz kurları gösteriliyor (TCMB {date} bülteni).",
+  "Exchange rates are unavailable. Amounts in different currencies are shown separately.":
+    "Döviz kurlarına şu an ulaşılamıyor. Farklı para birimlerindeki tutarlar ayrı gösteriliyor.",
   "Enter your password.": "Şifreni gir.",
   "Your financial data is saved securely to your account.":
     "Finansal verilerin hesabına güvenli şekilde kaydedilir.",
