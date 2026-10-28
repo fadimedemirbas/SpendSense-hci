@@ -18,6 +18,11 @@
   # Vite 8 requires Node 20.19+ or 22.12+.
   NODE_VERSION = "22"
 
+# Relative to the base directory: frontend/netlify/functions (Netlify's default,
+# stated explicitly). rates.ts serves TCMB exchange rates at /api/rates.
+[functions]
+  directory = "netlify/functions"
+
 # --- Headers -----------------------------------------------------------------
 
 # The service worker must always be revalidated so updates are detected.
@@ -70,6 +75,12 @@
   from = "/icons/*"
   to = "/404.html"
   status = 404
+
+# The one API route this site serves. It must stay above the /api/* rule.
+[[redirects]]
+  from = "/api/rates"
+  to = "/.netlify/functions/rates"
+  status = 200
 
 [[redirects]]
   from = "/api/*"
