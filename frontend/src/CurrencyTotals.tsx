@@ -20,7 +20,7 @@ import { Card, LangCtx, fmtIn, useT } from "./ui";
 // TRY-only workspace never depends on (or waits for) exchange rates.
 
 /** "₺1.000 + $50": separate per-currency sums, never added together. */
-const subtotalText = (subtotals: Subtotals) =>
+export const subtotalText = (subtotals: Subtotals) =>
   CURRENCIES.filter((c) => subtotals[c] !== undefined)
     .map((c, i) => {
       const value = subtotals[c]!;
@@ -55,7 +55,14 @@ export function RateNote({ rate }: { rate: RateInfo }) {
   );
 }
 
-function RatesUnavailable({ loading }: { loading: boolean }) {
+export function RatesUnavailable({
+  loading,
+  message = "Exchange rates are unavailable right now, so amounts in different currencies are not added together.",
+}: {
+  loading: boolean;
+  /** English key for useT(): what cannot be calculated. */
+  message?: string;
+}) {
   const t = useT();
   if (loading)
     return (
@@ -65,11 +72,7 @@ function RatesUnavailable({ loading }: { loading: boolean }) {
     );
   return (
     <div role="status" className="flex flex-wrap items-center gap-2">
-      <p className="m-0 text-sm text-attn bg-butter rounded-inner px-3 py-2">
-        {t(
-          "Exchange rates are unavailable right now, so amounts in different currencies are not added together.",
-        )}
-      </p>
+      <p className="m-0 text-sm text-attn bg-butter rounded-inner px-3 py-2">{t(message)}</p>
       <button
         type="button"
         onClick={() => void ratesClient().refresh({ force: true })}
@@ -178,8 +181,9 @@ function LiveGoalEquivalent({ goal, currency }: { goal: Goal; currency: Currency
     <div className="grid gap-1">
       <p className="m-0 text-sm f-num">
         {t("About {saved} of {target} in {c}.", {
-          saved: fmtIn(equivalent.saved, currency, true),
-          target: fmtIn(equivalent.target, currency, true),
+          // "About" already says it is approximate, so no extra "≈" here.
+          saved: fmtIn(equivalent.saved, currency),
+          target: fmtIn(equivalent.target, currency),
           c: currencyName(currency, lang),
         })}
       </p>
@@ -191,4 +195,33 @@ function LiveGoalEquivalent({ goal, currency }: { goal: Goal; currency: Currency
 /** A goal's amounts approximately in the display currency (nothing when it matches). */
 export function GoalEquivalentNote({ goal, currency }: { goal: Goal; currency: Currency }) {
   return goal.currency === currency ? null : <LiveGoalEquivalent goal={goal} currency={currency} />;
+}
+
+/**
+ * Shown instead of a chart or total that would need exchange rates: the amounts
+ * per currency (never added together) and why the figure is missing.
+ */
+export function NeedsRates({
+  lines,
+  loading,
+  message,
+}: {
+  lines: readonly (readonly [string, Subtotals])[];
+  loading: boolean;
+  /** English key for useT(). */
+  message: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <ul className="m-0 p-0 list-none grid gap-1">
+        {lines.map(([label, subtotals]) => (
+          <li key={label} className="flex flex-wrap justify-between gap-x-3">
+            <span>{label}</span>
+            <span className="f-num">{subtotalText(subtotals) || "—"}</span>
+          </li>
+        ))}
+      </ul>
+      <RatesUnavailable loading={loading} message={message} />
+    </div>
+  );
 }

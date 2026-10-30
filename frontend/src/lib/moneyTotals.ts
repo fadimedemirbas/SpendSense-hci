@@ -60,7 +60,7 @@ export const NO_RATES: RatesView = Object.freeze({
   bulletinDate: null,
 });
 /** Rates that may be used for a conversion: validated and not "unavailable". */
-function usableRates(view: RatesView) {
+export function usableRates(view: RatesView): { rates: ValidRates; rate: RateInfo } | null {
   return view.status !== "unavailable" && view.rates && view.bulletinDate
     ? { rates: view.rates, rate: { status: view.status, bulletinDate: view.bulletinDate } }
     : null;

@@ -2,3 +2,5 @@
 *.png binary
 *.ico binary
 *.woff2 binary
+# Byte-exact copy of a live TCMB response (CRLF), verified by SHA-256 in tests.
+frontend/tests/fixtures/*.xml -text

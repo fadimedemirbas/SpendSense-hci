@@ -187,8 +187,8 @@ test("protocol 1 (TRY-only screens) never accepts a foreign amount, even nested"
   }
 });
 
-test("the client protocol chooses the load RPC; this build is still TRY-only", () => {
-  assert.equal(CLIENT_PROTOCOL, 1); // protocol 3 arrives with the currency-aware screens
+test("the client protocol chooses the load RPC; this build is currency-aware", () => {
+  assert.equal(CLIENT_PROTOCOL, 3); // every screen shows records in their own currency
   assert.deepEqual(workspaceLoadRequest(1, "user-1"), {
     fn: "spendsense_load_workspace",
     args: { expected_user_id: "user-1" },

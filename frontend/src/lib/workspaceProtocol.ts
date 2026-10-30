@@ -108,7 +108,10 @@ export function assertLoadedWorkspace(
  * screens that show USD/EUR correctly (Phase 5).
  */
 export type ClientProtocol = 1 | 3;
-export const CLIENT_PROTOCOL: ClientProtocol = 1;
+// Every screen shows each record in its own currency (Phase 5), so this build is
+// currency-aware. It needs migration 202610280001 in the database; without it the
+// load RPC is missing and the app stops with "setup not ready" (no fallback to 1).
+export const CLIENT_PROTOCOL: ClientProtocol = 3;
 
 /** The load RPC for a protocol. Anything else fails before a request is made. */
 export function workspaceLoadRequest(protocol: number, userId: string) {

@@ -31,8 +31,9 @@ non-TRY display currency alone does not block protocol 1, because those clients
 show correct lira amounts and never write the display currency.
 
 The frontend's protocol is `CLIENT_PROTOCOL` in
-`frontend/src/lib/workspaceProtocol.ts`. It stays `1` until the currency-aware
-screens ship.
+`frontend/src/lib/workspaceProtocol.ts`. It is `3` since the currency-aware
+screens shipped (Phase 5), so that build must only be deployed after this
+migration is applied and verified in production (see "Deployment order").
 
 ## Required migration role
 

@@ -21,16 +21,19 @@ export function ratesClient(): RatesClient {
 /**
  * Current exchange rates for display and conversion. Refreshes on mount and when
  * the connection returns; the client itself prevents duplicate or rapid requests.
- * Used by Money and Goals only when a total mixes currencies.
+ * Used only where a figure mixes currencies: with `needed` false the screen
+ * still reads any cached snapshot but sends no request (TRY-only users never wait
+ * for, or depend on, exchange rates).
  */
-export function useRates(): RatesState {
+export function useRates(needed = true): RatesState {
   const rates = ratesClient();
   const state = useSyncExternalStore(rates.subscribe, rates.getState, rates.getState);
   useEffect(() => {
+    if (!needed) return;
     void rates.refresh();
     const online = () => void rates.refresh();
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
-  }, [rates]);
+  }, [rates, needed]);
   return state;
 }

@@ -11,7 +11,7 @@ import {
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
 import { formatExactAmount } from "./lib/money";
 import { nextSegmentIndex } from "./lib/segmented";
-import type { Currency } from "./lib/currency";
+import { formatMoney, type Currency } from "./lib/currency";
 import { amountUnit, formatWholeAmount } from "./lib/moneyTotals";
 
 /* ---------- i18n ---------- */
@@ -78,6 +78,20 @@ const TR: Record<string, string> = {
   "About {saved} of {target} in {c}.": "{c} cinsinden yaklaşık {target} içinden {saved}.",
   "Exchange rates are unavailable, so this goal is shown in {c} only.":
     "Döviz kurları alınamadığı için bu hedef yalnızca {c} cinsinden gösteriliyor.",
+  "Exchange rates are unavailable right now, so what's left this month can't be calculated. Amounts are shown by currency.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden bu ay kalan tutar hesaplanamıyor. Tutarlar para birimine göre gösteriliyor.",
+  "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.":
+    "Döviz kurları alınamadığı için bu grafik şu anda hesaplanamıyor. Tutarlar para birimine göre gösteriliyor.",
+  "Exchange rates are unavailable right now, so this purchase can't be compared with your budget and goals.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden bu satın alma bütçen ve hedeflerinle karşılaştırılamıyor.",
+  "This purchase can't be analyzed because an amount is not valid.":
+    "Bir tutar geçerli olmadığı için bu satın alma analiz edilemiyor.",
+  "I can't put this purchase in context right now.":
+    "Bu satın almayı şu anda bağlamına yerleştiremiyorum.",
+  "A saved purchase keeps its original currency.":
+    "Kaydedilen bir satın alma kendi para birimini korur.",
+  "Numbers only, without thousands separators. Use a comma or dot for cents, e.g. 1250 or 1250.50.":
+    "Binlik ayırıcı olmadan yalnızca rakam gir. Sent için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
   "Transaction currency": "İşlem para birimi",
   Currency: "Para birimi",
   "Approximate amount": "Yaklaşık tutar",
@@ -787,6 +801,14 @@ export function useExactAmount() {
   const { lang } = useContext(LangCtx);
   return (n: number) => formatExactAmount(n, lang, curMode);
 }
+/** Decide: the exact amount in its own currency; TRY is formatted exactly as by useExactAmount. */
+export function useExactAmountIn() {
+  const { lang } = useContext(LangCtx);
+  return (n: number, currency: Currency) =>
+    currency === "TRY"
+      ? formatExactAmount(n, lang, curMode)
+      : formatMoney(n, currency, lang, { display: curMode });
+}
 
 /* ---------- display ---------- */
 // Full-screen wait state: the logo coins stack up while a bar slides underneath.
@@ -918,7 +940,19 @@ export const Say = ({
     </div>
   </div>
 );
-export function CountUp({ value, className = "" }: { value: number; className?: string }) {
+export function CountUp({
+  value,
+  className = "",
+  currency = "TRY",
+  approximate = false,
+}: {
+  value: number;
+  className?: string;
+  /** Currency of `value`; TRY (the default) renders exactly as before. */
+  currency?: Currency;
+  /** Prefix "≈ " for a converted value. */
+  approximate?: boolean;
+}) {
   const [v, setV] = useState(value);
   const from = useRef(0);
   useEffect(() => {
@@ -938,7 +972,11 @@ export function CountUp({ value, className = "" }: { value: number; className?: 
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return <span className={`f-num ${className}`}>{fmt(v)}</span>;
+  return (
+    <span className={`f-num ${className}`}>
+      {currency === "TRY" && !approximate ? fmt(v) : fmtIn(v, currency, approximate)}
+    </span>
+  );
 }
 
 /* ---------- inputs ---------- */

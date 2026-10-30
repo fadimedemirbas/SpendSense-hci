@@ -15,17 +15,28 @@ import {
 import { emptyWorkspace } from "../src/lib/workspace.ts";
 import { emptyProfile } from "../src/store.ts";
 
-test("this build is TRY-only: USD and EUR are offered but cannot be chosen yet", () => {
-  assert.equal(CLIENT_PROTOCOL, 1);
+test("this build is protocol 3: TRY, USD and EUR can all be chosen", () => {
+  assert.equal(CLIENT_PROTOCOL, 3);
   assert.deepEqual(displayCurrencyOptions(), [
+    { value: "TRY", label: "₺ TRY", disabled: false },
+    { value: "USD", label: "$ USD", disabled: false },
+    { value: "EUR", label: "€ EUR", disabled: false },
+  ]);
+  for (const currency of ["TRY", "USD", "EUR"])
+    assert.equal(canSaveDisplayCurrency(currency), true);
+  assert.match(displayCurrencyNote(), /original amounts/);
+});
+
+test("a TRY-only (protocol 1) client offers USD and EUR but cannot choose them", () => {
+  assert.deepEqual(displayCurrencyOptions(1), [
     { value: "TRY", label: "₺ TRY", disabled: false },
     { value: "USD", label: "$ USD", disabled: true },
     { value: "EUR", label: "€ EUR", disabled: true },
   ]);
-  assert.equal(canSaveDisplayCurrency("TRY"), true);
-  assert.equal(canSaveDisplayCurrency("USD"), false);
-  assert.equal(canSaveDisplayCurrency("EUR"), false);
-  assert.match(displayCurrencyNote(), /become available/);
+  assert.equal(canSaveDisplayCurrency("TRY", 1), true);
+  assert.equal(canSaveDisplayCurrency("USD", 1), false);
+  assert.equal(canSaveDisplayCurrency("EUR", 1), false);
+  assert.match(displayCurrencyNote(1), /become available/);
 });
 
 test("protocol 3 enables every display currency without other changes", () => {

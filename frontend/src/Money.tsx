@@ -351,14 +351,19 @@ export function QuickAdd() {
           )}
         </div>
         <div className="md:col-span-2 flex flex-wrap gap-2 justify-end">
-          {/* Decide works in TRY, so only a lira amount can be handed over. */}
-          {type === "expense" && v > 0 && !edit && currency === "TRY" && (
+          {/* Decide keeps the price in its own currency and converts only for scoring. */}
+          {type === "expense" && v > 0 && !edit && (
             <Button
               icon={<MessageCircleQuestionMark size={18} />}
               onClick={() => {
                 close();
                 setTab("decide");
-                openDecide({ price: v, cat: cat || undefined, name: note || undefined });
+                openDecide({
+                  price: v,
+                  currency,
+                  cat: cat || undefined,
+                  name: note || undefined,
+                });
               }}
             >
               {t("Not bought yet? Check it first.")}

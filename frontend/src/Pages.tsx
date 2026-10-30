@@ -42,13 +42,14 @@ import {
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
-import { GoalEquivalentNote } from "./CurrencyTotals";
+import { GoalEquivalentNote, NeedsRates, RateNote } from "./CurrencyTotals";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
-import { goalProgress, goalTargetIdeas } from "./lib/moneyTotals";
+import { entriesInMonth, goalProgress, goalTargetIdeas, needsConversion } from "./lib/moneyTotals";
+import { averagePriceInTry, monthView, spendingView } from "./lib/summaries";
+import { useRates } from "./lib/useRates";
 import {
   uid,
   today,
-  monthTotals,
   purchaseEntry,
   type Goal,
   type GStatus,
@@ -58,17 +59,25 @@ import {
 
 const daysUntil = (iso: string) =>
   Math.ceil((new Date(iso).getTime() - new Date(today()).getTime()) / 864e5);
-const thisMonth = (d: string) => d.slice(0, 7) === today().slice(0, 7);
 
 export function HomePage({ firstName }: { firstName?: string }) {
-  const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide } = useApp();
+  const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide, profile } = useApp();
   const t = useT();
-  const { income: inc, spent: sp } = monthTotals(entries);
+  // Each record keeps its own currency; totals are shown in the display currency and
+  // only converted with validated rates (requested only when something needs them).
+  const currency = profile.displayCurrency;
+  const rates = useRates(
+    needsConversion(entriesInMonth(entries, today()), currency) ||
+      decisions.some((d) => d.currency !== "TRY"),
+  );
+  const month = monthView(entries, currency, rates, today());
   const goal = goals.find((g) => g.status === "Active");
-  const avgPrice = (k: DecisionKind) => {
-    const xs = decisions.filter((d) => d.decision === k);
-    return xs.length ? xs.reduce((a, b) => a + b.price, 0) / xs.length : null;
-  };
+  // Compared in TRY; undefined (rates missing) hides the comparison.
+  const avgPrice = (k: DecisionKind) =>
+    averagePriceInTry(
+      decisions.filter((d) => d.decision === k),
+      rates,
+    );
   const waitedAvg = avgPrice("Wait"),
     boughtAvg = avgPrice("Buy");
   const reflect = decisions.find(
@@ -86,20 +95,62 @@ export function HomePage({ firstName }: { firstName?: string }) {
       </Say>
       <Card>
         <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
-        <CountUp value={inc - sp} className="text-5xl block my-2" />
-        <div className="flex flex-wrap gap-x-6 gap-y-1">
-          <span className="text-leaf flex items-center gap-1">
-            <ArrowUp size={16} aria-hidden />
-            {t("Income")} <CountUp value={inc} />
-          </span>
-          <span className="flex items-center gap-1">
-            <ArrowDown size={16} aria-hidden />
-            {t("Spent")} <CountUp value={sp} />
-          </span>
-        </div>
-        <div className="mt-4">
-          <Tube label={`${t("Spent")} / ${t("Income")}`} value={inc ? (sp / inc) * 100 : 0} />
-        </div>
+        {month.kind === "exact" || month.kind === "approximate" ? (
+          <>
+            <CountUp
+              value={month.income - month.spent}
+              currency={month.currency}
+              approximate={month.kind === "approximate"}
+              className="text-5xl block my-2"
+            />
+            <div className="flex flex-wrap gap-x-6 gap-y-1">
+              <span className="text-leaf flex items-center gap-1">
+                <ArrowUp size={16} aria-hidden />
+                {t("Income")}{" "}
+                <CountUp
+                  value={month.income}
+                  currency={month.currency}
+                  approximate={month.kind === "approximate"}
+                />
+              </span>
+              <span className="flex items-center gap-1">
+                <ArrowDown size={16} aria-hidden />
+                {t("Spent")}{" "}
+                <CountUp
+                  value={month.spent}
+                  currency={month.currency}
+                  approximate={month.kind === "approximate"}
+                />
+              </span>
+            </div>
+            <div className="mt-4">
+              <Tube
+                label={`${t("Spent")} / ${t("Income")}`}
+                value={month.income ? (month.spent / month.income) * 100 : 0}
+              />
+            </div>
+            {month.kind === "approximate" && (
+              <div className="mt-3">
+                <RateNote rate={month.rate} />
+              </div>
+            )}
+          </>
+        ) : month.kind === "unavailable" ? (
+          <div className="mt-2">
+            <NeedsRates
+              loading={rates.loading}
+              message="Exchange rates are unavailable right now, so what's left this month can't be calculated. Amounts are shown by currency."
+              lines={[
+                [t("Income"), month.income],
+                [t("Spent"), month.spent],
+              ]}
+            />
+          </div>
+        ) : (
+          <p role="status" className="m-0 mt-2 text-attn">
+            {t("Totals could not be calculated.")}
+          </p>
+        )}
       </Card>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-tour-id="quick">
         <Button
@@ -138,7 +189,7 @@ export function HomePage({ firstName }: { firstName?: string }) {
             <div>
               <h2 className="text-xl font-bold m-0">{goal.name}</h2>
               <p className="f-num m-0">
-                {fmt(goal.saved)} / {fmt(goal.target)}
+                {fmtIn(goal.saved, goal.currency)} / {fmtIn(goal.target, goal.currency)}
               </p>
               <p className="f-voice m-0 mt-1">
                 {t(
@@ -175,7 +226,7 @@ export function HomePage({ firstName }: { firstName?: string }) {
           )}
         </Card>
       </div>
-      {waitedAvg !== null && boughtAvg !== null && waitedAvg > boughtAvg && (
+      {typeof waitedAvg === "number" && typeof boughtAvg === "number" && waitedAvg > boughtAvg && (
         <section className="clay-butter rounded-card p-5 flex gap-3 items-center rise">
           <Lightbulb className="text-violet shrink-0" aria-hidden />
           <p className="f-voice text-lg m-0">
@@ -789,7 +840,7 @@ export function WaitingPage() {
                 <div className="flex-1 basis-40">
                   <h2 className="text-xl font-bold m-0">{w.name}</h2>
                   <p className="f-num m-0">
-                    {fmt(w.price)}{" "}
+                    {fmtIn(w.price, w.currency)}{" "}
                     <span className="f-ui text-sm text-soft">
                       · {t("Fit")} {w.fit}/100
                     </span>
@@ -870,8 +921,8 @@ export function HistoryPage() {
               </Pill>
             </div>
             <p className="m-0 text-sm text-soft">
-              <span className="f-num text-ink">{fmt(d.price)}</span> · {dayLabel(d.date, t)} ·{" "}
-              {t("Fit")} <span className="f-num">{d.fit}</span>
+              <span className="f-num text-ink">{fmtIn(d.price, d.currency)}</span> ·{" "}
+              {dayLabel(d.date, t)} · {t("Fit")} <span className="f-num">{d.fit}</span>
             </p>
             <Expand title={t("How do you feel about this decision now?")}>
               <div
@@ -933,18 +984,21 @@ export function HistoryPage() {
 }
 
 export function Insights() {
-  const { entries, decisions, waiting } = useApp();
+  const { entries, decisions, waiting, profile } = useApp();
   const t = useT();
-  const m = entries.filter((e) => thisMonth(e.date));
-  const exp = m.filter((e) => e.type === "expense");
-  const total = exp.reduce((a, b) => a + b.amount, 0) || 1;
-  const byCat = Object.entries(
-    exp.reduce<Record<string, number>>((g, e) => ((g[e.cat] = (g[e.cat] ?? 0) + e.amount), g), {}),
-  )
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-  const inc = m.filter((e) => e.type === "income").reduce((a, b) => a + b.amount, 0);
-  const max = Math.max(inc, total);
+  // Money charts in the display currency; a mixed month is converted only with
+  // validated rates, otherwise the chart explains why it is missing.
+  const currency = profile.displayCurrency;
+  const rates = useRates(needsConversion(entriesInMonth(entries, today()), currency));
+  const sv = spendingView(entries, currency, rates, today());
+  const money = (v: number) =>
+    sv.kind === "ok" && sv.rate
+      ? fmtIn(v, currency, true)
+      : currency === "TRY"
+        ? fmt(v)
+        : fmtIn(v, currency);
+  const chartUnavailable =
+    "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.";
   const all = [...decisions, ...waiting];
   const count = (xs: string[]) =>
     Object.entries(
@@ -965,29 +1019,62 @@ export function Insights() {
       <PageHead title={t("Insights")} />
       <Card className="grid gap-3">
         <h2 className="text-xl font-bold m-0">{t("Spending by category")}</h2>
-        {byCat.length ? (
-          byCat.map(([c, v]) => (
-            <div key={c}>
-              <Tube label={`${t(c)} · ${fmt(v)}`} value={(v / total) * 100} />
-            </div>
-          ))
+        {sv.kind === "ok" ? (
+          sv.byCat.length ? (
+            <>
+              {sv.byCat.map(([c, v]) => (
+                <div key={c}>
+                  <Tube label={`${t(c)} · ${money(v)}`} value={(v / sv.total) * 100} />
+                </div>
+              ))}
+              {sv.rate && <RateNote rate={sv.rate} />}
+            </>
+          ) : (
+            <Empty text={t("No expenses this month yet.")} />
+          )
+        ) : sv.kind === "unavailable" ? (
+          <NeedsRates
+            loading={rates.loading}
+            message={chartUnavailable}
+            lines={[[t("Expenses"), sv.spent]]}
+          />
         ) : (
-          <Empty text={t("No expenses this month yet.")} />
+          <p role="status" className="m-0 text-attn">
+            {t("Totals could not be calculated.")}
+          </p>
         )}
       </Card>
       <Card className="grid gap-3">
         <h2 className="text-xl font-bold m-0">{t("Income vs. expenses")}</h2>
-        <Tube
-          label={`${t("Income")} · ${fmt(inc)}`}
-          value={max ? (inc / max) * 100 : 0}
-          color="bg-leaf"
-          showPct={false}
-        />
-        <Tube
-          label={`${t("Expenses")} · ${fmt(exp.reduce((a, b) => a + b.amount, 0))}`}
-          value={max ? (total / max) * 100 : 0}
-          showPct={false}
-        />
+        {sv.kind === "ok" ? (
+          <>
+            <Tube
+              label={`${t("Income")} · ${money(sv.income)}`}
+              value={sv.max ? (sv.income / sv.max) * 100 : 0}
+              color="bg-leaf"
+              showPct={false}
+            />
+            <Tube
+              label={`${t("Expenses")} · ${money(sv.spent)}`}
+              value={sv.max ? (sv.total / sv.max) * 100 : 0}
+              showPct={false}
+            />
+            {sv.rate && <RateNote rate={sv.rate} />}
+          </>
+        ) : sv.kind === "unavailable" ? (
+          <NeedsRates
+            loading={rates.loading}
+            message={chartUnavailable}
+            lines={[
+              [t("Income"), sv.income],
+              [t("Expenses"), sv.spent],
+            ]}
+          />
+        ) : (
+          <p role="status" className="m-0 text-attn">
+            {t("Totals could not be calculated.")}
+          </p>
+        )}
       </Card>
       <Card className="grid gap-3">
         <h2 className="text-xl font-bold m-0">{t("Decision patterns")}</h2>

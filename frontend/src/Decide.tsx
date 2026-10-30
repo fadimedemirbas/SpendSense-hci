@@ -43,25 +43,29 @@ import {
   useT,
   useToast,
   Dialog,
-  curLabel,
-  useExactAmount,
+  curLabelIn,
+  useExactAmountIn,
 } from "./ui";
 import {
   EXP_CATS,
-  analyze,
   level,
   uid,
   today,
   addDays,
   WAIT_DAYS,
   type Purchase,
-  monthTotals,
   habitSignals,
   purchaseEntry,
   type WaitLen,
   type DecisionKind,
 } from "./store";
 import { outcomeLabel, type Factor } from "./lib/decideLabels";
+import { decideContext, decideNeedsRates, type DecideContext } from "./lib/decideInputs";
+import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
+import type { RatesState } from "./lib/rates";
+import { useRates } from "./lib/useRates";
+import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
+import { RateNote, RatesUnavailable } from "./CurrencyTotals";
 
 export const REASONS: [string, typeof Check][] = [
   ["need", HeartHandshake],
@@ -85,6 +89,11 @@ export const FEELINGS: [string, typeof Check][] = [
 // like the Wait decision button.
 const STEPS = ["What", "Why", "Feeling", "Own", "Wait time"];
 const fieldError = "m-0 -mt-1 text-sm text-attn bg-butter rounded-inner px-3 py-2";
+// Why an analysis that needs a conversion cannot run (English keys for useT()).
+const blocked = (reason: Extract<DecideContext, { ok: false }>["reason"]) =>
+  reason === "missing-rate"
+    ? "Exchange rates are unavailable right now, so this purchase can't be compared with your budget and goals."
+    : "This purchase can't be analyzed because an amount is not valid.";
 const WAITS: [WaitLen, string][] = [
   ["24h", "24 hours"],
   ["3d", "3 days"],
@@ -109,7 +118,7 @@ export function Decide() {
   const blank = (): Purchase => ({
     name: "",
     price: 0,
-    currency: "TRY",
+    currency: defaultRecordCurrency(profile.displayCurrency),
     cat: lastCat,
     reasons: [],
     feeling: "",
@@ -141,7 +150,23 @@ export function Decide() {
   const loadingRef = useRef<HTMLDivElement>(null);
   const moveFocus = useRef(false);
   const [fromAnalyze, setFromAnalyze] = useState(false);
-  const amount = useExactAmount();
+  const exactAmount = useExactAmountIn();
+  const amount = (n: number) => exactAmount(n, p.currency);
+  // Rates are requested only when the purchase, a goal or this month's entries are
+  // not in TRY; the scoring itself always runs on lira copies (decideInputs.ts).
+  const rates = useRates(
+    decideNeedsRates(
+      p,
+      goals.filter((g) => g.status === "Active"),
+      entries,
+      today(),
+    ),
+  );
+  // A purchase reopened from the waiting list or history keeps its currency.
+  const lockedCurrency = !!(prefill?.waitId || prefill?.analysisId);
+  const currencyNote = lockedCurrency
+    ? "A saved purchase keeps its original currency."
+    : recordCurrencyNote();
   // Back from the result via Edit: every answer is listed as editable (D9).
   const [reviewing, setReviewing] = useState(false);
   const answersRef = useRef<HTMLOListElement>(null);
@@ -201,10 +226,13 @@ export function Decide() {
     if (s === 0) setLastCat(p.cat);
     if (s < 4) setS(s + 1);
     else {
-      setPhase("load");
       const goal = goals.find((g) => g.status === "Active");
+      const context = decideContext(p, profile, goal, entries, rates, today());
+      // Only this calculation is blocked; every answer stays as entered.
+      if (!context.ok) return setHint(t(blocked(context.reason)));
+      setPhase("load");
       const [id] = await Promise.all([
-        recordAnalysis(p, analyze(p, profile, goal, entries), goal?.id),
+        recordAnalysis(p, context.analysis, goal?.id),
         new Promise((resolve) => setTimeout(resolve, 900)),
       ]);
       if (id) {
@@ -241,6 +269,7 @@ export function Decide() {
     return (
       <Analysis
         p={p}
+        rates={rates}
         analysisId={analysisId}
         waitId={prefill?.waitId}
         focusTitle={fromAnalyze}
@@ -289,7 +318,7 @@ export function Decide() {
     <>
       <PageHead title={t("Should I buy it?")} sub={t("Let's add a little context first.")} />
       <div className="grid md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-5 items-start">
-        <Receipt p={p} own={own} waitSet={waitSet} step={s} />
+        <Receipt p={p} own={own} waitSet={waitSet} step={s} rates={rates} />
         <ol
           ref={answersRef}
           className="grid gap-2 m-0 p-0 list-none md:order-first"
@@ -359,7 +388,7 @@ export function Decide() {
                         </p>
                       )}
                       <label className="f-ui grid gap-1">
-                        {t("Price")} ({curLabel()})
+                        {t("Price")} ({curLabelIn(p.currency)})
                         <input
                           ref={priceRef}
                           inputMode="decimal"
@@ -383,7 +412,9 @@ export function Decide() {
                       {/* Matches the parser: digits, one comma or dot, up to 2 decimals. */}
                       <p id={`${fieldId}-price-hint`} className="m-0 -mt-1 text-sm text-soft">
                         {t(
-                          "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50.",
+                          p.currency === "TRY"
+                            ? "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50."
+                            : "Numbers only, without thousands separators. Use a comma or dot for cents, e.g. 1250 or 1250.50.",
                         )}
                       </p>
                       {fieldErr.price && (
@@ -391,6 +422,20 @@ export function Decide() {
                           {fieldErr.price}
                         </p>
                       )}
+                      <div className="grid gap-1">
+                        <RecordCurrencyPicker
+                          label={t("Currency")}
+                          value={p.currency}
+                          locked={lockedCurrency}
+                          describedBy={currencyNote ? `${fieldId}-currency` : undefined}
+                          onChange={(currency) => setP({ ...p, currency })}
+                        />
+                        {currencyNote && (
+                          <p id={`${fieldId}-currency`} className="m-0 text-sm text-soft">
+                            {t(currencyNote)}
+                          </p>
+                        )}
+                      </div>
                       <p className="f-ui m-0">{t("Category")}</p>
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(7.25rem,1fr))] gap-2 sm:gap-3">
                         {EXP_CATS.map(([c, I]) => (
@@ -547,22 +592,24 @@ function Receipt({
   own,
   waitSet,
   step,
+  rates,
 }: {
   p: Purchase;
   own: boolean | null;
   waitSet: boolean;
   step: number;
+  rates: RatesState;
 }) {
   const { profile, entries } = useApp();
   const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const amount = useExactAmount();
-  const a = analyze(p, profile, undefined, entries);
-  const month = monthTotals(entries);
-  const left = a.income - month.spent;
+  const exactAmount = useExactAmountIn();
+  const amount = (n: number) => exactAmount(n, p.currency);
+  const context = decideContext(p, profile, undefined, entries, rates, today());
+  const left = context.ok ? context.analysis.income - context.month.spent : 0;
   // analyze() falls back to the onboarding income range until this month has income.
-  const estimated = !(month.income > 0);
+  const estimated = context.ok && !(context.month.income > 0);
   const CatIcon = EXP_CATS.find(([c]) => c === p.cat)?.[1] ?? CircleDot;
   const value = (v: ReactNode) =>
     v ? (
@@ -640,13 +687,13 @@ function Receipt({
             </div>
           ))}
         </dl>
-        {p.price > 0 && (
+        {p.price > 0 && context.ok && (
           <p className="m-0 text-sm text-soft flex gap-2 items-start" aria-live="polite">
             <Lightbulb size={16} className="shrink-0 mt-0.5" aria-hidden />
             <span>
               {left > 0
                 ? t("That's {n}% of what's left this month.", {
-                    n: Math.round((p.price / left) * 100),
+                    n: Math.round((context.price / left) * 100),
                   })
                 : t("Nothing is left this month after your expenses.")}
               {estimated && (
@@ -655,6 +702,12 @@ function Receipt({
                 </span>
               )}
             </span>
+          </p>
+        )}
+        {p.price > 0 && context.ok && context.rate && <RateNote rate={context.rate} />}
+        {p.price > 0 && !context.ok && (
+          <p className="m-0 text-sm" aria-live="polite">
+            {t(blocked(context.reason))}
           </p>
         )}
       </div>
@@ -668,8 +721,10 @@ function Analysis({
   waitId,
   edit,
   focusTitle,
+  rates,
 }: {
   p: Purchase;
+  rates: RatesState;
   analysisId?: string;
   waitId?: string;
   edit: () => void;
@@ -690,7 +745,8 @@ function Analysis({
   const t = useT();
   const toast = useToast();
   const title = useRef<HTMLHeadingElement>(null);
-  const amount = useExactAmount();
+  const exactAmount = useExactAmountIn();
+  const amount = (n: number) => exactAmount(n, p.currency);
   const waitHelpId = useId();
   useEffect(() => {
     if (focusTitle) title.current?.focus();
@@ -698,8 +754,48 @@ function Analysis({
   const active = goals.filter((g) => g.status === "Active");
   const [goalId, setGoalId] = useState(active[0]?.id);
   const goal = active.find((g) => g.id === goalId) ?? active[0];
-  const a = analyze(p, profile, goal, entries);
-  const month = monthTotals(entries);
+  const context = decideContext(p, profile, goal, entries, rates, today());
+  const goalPicker = active.length > 1 && (
+    <Card className="grid gap-2">
+      <p className="f-ui m-0">{t("Compare with goal")}</p>
+      <Segmented
+        label={t("Compare with goal")}
+        value={goal!.id}
+        onChange={setGoalId}
+        options={active.map((g) => [g.id, g.name])}
+      />
+    </Card>
+  );
+  if (!context.ok)
+    // Only the analysis is blocked: the purchase stays as entered and can be edited.
+    return (
+      <>
+        <Say expr="thinking">{t("I can't put this purchase in context right now.")}</Say>
+        <Card className="grid gap-3">
+          <div>
+            <h1 ref={title} tabIndex={-1} className="text-3xl font-bold m-0">
+              {p.name}
+            </h1>
+            <p className="f-num text-xl m-0 mt-1">
+              {amount(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
+            </p>
+          </div>
+          {context.reason === "missing-rate" ? (
+            <RatesUnavailable loading={rates.loading} message={blocked(context.reason)} />
+          ) : (
+            <p role="status" className="m-0 text-attn">
+              {t(blocked(context.reason))}
+            </p>
+          )}
+          <div>
+            <Button onClick={edit}>{t("Edit")}</Button>
+          </div>
+        </Card>
+        {goalPicker}
+      </>
+    );
+  const a = context.analysis;
+  const month = context.month;
   const left = a.income - month.spent;
   const habits = habitSignals(p, profile);
   const factors: [string, number, string, typeof Wallet, boolean][] = [
@@ -792,17 +888,7 @@ function Analysis({
         </div>
         <Button onClick={edit}>{t("Edit")}</Button>
       </Card>
-      {active.length > 1 && (
-        <Card className="grid gap-2">
-          <p className="f-ui m-0">{t("Compare with goal")}</p>
-          <Segmented
-            label={t("Compare with goal")}
-            value={goal!.id}
-            onChange={setGoalId}
-            options={active.map((g) => [g.id, g.name])}
-          />
-        </Card>
-      )}
+      {goalPicker}
       <div className="grid md:grid-cols-2 gap-4">
         {factors.map(([n, v, dir, I, higherGood]) => {
           const lv = level(v);
@@ -850,7 +936,7 @@ function Analysis({
           v={
             left > 0
               ? t("It would use {n}% of what's left this month.", {
-                  n: Math.round((p.price / left) * 100),
+                  n: Math.round((context.price / left) * 100),
                 })
               : t("Nothing is left this month after your expenses.")
           }
@@ -882,6 +968,7 @@ function Analysis({
               : "Estimate based on your onboarding ranges.",
           )}
         </p>
+        {context.rate && <RateNote rate={context.rate} />}
       </Card>
       <Card className="grid gap-3">
         <h2 className="text-xl font-bold m-0">{t("You decide.")}</h2>

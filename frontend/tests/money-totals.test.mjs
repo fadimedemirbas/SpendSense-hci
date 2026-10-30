@@ -227,18 +227,23 @@ test("goals: progress in their own currency, conversions only with rates", () =>
 });
 
 test("protocol 1: new records start in TRY and USD/EUR cannot be chosen or saved", () => {
-  for (const display of ["TRY", "USD", "EUR"]) assert.equal(defaultRecordCurrency(display), "TRY");
+  for (const display of ["TRY", "USD", "EUR"])
+    assert.equal(defaultRecordCurrency(display, 1), "TRY");
   assert.equal(defaultRecordCurrency("USD", 3), "USD");
+  // This build is protocol 3: new records start in the display currency.
+  assert.equal(defaultRecordCurrency("EUR"), "EUR");
+  assert.equal(canSaveRecordCurrency("EUR"), true);
+  assert.equal(recordCurrencyNote(), null);
   assert.deepEqual(
-    recordCurrencyOptions().map((o) => [o.value, o.disabled]),
+    recordCurrencyOptions(1).map((o) => [o.value, o.disabled]),
     [
       ["TRY", false],
       ["USD", true],
       ["EUR", true],
     ],
   );
-  assert.equal(canSaveRecordCurrency("EUR"), false);
-  assert.match(recordCurrencyNote(), /become available/);
+  assert.equal(canSaveRecordCurrency("EUR", 1), false);
+  assert.match(recordCurrencyNote(1), /become available/);
   assert.equal(recordCurrencyNote(3), null);
   // A saved record keeps its currency: every other option is disabled, even on protocol 3.
   assert.deepEqual(
