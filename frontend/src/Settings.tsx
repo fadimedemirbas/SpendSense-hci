@@ -2,6 +2,7 @@ import { useContext, useState, type ReactNode } from "react";
 import {
   Globe,
   Coins,
+  Banknote,
   Mail,
   User,
   KeyRound,
@@ -17,6 +18,8 @@ import {
   Info,
   ShieldCheck,
 } from "lucide-react";
+import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
+import { displayCurrencyNote } from "./lib/displayCurrency";
 import { useApp } from "./context";
 import {
   Button,
@@ -242,12 +245,24 @@ export function SettingsPage({
           />
         </Row>
         <Row
+          icon={<Banknote size={18} />}
+          title={t("Display currency")}
+          desc={t(displayCurrencyNote())}
+        >
+          {/* Shows the saved value only: it changes after the database confirms the save. */}
+          <DisplayCurrencyPicker
+            label={t("Display currency")}
+            value={profile.displayCurrency}
+            onChange={(displayCurrency) => void setProfile({ ...profile, displayCurrency })}
+          />
+        </Row>
+        <Row
           icon={<Coins size={18} />}
-          title={t("Currency display")}
+          title={t("Amount format")}
           desc={t("Display only — amounts are not converted.")}
         >
           <Segmented
-            label={t("Currency display")}
+            label={t("Amount format")}
             value={profile.currency}
             onChange={(c) => setProfile({ ...profile, currency: c })}
             options={[

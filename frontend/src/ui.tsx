@@ -10,6 +10,7 @@ import {
 } from "react";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
 import { formatExactAmount } from "./lib/money";
+import { nextSegmentIndex } from "./lib/segmented";
 
 /* ---------- i18n ---------- */
 export type Lang = "en" | "tr";
@@ -49,6 +50,12 @@ const TR: Record<string, string> = {
   "Saving USD or EUR amounts is not available yet. Your data was not changed.":
     "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
   "Display currency": "Görüntüleme para birimi",
+  "Amount format": "Tutar biçimi",
+  "Which currency do you use?": "Hangi para birimini kullanıyorsun?",
+  "You can change this later in Settings.": "Bunu daha sonra Ayarlar'dan değiştirebilirsin.",
+  "Income ranges are in Turkish lira.": "Gelir aralıkları Türk lirası cinsindendir.",
+  "USD and EUR become available when multi-currency support is turned on. Amounts stay in TRY until then.":
+    "USD ve EUR, çoklu para birimi desteği açıldığında kullanılabilir olacak. O zamana kadar tutarlar TL olarak kalır.",
   "Totals are shown in this currency. Your records keep their original amounts.":
     "Toplamlar bu para biriminde gösterilir. Kayıtların orijinal tutarlarını korur.",
   "Transaction currency": "İşlem para birimi",
@@ -977,42 +984,45 @@ export function Segmented<T extends string>({
   onChange,
   label,
   full,
+  disabled = [],
+  describedBy,
 }: {
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
   label: string;
   full?: boolean;
+  /** Options shown but not selectable (aria-disabled); arrow keys skip them. */
+  disabled?: readonly T[];
+  describedBy?: string;
 }) {
+  const enabled = options.map(([v]) => !disabled.includes(v));
   return (
     <div
       role="radiogroup"
       aria-label={label}
+      aria-describedby={describedBy}
       className={`${full ? "flex w-full" : "inline-flex flex-wrap"} gap-1 p-1 rounded-3xl bg-track`}
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
           return;
         event.preventDefault();
         const index = options.findIndex(([v]) => v === value);
-        const next =
-          event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? options.length - 1
-              : (index + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1) + options.length) %
-                options.length;
+        const next = nextSegmentIndex(index, event.key, enabled);
+        if (next < 0 || next === index) return;
         onChange(options[next][0]);
         event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
       }}
     >
-      {options.map(([v, l]) => (
+      {options.map(([v, l], i) => (
         <button
           key={v}
           role="radio"
           aria-checked={value === v}
+          aria-disabled={!enabled[i] || undefined}
           tabIndex={value === v ? 0 : -1}
-          onClick={() => onChange(v)}
-          className={`f-ui min-h-11 px-3 sm:px-4 leading-tight rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : "hover:bg-peach"}`}
+          onClick={() => enabled[i] && onChange(v)}
+          className={`f-ui min-h-11 px-3 sm:px-4 leading-tight rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : enabled[i] ? "hover:bg-peach" : "text-soft cursor-not-allowed"}`}
         >
           {l}
         </button>
