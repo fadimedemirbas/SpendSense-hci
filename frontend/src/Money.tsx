@@ -11,11 +11,16 @@ import {
   Tile,
   useT,
   useToast,
-  fmt,
+  fmtIn,
   Blob,
-  curLabel,
+  curLabelIn,
 } from "./ui";
 import { EXP_CATS, INC_CATS, catIcon, uid, today, type Entry, type EType } from "./store";
+import type { Currency } from "./lib/currency";
+import { parseAmount } from "./lib/currency";
+import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
+import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
+import { MoneySummary } from "./CurrencyTotals";
 
 export function dayLabel(iso: string, t: (s: string) => string) {
   const y = new Date();
@@ -48,7 +53,7 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
         className={`f-num text-lg shrink-0 whitespace-nowrap ${e.type === "income" ? "text-leaf" : ""}`}
       >
         {e.type === "income" ? "+" : "−"}
-        {fmt(e.amount)}
+        {fmtIn(e.amount, e.currency)}
       </span>
       {actions && (
         <span className="entry-actions contents">
@@ -77,7 +82,7 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
 }
 
 export function Money() {
-  const { entries, setQuickAdd } = useApp();
+  const { entries, setQuickAdd, profile } = useApp();
   const t = useT();
   const [type, setType] = useState<"all" | EType>("all");
   const [cat, setCat] = useState("all");
@@ -143,6 +148,7 @@ export function Money() {
           </select>
         </label>
       </div>
+      {entries.length > 0 && <MoneySummary entries={entries} currency={profile.displayCurrency} />}
       {Object.keys(groups).length === 0 ? (
         <Card>
           <Empty
@@ -171,7 +177,7 @@ export function Money() {
 }
 
 export function QuickAdd() {
-  const { quickAdd, setQuickAdd, entries, setEntries, openDecide, setTab } = useApp();
+  const { quickAdd, setQuickAdd, entries, setEntries, openDecide, setTab, profile } = useApp();
   const t = useT();
   const toast = useToast();
   const edit = typeof quickAdd === "object" ? quickAdd : null;
@@ -179,6 +185,11 @@ export function QuickAdd() {
     edit?.type ?? (quickAdd === "new-income" ? "income" : "expense"),
   );
   const [amt, setAmt] = useState(edit ? String(edit.amount) : "");
+  // A saved entry keeps its currency; a new one starts in the display currency
+  // when this build can save it (TRY until protocol 3 is active).
+  const [currency, setCurrency] = useState<Currency>(
+    edit?.currency ?? defaultRecordCurrency(profile.displayCurrency),
+  );
   const [cat, setCat] = useState(edit?.cat ?? "");
   const [note, setNote] = useState(edit?.name ?? "");
   const [date, setDate] = useState(edit?.date ?? today());
@@ -189,7 +200,10 @@ export function QuickAdd() {
     if (n === "" || /^\d{1,8}(\.\d{0,2})?$/.test(n)) setAmt(n.replace(/^0(\d)/, "$1"));
   };
   const key = (k: string) => (k === "del" ? setAmt(amt.slice(0, -1)) : typed(amt + k));
-  const v = parseFloat(amt.replace(",", ".")) || 0;
+  // The keypad only produces digits with an optional "." and ≤ 2 decimals.
+  const parsed = parseAmount(amt.replace(/\.$/, ""), "en");
+  const v = parsed.ok ? parsed.amount : 0;
+  const currencyNote = edit ? "A saved entry keeps its original currency." : recordCurrencyNote();
   const close = () => setQuickAdd(null);
   const save = async () => {
     const e = {
@@ -203,6 +217,7 @@ export function QuickAdd() {
       id: edit?.id ?? uid(),
       type,
       amount: v,
+      currency: edit?.currency ?? currency,
       cat,
       name: note.trim() || t(cat),
       date,
@@ -214,8 +229,9 @@ export function QuickAdd() {
       ))
     )
       return;
-    toast(`${t(edit ? "Entry updated." : "Entry saved.")} · ${fmt(v)} · ${t(cat)}`, () =>
-      setEntries(prev),
+    toast(
+      `${t(edit ? "Entry updated." : "Entry saved.")} · ${fmtIn(v, entry.currency)} · ${t(cat)}`,
+      () => setEntries(prev),
     );
     setSaved(true);
     setTimeout(close, 900);
@@ -249,7 +265,7 @@ export function QuickAdd() {
             ]}
           />
           <label className="f-ui grid gap-1">
-            {t("Amount")} ({curLabel()})
+            {t("Amount")} ({curLabelIn(currency)})
             <input
               inputMode="decimal"
               placeholder="0"
@@ -261,6 +277,21 @@ export function QuickAdd() {
               className="f-num text-5xl rounded-tile bg-white border border-line px-4 py-4 text-right w-full min-w-0"
             />
           </label>
+          <div className="grid gap-1">
+            <RecordCurrencyPicker
+              full
+              label={t("Currency")}
+              value={currency}
+              locked={!!edit}
+              describedBy={currencyNote ? "entry-currency-note" : undefined}
+              onChange={setCurrency}
+            />
+            {currencyNote && (
+              <p id="entry-currency-note" className="m-0 text-sm text-soft">
+                {t(currencyNote)}
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-2">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del"].map((k) => (
               <button
@@ -320,13 +351,19 @@ export function QuickAdd() {
           )}
         </div>
         <div className="md:col-span-2 flex flex-wrap gap-2 justify-end">
+          {/* Decide keeps the price in its own currency and converts only for scoring. */}
           {type === "expense" && v > 0 && !edit && (
             <Button
               icon={<MessageCircleQuestionMark size={18} />}
               onClick={() => {
                 close();
                 setTab("decide");
-                openDecide({ price: v, cat: cat || undefined, name: note || undefined });
+                openDecide({
+                  price: v,
+                  currency,
+                  cat: cat || undefined,
+                  name: note || undefined,
+                });
               }}
             >
               {t("Not bought yet? Check it first.")}

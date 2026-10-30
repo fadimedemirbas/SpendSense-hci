@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { requireSupabase } from "./supabase";
 import { profileTubes } from "../store";
-import { assertLoadedWorkspace, prepareWorkspaceSave } from "./workspaceProtocol";
+import {
+  CLIENT_PROTOCOL,
+  assertLoadedWorkspace,
+  normalizeLoadedWorkspace,
+  prepareVersionedWorkspaceSave,
+  workspaceLoadRequest,
+} from "./workspaceProtocol";
 import { onlineOperation } from "../pwa/network";
 import {
   emptyWorkspace,
@@ -30,16 +36,17 @@ export function useWorkspace(userId: string, email: string) {
     setLoading(true);
     setError("");
     try {
+      // Protocol 1 (TRY-only screens) or 3 (currency-aware); see workspaceProtocol.ts.
+      const load = workspaceLoadRequest(CLIENT_PROTOCOL, userId);
       const { data, error: readError } = await onlineOperation(() =>
-        requireSupabase().rpc("spendsense_load_workspace", {
-          expected_user_id: userId,
-        }),
+        requireSupabase().rpc(load.fn, load.args),
       );
       if (readError) throw readError;
       if (!active.current || loadRequest.current !== request) return;
-      if (data !== null) assertLoadedWorkspace(data);
-      const next = data?.workspace ?? emptyWorkspace(email);
-      next.profile.email = email;
+      if (data !== null) assertLoadedWorkspace(data, CLIENT_PROTOCOL);
+      // Legacy records without a currency are lira; normalised copies, inputs untouched.
+      const loaded = data ? normalizeLoadedWorkspace(data.workspace) : emptyWorkspace(email);
+      const next = { ...loaded, profile: { ...loaded.profile, email } };
       current.current = next;
       revision.current = data?.revision ?? 0;
       setWorkspace(next);
@@ -74,10 +81,13 @@ export function useWorkspace(userId: string, email: string) {
         .then(async () => {
           if (!active.current || !ready.current) return false;
           try {
-            const { workspace: next, payload } = prepareWorkspaceSave(
+            // Refuses (WorkspaceProtocolError) before any request if the payload
+            // cannot be saved without losing currency information.
+            const { workspace: next, payload } = prepareVersionedWorkspaceSave(
               current.current,
               change(current.current),
               userId,
+              CLIENT_PROTOCOL,
             );
             const { data, error: saveError } = await onlineOperation(() =>
               requireSupabase().rpc("spendsense_save_workspace", {

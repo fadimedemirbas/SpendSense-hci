@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { Download, Share, SquarePlus, Check as CheckI, ArrowLeft, Lock } from "lucide-react";
 import { Button, Card, Logo, Say, Tile, Tube, useT, LangCtx, Segmented, rangeLabel } from "./ui";
 import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, type Profile } from "./store";
+import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
+import { displayCurrencyNote } from "./lib/displayCurrency";
 import { meetsPasswordMinimum } from "./lib/auth";
 import { useContext } from "react";
 import { Sheet } from "./ui";
@@ -535,6 +537,20 @@ export function Onboarding({
             {t(register ? "Already have an account? Log in" : "New here? Create your account")}
           </button>
         )}
+        {s === 2 && (
+          <div className="grid gap-2">
+            <p className="m-0 font-medium">{t("Which currency do you use?")}</p>
+            <DisplayCurrencyPicker
+              label={t("Which currency do you use?")}
+              describedBy="display-currency-note"
+              value={p.displayCurrency}
+              onChange={(displayCurrency) => setP({ ...p, displayCurrency })}
+            />
+            <p id="display-currency-note" className="m-0 text-sm text-soft">
+              {t(displayCurrencyNote())} {t("You can change this later in Settings.")}
+            </p>
+          </div>
+        )}
         {(s === 2 || s === 3) && (
           <p className="m-0 text-sm text-soft">
             {t(
@@ -542,6 +558,7 @@ export function Onboarding({
                 ? "Used only to estimate budget fit until you add this month's income."
                 : "Used only to estimate how a purchase could delay your goal.",
             )}{" "}
+            {s === 2 && t("Income ranges are in Turkish lira.")}{" "}
             {t("Not sure? Keep the selected range and change it later in Settings.")}
           </p>
         )}

@@ -10,6 +10,9 @@ import {
 } from "react";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
 import { formatExactAmount } from "./lib/money";
+import { nextSegmentIndex } from "./lib/segmented";
+import { formatMoney, type Currency } from "./lib/currency";
+import { amountUnit, formatWholeAmount } from "./lib/moneyTotals";
 
 /* ---------- i18n ---------- */
 export type Lang = "en" | "tr";
@@ -43,6 +46,63 @@ const TR: Record<string, string> = {
     "Değişikliklerin kaydedilemedi. Bağlantını kontrol et ve tekrar dene. İşlem başarılı olarak gösterilmedi.",
   "Your session could not access this data. Please sign in again.":
     "Oturumun bu verilere erişemedi. Lütfen yeniden giriş yap.",
+  // Multi-currency (Phase 4: prepared, shown by later phases).
+  "A newer version of the app is available. Please update the app to keep your data safe.":
+    "Uygulamanın yeni bir sürümü mevcut. Verilerinizi korumak için lütfen uygulamayı güncelleyin.",
+  "Saving USD or EUR amounts is not available yet. Your data was not changed.":
+    "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
+  "Display currency": "Görüntüleme para birimi",
+  "Amount format": "Tutar biçimi",
+  "Which currency do you use?": "Hangi para birimini kullanıyorsun?",
+  "You can change this later in Settings.": "Bunu daha sonra Ayarlar'dan değiştirebilirsin.",
+  "Income ranges are in Turkish lira.": "Gelir aralıkları Türk lirası cinsindendir.",
+  "USD and EUR become available when multi-currency support is turned on. Amounts stay in TRY until then.":
+    "USD ve EUR, çoklu para birimi desteği açıldığında kullanılabilir olacak. O zamana kadar tutarlar TL olarak kalır.",
+  "Totals are shown in this currency. Your records keep their original amounts.":
+    "Toplamlar bu para biriminde gösterilir. Kayıtların orijinal tutarlarını korur.",
+  "This month": "Bu ay",
+  Left: "Kalan",
+  "Totals in {c}": "{c} cinsinden toplamlar",
+  "By currency": "Para birimine göre",
+  "Approximate. Converted with TCMB rates from {date}.":
+    "Yaklaşık değer. {date} tarihli TCMB kurlarıyla çevrildi.",
+  "These rates may be out of date.": "Bu kurlar güncel olmayabilir.",
+  "Exchange rates are unavailable right now, so amounts in different currencies are not added together.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden farklı para birimlerindeki tutarlar toplanmıyor.",
+  "Checking exchange rates…": "Döviz kurları kontrol ediliyor…",
+  "Try again": "Tekrar dene",
+  "Totals could not be calculated.": "Toplamlar hesaplanamadı.",
+  "A saved entry keeps its original currency.": "Kaydedilen bir işlem kendi para birimini korur.",
+  "Goal currency": "Hedef para birimi",
+  "A goal keeps the currency it was created in.": "Bir hedef, oluşturulduğu para birimini korur.",
+  "About {saved} of {target} in {c}.": "{c} cinsinden yaklaşık {target} içinden {saved}.",
+  "Exchange rates are unavailable, so this goal is shown in {c} only.":
+    "Döviz kurları alınamadığı için bu hedef yalnızca {c} cinsinden gösteriliyor.",
+  "Exchange rates are unavailable right now, so what's left this month can't be calculated. Amounts are shown by currency.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden bu ay kalan tutar hesaplanamıyor. Tutarlar para birimine göre gösteriliyor.",
+  "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.":
+    "Döviz kurları alınamadığı için bu grafik şu anda hesaplanamıyor. Tutarlar para birimine göre gösteriliyor.",
+  "Exchange rates are unavailable right now, so this purchase can't be compared with your budget and goals.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden bu satın alma bütçen ve hedeflerinle karşılaştırılamıyor.",
+  "This purchase can't be analyzed because an amount is not valid.":
+    "Bir tutar geçerli olmadığı için bu satın alma analiz edilemiyor.",
+  "I can't put this purchase in context right now.":
+    "Bu satın almayı şu anda bağlamına yerleştiremiyorum.",
+  "A saved purchase keeps its original currency.":
+    "Kaydedilen bir satın alma kendi para birimini korur.",
+  "Numbers only, without thousands separators. Use a comma or dot for cents, e.g. 1250 or 1250.50.":
+    "Binlik ayırıcı olmadan yalnızca rakam gir. Sent için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
+  "Transaction currency": "İşlem para birimi",
+  Currency: "Para birimi",
+  "Approximate amount": "Yaklaşık tutar",
+  "Approximate, converted with TCMB rates.": "TCMB kurlarıyla yaklaşık olarak çevrildi.",
+  "TCMB bulletin {date}": "TCMB {date} bülteni",
+  "Exchange rates may be outdated (TCMB bulletin {date}).":
+    "Döviz kurları güncel olmayabilir (TCMB {date} bülteni).",
+  "You're offline. Showing the last saved exchange rates (TCMB bulletin {date}).":
+    "Çevrimdışısın. Son kaydedilen döviz kurları gösteriliyor (TCMB {date} bülteni).",
+  "Exchange rates are unavailable. Amounts in different currencies are shown separately.":
+    "Döviz kurlarına şu an ulaşılamıyor. Farklı para birimlerindeki tutarlar ayrı gösteriliyor.",
   "Enter your password.": "Şifreni gir.",
   "Your financial data is saved securely to your account.":
     "Finansal verilerin hesabına güvenli şekilde kaydedilir.",
@@ -731,10 +791,23 @@ export const fmt = (n: number) => {
   const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
   return (n < 0 ? "−" : "") + (curMode === "symbol" ? "₺" + s : s + " TRY");
 };
+/** An amount in its own currency, in the same style as fmt() (identical for TRY). */
+export const fmtIn = (n: number, currency: Currency, approximate = false) =>
+  formatWholeAmount(n, currency, curMode, approximate);
+/** Unit for an amount field in `currency`: "₺" / "TRY", "$" / "USD". */
+export const curLabelIn = (currency: Currency) => amountUnit(currency, curMode);
 /** Decide only: keeps kuruş and uses the UI language's separators (fmt() is unchanged). */
 export function useExactAmount() {
   const { lang } = useContext(LangCtx);
   return (n: number) => formatExactAmount(n, lang, curMode);
+}
+/** Decide: the exact amount in its own currency; TRY is formatted exactly as by useExactAmount. */
+export function useExactAmountIn() {
+  const { lang } = useContext(LangCtx);
+  return (n: number, currency: Currency) =>
+    currency === "TRY"
+      ? formatExactAmount(n, lang, curMode)
+      : formatMoney(n, currency, lang, { display: curMode });
 }
 
 /* ---------- display ---------- */
@@ -867,7 +940,19 @@ export const Say = ({
     </div>
   </div>
 );
-export function CountUp({ value, className = "" }: { value: number; className?: string }) {
+export function CountUp({
+  value,
+  className = "",
+  currency = "TRY",
+  approximate = false,
+}: {
+  value: number;
+  className?: string;
+  /** Currency of `value`; TRY (the default) renders exactly as before. */
+  currency?: Currency;
+  /** Prefix "≈ " for a converted value. */
+  approximate?: boolean;
+}) {
   const [v, setV] = useState(value);
   const from = useRef(0);
   useEffect(() => {
@@ -887,7 +972,11 @@ export function CountUp({ value, className = "" }: { value: number; className?: 
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return <span className={`f-num ${className}`}>{fmt(v)}</span>;
+  return (
+    <span className={`f-num ${className}`}>
+      {currency === "TRY" && !approximate ? fmt(v) : fmtIn(v, currency, approximate)}
+    </span>
+  );
 }
 
 /* ---------- inputs ---------- */
@@ -958,42 +1047,45 @@ export function Segmented<T extends string>({
   onChange,
   label,
   full,
+  disabled = [],
+  describedBy,
 }: {
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
   label: string;
   full?: boolean;
+  /** Options shown but not selectable (aria-disabled); arrow keys skip them. */
+  disabled?: readonly T[];
+  describedBy?: string;
 }) {
+  const enabled = options.map(([v]) => !disabled.includes(v));
   return (
     <div
       role="radiogroup"
       aria-label={label}
+      aria-describedby={describedBy}
       className={`${full ? "flex w-full" : "inline-flex flex-wrap"} gap-1 p-1 rounded-3xl bg-track`}
       onKeyDown={(event) => {
         if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
           return;
         event.preventDefault();
         const index = options.findIndex(([v]) => v === value);
-        const next =
-          event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? options.length - 1
-              : (index + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1) + options.length) %
-                options.length;
+        const next = nextSegmentIndex(index, event.key, enabled);
+        if (next < 0 || next === index) return;
         onChange(options[next][0]);
         event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
       }}
     >
-      {options.map(([v, l]) => (
+      {options.map(([v, l], i) => (
         <button
           key={v}
           role="radio"
           aria-checked={value === v}
+          aria-disabled={!enabled[i] || undefined}
           tabIndex={value === v ? 0 : -1}
-          onClick={() => onChange(v)}
-          className={`f-ui min-h-11 px-3 sm:px-4 leading-tight rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : "hover:bg-peach"}`}
+          onClick={() => enabled[i] && onChange(v)}
+          className={`f-ui min-h-11 px-3 sm:px-4 leading-tight rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : enabled[i] ? "hover:bg-peach" : "text-soft cursor-not-allowed"}`}
         >
           {l}
         </button>

@@ -146,12 +146,14 @@ before(async () => {
     grant execute on function auth.uid(),auth.jwt() to anon,authenticated;
     create table public.existing_team_table(value text); insert into public.existing_team_table values ('preserved');`);
   for (const user of users) await db.query("insert into auth.users values ($1)", [user]);
-  await db.exec(
-    await readFile(
-      new URL("../../supabase/migrations/202610250001_spendsense.sql", import.meta.url),
-      "utf8",
-    ),
-  );
+  // supabase-database-migrated.test.mjs reruns this suite with later migrations applied.
+  for (const migration of [
+    "202610250001_spendsense.sql",
+    ...(globalThis.SPENDSENSE_EXTRA_MIGRATIONS ?? []),
+  ])
+    await db.exec(
+      await readFile(new URL(`../../supabase/migrations/${migration}`, import.meta.url), "utf8"),
+    );
 });
 beforeEach(async () => {
   // Only the disposable test database is reset between tests.

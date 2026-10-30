@@ -42,6 +42,25 @@ let workspace = {
   waiting: [],
 };
 let revision = 1;
+// Records saved before the currency columns read as TRY (column defaults).
+const tryDefault = (record) => ({ ...record, currency: record.currency ?? "TRY" });
+const withCurrencies = (ws) => ({
+  ...ws,
+  profile: { ...ws.profile, displayCurrency: ws.profile.displayCurrency ?? "TRY" },
+  entries: ws.entries.map(tryDefault),
+  goals: ws.goals.map(tryDefault),
+  decisions: ws.decisions.map(tryDefault),
+  waiting: ws.waiting.map(tryDefault),
+  analyses: ws.analyses.map((a) => (a.purchase ? { ...a, purchase: tryDefault(a.purchase) } : a)),
+});
+const hasForeignCurrency = (ws) =>
+  [
+    ...ws.entries,
+    ...ws.goals,
+    ...ws.decisions,
+    ...ws.waiting,
+    ...ws.analyses.flatMap((a) => [a.purchase ?? {}, a.result?.goal ?? {}]),
+  ].some((record) => record.currency !== undefined && record.currency !== "TRY");
 // Auth e-mail/password requests, exposed to browser tests (never real credentials).
 let authRequests = [];
 const api = createServer(async (req, res) => {
@@ -94,13 +113,33 @@ const api = createServer(async (req, res) => {
   else if (req.url.startsWith("/auth/v1/logout")) {
     res.end("{}");
   } else if (req.url.startsWith("/auth/v1/user")) res.end(JSON.stringify(user));
-  else if (req.url === "/rest/v1/rpc/spendsense_load_workspace")
-    res.end(JSON.stringify({ workspace, revision }));
-  else if (req.url === "/rest/v1/rpc/spendsense_save_workspace") {
+  else if (req.url === "/rest/v1/rpc/spendsense_load_workspace") {
+    // Like migration 202610280001: the legacy (protocol 1) load refuses USD/EUR data.
+    if (hasForeignCurrency(workspace)) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ code: "0A000" }));
+    } else res.end(JSON.stringify({ workspace, revision }));
+  } else if (req.url === "/rest/v1/rpc/spendsense_load_workspace_v3") {
+    if (JSON.parse(body || "{}").client_protocol !== 3) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ code: "22023" }));
+    } else res.end(JSON.stringify({ protocol: 3, workspace: withCurrencies(workspace), revision }));
+  } else if (req.url === "/rest/v1/rpc/spendsense_save_workspace") {
     const request = JSON.parse(body);
     if (request.expected_revision !== revision) {
       res.writeHead(409);
       res.end(JSON.stringify({ code: "40001" }));
+      return;
+    }
+    const version = request.payload?.schemaVersion;
+    if (version !== 1 && version !== 3) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ code: "22023" }));
+      return;
+    }
+    if (version === 1 && hasForeignCurrency(request.payload)) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ code: "0A000" }));
       return;
     }
     const { ownerId, schemaVersion, deletions, behaviorScores, ...next } = request.payload;

@@ -34,6 +34,7 @@ const DEMO_PROFILE: Profile = {
   habits: [],
   onboarded: true,
   currency: "symbol",
+  displayCurrency: "TRY",
 };
 const DEMO_REASONS = ["need", "sale", "reward", "attention"];
 
@@ -44,6 +45,7 @@ function Demo() {
   const p: Purchase = {
     name: "",
     price,
+    currency: "TRY",
     cat: "Shopping",
     reasons,
     feeling: "Neutral",
