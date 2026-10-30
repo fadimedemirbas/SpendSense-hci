@@ -36,10 +36,15 @@ import {
   useT,
   useToast,
   fmt,
-  curLabel,
+  fmtIn,
+  curLabelIn,
 } from "./ui";
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
+import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
+import { GoalEquivalentNote } from "./CurrencyTotals";
+import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
+import { goalProgress, goalTargetIdeas } from "./lib/moneyTotals";
 import {
   uid,
   today,
@@ -292,7 +297,6 @@ function Checklist() {
 }
 
 const GOAL_IDEAS = ["Laptop", "Vacation", "Emergency fund", "New phone"];
-const TARGET_IDEAS = [5000, 10000, 25000, 50000];
 const inMonths = (n: number) => {
   const d = new Date(today());
   d.setMonth(d.getMonth() + n);
@@ -315,7 +319,11 @@ function GoalFlow({
   const [step, setStep] = useState(0);
   const [err, setErr] = useState("");
   const [discard, setDiscard] = useState(false);
-  const pct = g.target > 0 ? Math.round((g.saved / g.target) * 100) : 0;
+  const pct = goalProgress(g);
+  // A saved goal keeps its currency: its target is never converted or reinterpreted.
+  const currencyNote = editing
+    ? "A goal keeps the currency it was created in."
+    : recordCurrencyNote();
   const remaining = Math.max(0, g.target - g.saved);
   const months = g.date ? Math.max(1, Math.round(daysUntil(g.date) / 30.44)) : 0;
   const questions = [
@@ -341,7 +349,7 @@ function GoalFlow({
   };
   const amount = (k: "target" | "saved") => (
     <label className="f-ui grid gap-1">
-      {t(k === "target" ? "Target" : "Saved")} ({curLabel()})
+      {t(k === "target" ? "Target" : "Saved")} ({curLabelIn(g.currency)})
       <input
         autoFocus
         inputMode="numeric"
@@ -372,10 +380,10 @@ function GoalFlow({
         <div className="min-w-0">
           <h2 className="text-xl font-bold m-0 truncate">{g.name || t("Your goal")}</h2>
           <p className="f-num m-0">
-            {fmt(g.saved)} / {fmt(g.target)}
+            {fmtIn(g.saved, g.currency)} / {fmtIn(g.target, g.currency)}
           </p>
           <p className="text-sm text-soft m-0">
-            {t("Remaining")} {fmt(remaining)}
+            {t("Remaining")} {fmtIn(remaining, g.currency)}
             {g.date && ` · ${new Date(g.date).toLocaleDateString()}`}
           </p>
         </div>
@@ -410,10 +418,24 @@ function GoalFlow({
         {step === 1 && (
           <>
             {amount("target")}
+            <div className="grid gap-1">
+              <RecordCurrencyPicker
+                label={t("Goal currency")}
+                value={g.currency}
+                locked={editing}
+                describedBy={currencyNote ? "goal-currency-note" : undefined}
+                onChange={(currency) => setG({ ...g, currency })}
+              />
+              {currencyNote && (
+                <p id="goal-currency-note" className="m-0 text-sm text-soft">
+                  {t(currencyNote)}
+                </p>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
-              {TARGET_IDEAS.map((n) => (
+              {goalTargetIdeas(g.currency).map((n) => (
                 <Chip key={n} on={g.target === n} onClick={() => setG({ ...g, target: n })}>
-                  {fmt(n)}
+                  {fmtIn(n, g.currency)}
                 </Chip>
               ))}
             </div>
@@ -467,7 +489,7 @@ function GoalFlow({
                 ? t("You've already reached this amount.")
                 : g.date
                   ? t("Setting aside about {m} a month gets you there.", {
-                      m: fmt(Math.ceil(remaining / months)),
+                      m: fmtIn(Math.ceil(remaining / months), g.currency),
                     })
                   : t("No deadline is fine too. You can add one later.")}
             </p>
@@ -503,7 +525,7 @@ function GoalFlow({
 }
 
 export function Goals() {
-  const { goals, setGoals } = useApp();
+  const { goals, setGoals, profile } = useApp();
   const t = useT();
   const toast = useToast();
   const [f, setF] = useState<GStatus>("Active");
@@ -551,7 +573,7 @@ export function Goals() {
                 name: "",
                 target: 0,
                 saved: 0,
-                currency: "TRY",
+                currency: defaultRecordCurrency(profile.displayCurrency),
                 status: "Active",
               });
             }}
@@ -578,7 +600,7 @@ export function Goals() {
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {list.map((g) => {
-            const pct = Math.round((g.saved / g.target) * 100);
+            const pct = goalProgress(g);
             return (
               <Card key={g.id} className="grid gap-3">
                 <div className="flex gap-4 items-center">
@@ -597,12 +619,13 @@ export function Goals() {
                       {t(g.status)}
                     </Pill>
                     <p className="f-num m-0 mt-1">
-                      {fmt(g.saved)} / {fmt(g.target)}
+                      {fmtIn(g.saved, g.currency)} / {fmtIn(g.target, g.currency)}
                     </p>
                     <p className="text-sm text-soft m-0">
-                      {t("Remaining")} {fmt(Math.max(0, g.target - g.saved))}
+                      {t("Remaining")} {fmtIn(Math.max(0, g.target - g.saved), g.currency)}
                       {g.date && ` · ${new Date(g.date).toLocaleDateString()}`}
                     </p>
+                    <GoalEquivalentNote goal={g} currency={profile.displayCurrency} />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -670,7 +693,7 @@ export function Goals() {
         <Sheet title={`${t("Add money")} · ${add.name}`} onClose={() => setAdd(null)}>
           <div className="grid gap-3">
             <label className="f-ui grid gap-1">
-              {t("Amount")} ({curLabel()})
+              {t("Amount")} ({curLabelIn(add.currency)})
               <input
                 autoFocus
                 inputMode="numeric"

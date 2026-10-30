@@ -26,9 +26,41 @@ export function displayCurrencyOptions(
   }));
 }
 
+/**
+ * Entries and goals follow the same rule: a record in USD/EUR can only be saved
+ * through protocol 3, so this build offers it only once that is active.
+ */
+export const canSaveRecordCurrency = canSaveDisplayCurrency;
+
+/** Currency for a new entry or goal: the display currency when it can be saved, else TRY. */
+export function defaultRecordCurrency(
+  displayCurrency: Currency,
+  protocol: number = CLIENT_PROTOCOL,
+): Currency {
+  return canSaveRecordCurrency(displayCurrency, protocol) ? displayCurrency : "TRY";
+}
+
+/**
+ * Options for an entry's or goal's currency. A saved record keeps its currency
+ * (`locked`): the other options are disabled so its amounts are never reinterpreted.
+ */
+export function recordCurrencyOptions(
+  protocol: number = CLIENT_PROTOCOL,
+  locked?: Currency,
+): readonly DisplayCurrencyOption[] {
+  return displayCurrencyOptions(protocol).map((option) =>
+    locked && option.value !== locked ? { ...option, disabled: true } : option,
+  );
+}
+
 /** The explanation shown with the selector (an English key for useT()). */
 export function displayCurrencyNote(protocol: number = CLIENT_PROTOCOL): string {
   return protocol === 3
     ? "Totals are shown in this currency. Your records keep their original amounts."
     : "USD and EUR become available when multi-currency support is turned on. Amounts stay in TRY until then.";
+}
+
+/** Shown with an entry's or goal's currency choice while USD/EUR cannot be saved. */
+export function recordCurrencyNote(protocol: number = CLIENT_PROTOCOL): string | null {
+  return protocol === 3 ? null : displayCurrencyNote(protocol);
 }

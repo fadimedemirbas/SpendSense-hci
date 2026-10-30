@@ -21,7 +21,7 @@ export function ratesClient(): RatesClient {
 /**
  * Current exchange rates for display and conversion. Refreshes on mount and when
  * the connection returns; the client itself prevents duplicate or rapid requests.
- * Not used by any screen yet (Phase 5 integrates it).
+ * Used by Money and Goals only when a total mixes currencies.
  */
 export function useRates(): RatesState {
   const rates = ratesClient();

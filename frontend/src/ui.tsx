@@ -11,6 +11,8 @@ import {
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
 import { formatExactAmount } from "./lib/money";
 import { nextSegmentIndex } from "./lib/segmented";
+import type { Currency } from "./lib/currency";
+import { amountUnit, formatWholeAmount } from "./lib/moneyTotals";
 
 /* ---------- i18n ---------- */
 export type Lang = "en" | "tr";
@@ -58,6 +60,24 @@ const TR: Record<string, string> = {
     "USD ve EUR, çoklu para birimi desteği açıldığında kullanılabilir olacak. O zamana kadar tutarlar TL olarak kalır.",
   "Totals are shown in this currency. Your records keep their original amounts.":
     "Toplamlar bu para biriminde gösterilir. Kayıtların orijinal tutarlarını korur.",
+  "This month": "Bu ay",
+  Left: "Kalan",
+  "Totals in {c}": "{c} cinsinden toplamlar",
+  "By currency": "Para birimine göre",
+  "Approximate. Converted with TCMB rates from {date}.":
+    "Yaklaşık değer. {date} tarihli TCMB kurlarıyla çevrildi.",
+  "These rates may be out of date.": "Bu kurlar güncel olmayabilir.",
+  "Exchange rates are unavailable right now, so amounts in different currencies are not added together.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden farklı para birimlerindeki tutarlar toplanmıyor.",
+  "Checking exchange rates…": "Döviz kurları kontrol ediliyor…",
+  "Try again": "Tekrar dene",
+  "Totals could not be calculated.": "Toplamlar hesaplanamadı.",
+  "A saved entry keeps its original currency.": "Kaydedilen bir işlem kendi para birimini korur.",
+  "Goal currency": "Hedef para birimi",
+  "A goal keeps the currency it was created in.": "Bir hedef, oluşturulduğu para birimini korur.",
+  "About {saved} of {target} in {c}.": "{c} cinsinden yaklaşık {target} içinden {saved}.",
+  "Exchange rates are unavailable, so this goal is shown in {c} only.":
+    "Döviz kurları alınamadığı için bu hedef yalnızca {c} cinsinden gösteriliyor.",
   "Transaction currency": "İşlem para birimi",
   Currency: "Para birimi",
   "Approximate amount": "Yaklaşık tutar",
@@ -757,6 +777,11 @@ export const fmt = (n: number) => {
   const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
   return (n < 0 ? "−" : "") + (curMode === "symbol" ? "₺" + s : s + " TRY");
 };
+/** An amount in its own currency, in the same style as fmt() (identical for TRY). */
+export const fmtIn = (n: number, currency: Currency, approximate = false) =>
+  formatWholeAmount(n, currency, curMode, approximate);
+/** Unit for an amount field in `currency`: "₺" / "TRY", "$" / "USD". */
+export const curLabelIn = (currency: Currency) => amountUnit(currency, curMode);
 /** Decide only: keeps kuruş and uses the UI language's separators (fmt() is unchanged). */
 export function useExactAmount() {
   const { lang } = useContext(LangCtx);
