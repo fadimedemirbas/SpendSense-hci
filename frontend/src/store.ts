@@ -19,6 +19,10 @@ import {
   PenTool,
   TrendingUp,
   Undo2,
+  PiggyBank,
+  Coins,
+  Gem,
+  Bitcoin,
   type LucideIcon,
 } from "lucide-react";
 import type { Currency } from "./lib/currency";
@@ -32,6 +36,21 @@ export interface Entry {
   cat: string;
   name: string;
   date: string;
+}
+/** Money or an asset put aside without a goal. Stored as entered, never valued. */
+export type HoldingKind = "Salary surplus" | "Gold" | "Silver" | "Crypto" | "Other";
+export interface Holding {
+  id: string;
+  kind: HoldingKind;
+  /** An amount in `unit` (a currency) for money kinds; grams or coins otherwise. */
+  quantity: number;
+  /** TRY/USD/EUR for money kinds, "g" for metals, the coin symbol for crypto. */
+  unit: string;
+  name: string;
+  date: string;
+  /** Optional price paid per unit, a reminder only (metals and crypto). */
+  price?: number;
+  priceCurrency?: Currency;
 }
 export type GStatus = "Active" | "Completed" | "Archived";
 export interface Goal {
@@ -110,6 +129,16 @@ export const INC_CATS: [string, LucideIcon][] = [
   ["Refund", Undo2],
   ["Other", CircleDot],
 ];
+export const HOLD_KINDS: [HoldingKind, LucideIcon][] = [
+  ["Salary surplus", PiggyBank],
+  ["Gold", Coins],
+  ["Silver", Gem],
+  ["Crypto", Bitcoin],
+  ["Other", CircleDot],
+];
+/** Kinds saved as an amount of money; the others are grams or coins. */
+export const isMoneyKind = (k: HoldingKind) => k === "Salary surplus" || k === "Other";
+export const holdingIcon = (k: HoldingKind) => HOLD_KINDS.find((x) => x[0] === k)?.[1] ?? CircleDot;
 export const catIcon = (t: EType, c: string) =>
   (t === "income" ? INC_CATS : EXP_CATS).find((x) => x[0] === c)?.[1] ?? CircleDot;
 export const INCOME_RANGES = ["<₺15k", "₺15–30k", "₺30–50k", "₺50–80k", ">₺80k"],

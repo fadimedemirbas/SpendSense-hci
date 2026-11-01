@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AppCtx, TABS, type Tab, type Prefill } from "./context";
 import { setCurrencyMode, Button, Card, Dialog, Loading, useT } from "./ui";
-import { uid, type Entry, type Profile, type Purchase } from "./store";
+import { uid, type Entry, type Holding, type Profile, type Purchase } from "./store";
 import { Onboarding } from "./Onboarding";
 import { Shell } from "./Shell";
 import { Money, QuickAdd } from "./Money";
+import { SavingSheet } from "./Savings";
 import { Decide } from "./Decide";
 import { HomePage, Goals, WaitingPage, HistoryPage, Insights } from "./Pages";
 import { SettingsPage } from "./Settings";
@@ -28,6 +29,7 @@ export default function SignedIn({
   const depth = useRef(0);
   const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [quickAdd, setQuickAdd] = useState<Entry | "new" | "new-income" | null>(null);
+  const [saveSheet, setSaveSheet] = useState<Holding | "new" | null>(null);
   const [tour, setTour] = useState<number | null>(null);
   const [lastCat, setLastCat] = useState("Shopping");
   const [retaking, setRetaking] = useState(false);
@@ -62,6 +64,8 @@ export default function SignedIn({
     openDecide: (purchase?: Prefill) => setPrefill(purchase ?? null),
     quickAdd,
     setQuickAdd,
+    saveSheet,
+    setSaveSheet,
     tour,
     setTour,
     lastCat,
@@ -148,6 +152,7 @@ export default function SignedIn({
                     waiting: [],
                     decisions: [],
                     analyses: [],
+                    holdings: [],
                   }))
                 }
                 logout={() => void logout()}
@@ -155,6 +160,9 @@ export default function SignedIn({
               />
             )}
             {quickAdd && <QuickAdd key={typeof quickAdd === "string" ? quickAdd : quickAdd.id} />}
+            {saveSheet && (
+              <SavingSheet key={typeof saveSheet === "string" ? saveSheet : saveSheet.id} />
+            )}
           </Shell>
         )}
       </fieldset>

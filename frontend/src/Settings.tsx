@@ -39,7 +39,15 @@ import {
   useT,
   useToast,
 } from "./ui";
-import { EXP_CATS, INC_CATS, INCOME_RANGES, SAVINGS_RANGES, profileTubes, today } from "./store";
+import {
+  EXP_CATS,
+  HOLD_KINDS,
+  INC_CATS,
+  INCOME_RANGES,
+  SAVINGS_RANGES,
+  profileTubes,
+  today,
+} from "./store";
 import { InstallHelp, TENDENCY } from "./Onboarding";
 import { requireSupabase } from "./lib/supabase";
 import { onlineOperation } from "./pwa/network";
@@ -176,6 +184,7 @@ function DeleteConfirmRow() {
     [
       ["expense", "Expenses", EXP_CATS],
       ["income", "Income", INC_CATS],
+      ["saving", "Savings", HOLD_KINDS],
     ] as const
   ).map(
     ([type, label, cats]) =>
@@ -183,14 +192,15 @@ function DeleteConfirmRow() {
   );
   const name = (key: string) => {
     const [type, cat] = parseCategoryKey(key);
-    return `${t(cat)} (${t(type === "income" ? "Income" : "Expense")})`;
+    const label = type === "income" ? "Income" : type === "saving" ? "Saving" : "Expense";
+    return `${t(cat)} (${t(label)})`;
   };
   return (
     <Row
       icon={<ShieldAlert size={18} />}
       title={t("Ask before deleting")}
       desc={t(
-        "Deleting an entry in these categories asks you to confirm first. Saved on this device.",
+        "Deleting a record in these categories asks you to confirm first. Saved on this device.",
       )}
     >
       <form
@@ -270,7 +280,8 @@ export function SettingsPage({
   retake: () => void;
   name?: string;
 }) {
-  const { profile, setProfile, setTour, setTab, entries, goals, decisions, waiting } = useApp();
+  const { profile, setProfile, setTour, setTab, entries, holdings, goals, decisions, waiting } =
+    useApp();
   const t = useT();
   const pwa = usePwa();
   const { lang, setLang } = useContext(LangCtx);
@@ -302,7 +313,15 @@ export function SettingsPage({
       `spendsense-backup-${today()}.json`,
       "application/json",
       JSON.stringify(
-        { exportedAt: new Date().toISOString(), profile, entries, goals, decisions, waiting },
+        {
+          exportedAt: new Date().toISOString(),
+          profile,
+          entries,
+          holdings,
+          goals,
+          decisions,
+          waiting,
+        },
         null,
         2,
       ),
@@ -462,7 +481,7 @@ export function SettingsPage({
         <Row
           icon={<FileJson size={18} />}
           title={t("Full backup")}
-          desc={t("Everything you saved, including goals and decisions (JSON).")}
+          desc={t("Everything you saved, including savings, goals and decisions (JSON).")}
         >
           <Button icon={<Download size={16} />} onClick={exportJson}>
             {t("Download JSON")}
@@ -471,7 +490,7 @@ export function SettingsPage({
         <Row
           icon={<Trash2 size={18} className="text-danger" />}
           title={t("Reset data")}
-          desc={t("Deletes entries, goals, analyses and decisions. Your account stays.")}
+          desc={t("Deletes entries, savings, goals, analyses and decisions. Your account stays.")}
         >
           <Button onClick={() => setConfirm(true)} className="text-danger!">
             {t("Reset data")}
@@ -534,7 +553,7 @@ export function SettingsPage({
           danger
           title={t("Reset all data?")}
           body={t(
-            "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.",
+            "This deletes your saved entries, savings, goals, analyses and decisions. It cannot be undone.",
           )}
           confirm={t("Reset data")}
           onClose={() => setConfirm(false)}

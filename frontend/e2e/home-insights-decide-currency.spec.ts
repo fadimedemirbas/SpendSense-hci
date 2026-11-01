@@ -165,7 +165,7 @@ test("Decide: a USD purchase is scored on lira values and saved in dollars", asy
     page.getByText(`Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
   ).toBeVisible();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].analyses[0].purchase).toMatchObject({ price: 60, currency: "USD" });
   expect(saves[0].analyses[0].result).toMatchObject({
     fit: expected.fit,

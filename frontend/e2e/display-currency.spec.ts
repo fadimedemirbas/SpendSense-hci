@@ -34,7 +34,7 @@ test("Settings saves USD as the display currency and Home switches to dollars", 
   await group.getByRole("radio", { name: "$ USD" }).click();
   await expect(group.getByRole("radio", { name: "$ USD" })).toBeChecked();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].profile).toMatchObject({ displayCurrency: "USD", currency: "symbol" });
   // Records keep their own currency; nothing was converted in storage.
   expect(saves[0].entries.map((e) => [e.id, e.amount, e.currency])).toEqual([
@@ -118,7 +118,7 @@ test("onboarding saves the chosen currency and keeps lira income ranges", async 
   await expect(page.locator("main")).toBeVisible();
   await expect.poll(() => saves.length).toBeGreaterThan(0);
   expect(saves.at(-1)).toMatchObject({
-    schemaVersion: 3,
+    schemaVersion: 4,
     profile: { onboarded: true, displayCurrency: "EUR", currency: "symbol" },
   });
 });

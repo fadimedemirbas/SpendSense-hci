@@ -100,7 +100,7 @@ test("Money: a USD expense is saved in dollars and keeps its currency when edite
   await sheet.getByLabel("Note (optional)").fill("Lunch");
   await sheet.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].entries[0]).toMatchObject({ name: "Lunch", amount: 25.5, currency: "USD" });
   // 6.150 + 25,50 × 40 = 7.170
   await expect(summary(page)).toContainText("Spent₺7.170");
@@ -163,7 +163,7 @@ test("Goals: a EUR goal shows its progress in euros and a lira equivalent", asyn
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].goals[0]).toMatchObject({ target: 1000, saved: 250, currency: "USD" });
   await expect(page.getByText("₺10.000 / ₺40.000", { exact: true })).toBeVisible();
   await expect(page.getByText("$250 / $1.000", { exact: true })).toBeVisible();

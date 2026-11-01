@@ -1,5 +1,5 @@
 // Which display currencies this build may offer. Saving USD/EUR needs the
-// currency-aware workspace protocol (3): the TRY-only protocol 1 cannot store
+// currency-aware workspace protocol (3, or 4 which adds holdings): the TRY-only protocol 1 cannot store
 // them, and prepareVersionedWorkspaceSave refuses such a save before any request.
 // While CLIENT_PROTOCOL is 1, USD and EUR are shown but not selectable, so the
 // screen never shows a choice that was not saved.
@@ -7,7 +7,7 @@ import { CURRENCIES, CURRENCY_SYMBOL, type Currency } from "./currency.ts";
 import { CLIENT_PROTOCOL } from "./workspaceProtocol.ts";
 
 export function canSaveDisplayCurrency(currency: Currency, protocol: number = CLIENT_PROTOCOL) {
-  return currency === "TRY" || protocol === 3;
+  return currency === "TRY" || protocol === 3 || protocol === 4;
 }
 
 export interface DisplayCurrencyOption {
@@ -28,7 +28,7 @@ export function displayCurrencyOptions(
 
 /**
  * Entries and goals follow the same rule: a record in USD/EUR can only be saved
- * through protocol 3, so this build offers it only once that is active.
+ * through protocol 3 or 4, so this build offers it only once that is active.
  */
 export const canSaveRecordCurrency = canSaveDisplayCurrency;
 
@@ -55,12 +55,12 @@ export function recordCurrencyOptions(
 
 /** The explanation shown with the selector (an English key for useT()). */
 export function displayCurrencyNote(protocol: number = CLIENT_PROTOCOL): string {
-  return protocol === 3
+  return canSaveDisplayCurrency("USD", protocol)
     ? "Totals are shown in this currency. Your records keep their original amounts."
     : "USD and EUR become available when multi-currency support is turned on. Amounts stay in TRY until then.";
 }
 
 /** Shown with an entry's or goal's currency choice while USD/EUR cannot be saved. */
 export function recordCurrencyNote(protocol: number = CLIENT_PROTOCOL): string | null {
-  return protocol === 3 ? null : displayCurrencyNote(protocol);
+  return canSaveDisplayCurrency("USD", protocol) ? null : displayCurrencyNote(protocol);
 }

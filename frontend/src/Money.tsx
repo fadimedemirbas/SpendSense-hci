@@ -25,7 +25,18 @@ import {
   curLabelIn,
   LangCtx,
 } from "./ui";
-import { EXP_CATS, INC_CATS, catIcon, uid, today, type Entry, type EType } from "./store";
+import {
+  EXP_CATS,
+  HOLD_KINDS,
+  INC_CATS,
+  catIcon,
+  uid,
+  today,
+  type Entry,
+  type EType,
+  type Holding,
+} from "./store";
+import { HoldingRow, SavingsSummary } from "./Savings";
 import type { Currency } from "./lib/currency";
 import { parseAmount } from "./lib/currency";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
@@ -169,30 +180,44 @@ function MonthSwitcher({
 }
 
 export function Money() {
-  const { entries, setQuickAdd, profile } = useApp();
+  const { entries, holdings, setQuickAdd, setSaveSheet, profile } = useApp();
   const t = useT();
   const money = useDisplayMoney();
   const { lang } = useContext(LangCtx);
-  const [type, setType] = useState<"all" | EType>("all");
+  const [type, setType] = useState<"all" | EType | "saving">("all");
   const [cat, setCat] = useState("all");
   // Entries are listed one calendar month at a time, newest month first.
   const bounds = monthBounds(
-    entries.map((e) => e.date),
+    [...entries, ...holdings].map((e) => e.date),
     today(),
   );
+  const any = entries.length + holdings.length > 0;
   const [month, setMonth] = useState<MonthKey>(bounds.latest);
   const monthName = formatMonth(month, lang);
   const monthEntries = entries.filter((e) => monthOf(e.date) === month);
+  const monthHoldings = holdings.filter((h) => monthOf(h.date) === month);
   const cats =
     type === "income"
       ? INC_CATS
       : type === "expense"
         ? EXP_CATS
-        : [...EXP_CATS, ...INC_CATS.filter((c) => c[0] !== "Other")];
-  const list = monthEntries
-    .filter((e) => (type === "all" || e.type === type) && (cat === "all" || e.cat === cat))
+        : type === "saving"
+          ? HOLD_KINDS
+          : [...EXP_CATS, ...INC_CATS, ...HOLD_KINDS].filter(
+              (c, i, all) => all.findIndex((x) => x[0] === c[0]) === i,
+            );
+  // Savings are listed with the entries; their kind is their category.
+  const list = [
+    ...(type === "saving" ? [] : monthEntries),
+    ...(type === "all" || type === "saving" ? monthHoldings : []),
+  ]
+    .filter(
+      (e) =>
+        ("kind" in e || type === "all" || e.type === type) &&
+        (cat === "all" || ("kind" in e ? e.kind : e.cat) === cat),
+    )
     .sort((a, b) => b.date.localeCompare(a.date));
-  const groups = list.reduce<Record<string, Entry[]>>(
+  const groups = list.reduce<Record<string, (Entry | Holding)[]>>(
     (g, e) => ((g[e.date] ??= []).push(e), g),
     {},
   );
@@ -212,6 +237,9 @@ export function Money() {
             <Button variant="coral" icon={<Plus size={18} />} onClick={() => setQuickAdd("new")}>
               {t("Add expense")}
             </Button>
+            <Button variant="sun" icon={<Plus size={18} />} onClick={() => setSaveSheet("new")}>
+              {t("Add saving")}
+            </Button>
           </div>
         }
       />
@@ -227,6 +255,7 @@ export function Money() {
             ["all", t("All")],
             ["expense", t("Expenses")],
             ["income", t("Income")],
+            ["saving", t("Savings")],
           ]}
         />
         <label className="f-ui flex items-center gap-2">
@@ -245,7 +274,7 @@ export function Money() {
           </select>
         </label>
       </div>
-      {entries.length > 0 && (
+      {any && (
         <MonthSwitcher
           month={month}
           label={monthName}
@@ -261,12 +290,18 @@ export function Money() {
           title={month === bounds.latest ? t("This month") : t("Month summary")}
         />
       )}
+      <SavingsSummary
+        holdings={monthHoldings}
+        title={
+          month === bounds.latest ? t("Saved this month") : t("Saved in {m}", { m: monthName })
+        }
+      />
       <ConversionNote money={money} currencies={monthEntries.map((e) => e.currency)} />
       {Object.keys(groups).length === 0 ? (
         <Card>
           <Empty
             text={
-              entries.length === 0
+              !any
                 ? t("Nothing here yet. Want to start together?")
                 : t("No entries in {m}.", { m: monthName })
             }
@@ -282,9 +317,13 @@ export function Money() {
           <Card key={d}>
             <h2 className="f-ui text-soft text-sm m-0 mb-1">{dayLabel(d, t)}</h2>
             <ul className="m-0 p-0 list-none">
-              {es.map((e) => (
-                <EntryRow key={e.id} e={e} actions />
-              ))}
+              {es.map((e) =>
+                "kind" in e ? (
+                  <HoldingRow key={e.id} h={e} />
+                ) : (
+                  <EntryRow key={e.id} e={e} actions />
+                ),
+              )}
             </ul>
           </Card>
         ))

@@ -1,17 +1,20 @@
 // Categories whose entries ask "Delete this entry?" before deleting. One list per
 // device (localStorage "ss.confirmDelete", like "ss.theme"); nothing is stored in
-// Supabase. Keys are "<type>:<category>" because "Other" exists for both types.
+// Supabase. Keys are "<type>:<category>" because "Other" exists for every type;
+// savings use the type "saving" and their kind as the category.
 
 import type { EType } from "../store";
 
+export type ConfirmType = EType | "saving";
+
 export const CONFIRM_DELETE_KEY = "ss.confirmDelete";
-export const categoryKey = (type: EType, cat: string) => `${type}:${cat}`;
-export const parseCategoryKey = (key: string): [EType, string] => {
+export const categoryKey = (type: ConfirmType, cat: string) => `${type}:${cat}`;
+export const parseCategoryKey = (key: string): [ConfirmType, string] => {
   const i = key.indexOf(":");
-  return [key.slice(0, i) as EType, key.slice(i + 1)];
+  return [key.slice(0, i) as ConfirmType, key.slice(i + 1)];
 };
 const isCategoryKey = (value: unknown): value is string =>
-  typeof value === "string" && /^(income|expense):.+/.test(value);
+  typeof value === "string" && /^(income|expense|saving):.+/.test(value);
 
 export interface ConfirmStorage {
   getItem(key: string): string | null;
@@ -54,8 +57,8 @@ export function createConfirmController(storage: ConfirmStorage | null) {
         listeners.delete(listener);
       };
     },
-    needsConfirm: (type: EType, cat: string) => keys.includes(categoryKey(type, cat)),
-    add: (type: EType, cat: string) => set([...keys, categoryKey(type, cat)]),
+    needsConfirm: (type: ConfirmType, cat: string) => keys.includes(categoryKey(type, cat)),
+    add: (type: ConfirmType, cat: string) => set([...keys, categoryKey(type, cat)]),
     remove: (key: string) => set(keys.filter((k) => k !== key)),
   };
 }

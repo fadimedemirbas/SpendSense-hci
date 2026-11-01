@@ -188,7 +188,7 @@ test("protocol 1 (TRY-only screens) never accepts a foreign amount, even nested"
 });
 
 test("the client protocol chooses the load RPC; this build is currency-aware", () => {
-  assert.equal(CLIENT_PROTOCOL, 3); // every screen shows records in their own currency
+  assert.equal(CLIENT_PROTOCOL, 4); // currencies everywhere, plus savings holdings
   assert.deepEqual(workspaceLoadRequest(1, "user-1"), {
     fn: "spendsense_load_workspace",
     args: { expected_user_id: "user-1" },
@@ -197,7 +197,11 @@ test("the client protocol chooses the load RPC; this build is currency-aware", (
     fn: "spendsense_load_workspace_v3",
     args: { expected_user_id: "user-1", client_protocol: 3 },
   });
-  for (const protocol of [0, 2, 4, NaN])
+  assert.deepEqual(workspaceLoadRequest(4, "user-1"), {
+    fn: "spendsense_load_workspace_v4",
+    args: { expected_user_id: "user-1", client_protocol: 4 },
+  });
+  for (const protocol of [0, 2, 5, NaN])
     assert.throws(
       () => workspaceLoadRequest(protocol, "user-1"),
       (error) =>
@@ -266,7 +270,7 @@ test("missing or invalid currencies are never saved and never stripped", () => {
 
 test("protocol 1 only saves lira, as schemaVersion 1; other protocols are refused", () => {
   const previous = normalizeLoadedWorkspace(legacyLoaded());
-  for (const protocol of [2, 0, 4])
+  for (const protocol of [2, 0, 5])
     assert.throws(
       () => prepareVersionedWorkspaceSave(previous, previous, "owner-1", protocol),
       (error) =>

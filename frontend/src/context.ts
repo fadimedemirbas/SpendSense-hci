@@ -1,6 +1,6 @@
 import { createContext, useContext, type SetStateAction } from "react";
 import type { WorkspaceChange } from "./lib/workspace";
-import type { Entry, Goal, Waiting, Decision, Profile, Purchase } from "./store";
+import type { Entry, Goal, Holding, Waiting, Decision, Profile, Purchase } from "./store";
 export const TABS = [
   "home",
   "money",
@@ -37,12 +37,17 @@ export interface AppState {
   setWaiting: S<Waiting[]>;
   decisions: Decision[];
   setDecisions: S<Decision[]>;
+  holdings: Holding[];
+  setHoldings: S<Holding[]>;
   profile: Profile;
   setProfile: S<Profile>;
   prefill: Prefill | null;
   openDecide: (p?: Prefill) => void;
   quickAdd: Entry | "new" | "new-income" | null;
   setQuickAdd: (e: Entry | "new" | "new-income" | null) => void;
+  /** The savings sheet: a holding being edited, a new one, or closed. */
+  saveSheet: Holding | "new" | null;
+  setSaveSheet: (h: Holding | "new" | null) => void;
   tour: number | null;
   setTour: (n: number | null) => void;
   lastCat: string;

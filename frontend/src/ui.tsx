@@ -49,6 +49,8 @@ const TR: Record<string, string> = {
   // Multi-currency (Phase 4: prepared, shown by later phases).
   "A newer version of the app is available. Please update the app to keep your data safe.":
     "Uygulamanın yeni bir sürümü mevcut. Verilerinizi korumak için lütfen uygulamayı güncelleyin.",
+  "The database setup is not ready. Ask your team to review and apply the SpendSense migration.":
+    "Veritabanı kurulumu hazır değil. Ekibinden SpendSense migration'ını gözden geçirip uygulamasını iste.",
   "Saving USD or EUR amounts is not available yet. Your data was not changed.":
     "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
   "Display currency": "Görüntüleme para birimi",
@@ -199,8 +201,8 @@ const TR: Record<string, string> = {
     "Bu e-posta bağlantısı geçersiz ya da süresi dolmuş. Giriş yap veya yeni bir bağlantı iste.",
   "You are offline. Reconnect and try again.": "Çevrimdışısın. Bağlan ve tekrar dene.",
   "You are offline. Reconnect before signing in.": "Çevrimdışısın. Giriş yapmadan önce bağlan.",
-  "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.":
-    "Kaydedilen kayıtların, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
+  "This deletes your saved entries, savings, goals, analyses and decisions. It cannot be undone.":
+    "Kaydedilen kayıtların, birikimlerin, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
   Home: "Ana Sayfa",
   Money: "Para",
   Decide: "Karar",
@@ -307,11 +309,45 @@ const TR: Record<string, string> = {
   "Entry updated.": "Kayıt güncellendi.",
   "Entry deleted.": "Kayıt silindi.",
   "Delete this entry?": "Bu kayıt silinsin mi?",
+  "Delete this saving?": "Bu birikim silinsin mi?",
+  "Add saving": "Birikim ekle",
+  "Edit saving": "Birikimi düzenle",
+  Saving: "Birikim",
+  Savings: "Birikimler",
+  "Salary surplus": "Maaş fazlası",
+  Gold: "Altın",
+  Silver: "Gümüş",
+  Crypto: "Kripto para",
+  "Saving added.": "Birikim eklendi.",
+  "Saving updated.": "Birikim güncellendi.",
+  "Saving deleted.": "Birikim silindi.",
+  "Saved this month": "Bu ay biriktirdiklerin",
+  "Saved in {m}": "{m} birikimleri",
+  "Kept as you entered them. Not counted in what's left.":
+    "Girdiğin gibi saklanır. Kalan tutara dahil edilmez.",
+  "What did you save?": "Ne biriktirdin?",
+  "Not linked to a goal. Saved as you enter it, not at today's price.":
+    "Bir hedefe bağlı değil. Bugünkü fiyatla değil, girdiğin gibi kaydedilir.",
+  "Amount (grams)": "Miktar (gram)",
+  "Amount (coins)": "Miktar (adet)",
+  Coin: "Coin",
+  coin: "adet",
+  "Purchase price per {u} (optional)": "1 {u} alış fiyatı (isteğe bağlı)",
+  "Purchase price currency": "Alış fiyatı para birimi",
+  "Just a reminder for you; nothing is calculated from it.":
+    "Sadece hatırlaman için; bununla hiçbir hesap yapılmaz.",
+  "Bought at {p} / {u}": "Alış: {p} / {u}",
+  "Pick what you saved.": "Neyi biriktirdiğini seç.",
+  "Enter the coin's symbol, for example BTC.": "Coin'in simgesini gir, örneğin BTC.",
+  "Leave the purchase price empty or enter an amount above zero.":
+    "Alış fiyatını boş bırak ya da sıfırdan büyük bir tutar gir.",
+  "Saving savings is not available in this app version. Your data was not changed.":
+    "Birikimler bu uygulama sürümünde kaydedilemiyor. Verilerin değişmedi.",
   "{n} is in {c}, a category you asked to confirm before deleting.":
     "{n}, silmeden önce onay istediğin {c} kategorisinde.",
   "Delete confirmation": "Silme onayı",
   "Ask before deleting": "Silmeden önce sor",
-  "Deleting an entry in these categories asks you to confirm first. Saved on this device.":
+  "Deleting a record in these categories asks you to confirm first. Saved on this device.":
     "Bu kategorilerdeki bir kaydı silerken önce onayın istenir. Bu cihazda saklanır.",
   "Pick a category": "Bir kategori seç",
   Add: "Ekle",
@@ -626,11 +662,11 @@ const TR: Record<string, string> = {
   "Income and expenses as a spreadsheet (CSV).": "Gelir ve giderlerin tablo dosyası olarak (CSV).",
   "Download CSV": "CSV indir",
   "Full backup": "Tam yedek",
-  "Everything you saved, including goals and decisions (JSON).":
-    "Hedefler ve kararlar dahil kaydettiğin her şey (JSON).",
+  "Everything you saved, including savings, goals and decisions (JSON).":
+    "Birikimler, hedefler ve kararlar dahil kaydettiğin her şey (JSON).",
   "Download JSON": "JSON indir",
-  "Deletes entries, goals, analyses and decisions. Your account stays.":
-    "Kayıtları, hedefleri, analizleri ve kararları siler. Hesabın kalır.",
+  "Deletes entries, savings, goals, analyses and decisions. Your account stays.":
+    "Kayıtları, birikimleri, hedefleri, analizleri ve kararları siler. Hesabın kalır.",
   Help: "Yardım",
   "A short walkthrough of the main features.": "Ana özelliklerin kısa bir turu.",
   Start: "Başlat",

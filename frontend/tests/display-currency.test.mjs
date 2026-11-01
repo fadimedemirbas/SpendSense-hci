@@ -15,8 +15,8 @@ import {
 import { emptyWorkspace } from "../src/lib/workspace.ts";
 import { emptyProfile } from "../src/store.ts";
 
-test("this build is protocol 3: TRY, USD and EUR can all be chosen", () => {
-  assert.equal(CLIENT_PROTOCOL, 3);
+test("this build is protocol 4: TRY, USD and EUR can all be chosen", () => {
+  assert.equal(CLIENT_PROTOCOL, 4);
   assert.deepEqual(displayCurrencyOptions(), [
     { value: "TRY", label: "₺ TRY", disabled: false },
     { value: "USD", label: "$ USD", disabled: false },
@@ -39,7 +39,7 @@ test("a TRY-only (protocol 1) client offers USD and EUR but cannot choose them",
   assert.match(displayCurrencyNote(1), /become available/);
 });
 
-test("protocol 3 enables every display currency without other changes", () => {
+test("protocols 3 and 4 enable every display currency without other changes", () => {
   assert.deepEqual(
     displayCurrencyOptions(3).map((option) => [option.value, option.disabled]),
     [
@@ -50,13 +50,14 @@ test("protocol 3 enables every display currency without other changes", () => {
   );
   assert.equal(canSaveDisplayCurrency("EUR", 3), true);
   assert.match(displayCurrencyNote(3), /original amounts/);
-  for (const protocol of [0, 2, 4]) assert.equal(canSaveDisplayCurrency("USD", protocol), false);
+  assert.equal(canSaveDisplayCurrency("USD", 4), true);
+  for (const protocol of [0, 2, 5]) assert.equal(canSaveDisplayCurrency("USD", protocol), false);
 });
 
 test("the selector's rule matches what the save protocol can actually persist", () => {
   const previous = emptyWorkspace("me@example.com");
   for (const currency of ["TRY", "USD", "EUR"]) {
-    for (const protocol of [1, 3]) {
+    for (const protocol of [1, 3, 4]) {
       const next = { ...previous, profile: { ...previous.profile, displayCurrency: currency } };
       const save = () => prepareVersionedWorkspaceSave(previous, next, "owner", protocol);
       if (canSaveDisplayCurrency(currency, protocol)) {

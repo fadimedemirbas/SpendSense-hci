@@ -124,6 +124,17 @@ const api = createServer(async (req, res) => {
       res.writeHead(400);
       res.end(JSON.stringify({ code: "22023" }));
     } else res.end(JSON.stringify({ protocol: 3, workspace: withCurrencies(workspace), revision }));
+  } else if (req.url === "/rest/v1/rpc/spendsense_load_workspace_v4") {
+    // Like migration 202611010001: protocol 3 plus the savings holdings.
+    if (JSON.parse(body || "{}").client_protocol !== 4) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ code: "22023" }));
+    } else {
+      const { holdings = [], ...rest } = workspace;
+      res.end(
+        JSON.stringify({ protocol: 4, workspace: { ...withCurrencies(rest), holdings }, revision }),
+      );
+    }
   } else if (req.url === "/rest/v1/rpc/spendsense_save_workspace") {
     const request = JSON.parse(body);
     if (request.expected_revision !== revision) {
@@ -132,7 +143,7 @@ const api = createServer(async (req, res) => {
       return;
     }
     const version = request.payload?.schemaVersion;
-    if (version !== 1 && version !== 3) {
+    if (version !== 1 && version !== 3 && version !== 4) {
       res.writeHead(400);
       res.end(JSON.stringify({ code: "22023" }));
       return;
@@ -143,7 +154,8 @@ const api = createServer(async (req, res) => {
       return;
     }
     const { ownerId, schemaVersion, deletions, behaviorScores, ...next } = request.payload;
-    workspace = next;
+    // Older protocols do not send holdings; theirs are kept.
+    workspace = version === 4 ? next : { ...next, holdings: workspace.holdings ?? [] };
     revision++;
     res.end(JSON.stringify(revision));
   } else {
