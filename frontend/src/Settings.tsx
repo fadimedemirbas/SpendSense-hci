@@ -17,7 +17,13 @@ import {
   Download,
   Info,
   ShieldCheck,
+  SunMoon,
+  ShieldAlert,
+  Plus,
+  X,
 } from "lucide-react";
+import { useDeleteConfirm } from "./useDeleteConfirm";
+import { categoryKey, parseCategoryKey } from "./lib/deleteConfirm";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
 import { displayCurrencyNote } from "./lib/displayCurrency";
 import { useApp } from "./context";
@@ -33,11 +39,20 @@ import {
   useT,
   useToast,
 } from "./ui";
-import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, today } from "./store";
+import {
+  EXP_CATS,
+  HOLD_KINDS,
+  INC_CATS,
+  INCOME_RANGES,
+  SAVINGS_RANGES,
+  profileTubes,
+  today,
+} from "./store";
 import { InstallHelp, TENDENCY } from "./Onboarding";
 import { requireSupabase } from "./lib/supabase";
 import { onlineOperation } from "./pwa/network";
 import { usePwa } from "./pwa/Pwa";
+import { useTheme } from "./useTheme";
 import { version } from "../package.json";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -135,7 +150,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
             onChange={(e) => set(e.target.value)}
             aria-invalid={!!err}
             aria-describedby={err ? "password-error" : undefined}
-            className="h-12 rounded-tile border border-line bg-white px-4 font-sans"
+            className="h-12 rounded-tile border border-line bg-field px-4 font-sans"
           />
         </label>
       ))}
@@ -160,6 +175,100 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Categories whose entries ask for confirmation before they are deleted. */
+function DeleteConfirmRow() {
+  const t = useT();
+  const { keys, add, remove } = useDeleteConfirm();
+  const [pick, setPick] = useState("");
+  const groups = (
+    [
+      ["expense", "Expenses", EXP_CATS],
+      ["income", "Income", INC_CATS],
+      ["saving", "Savings", HOLD_KINDS],
+    ] as const
+  ).map(
+    ([type, label, cats]) =>
+      [label, cats.map(([c]) => categoryKey(type, c)).filter((k) => !keys.includes(k))] as const,
+  );
+  const name = (key: string) => {
+    const [type, cat] = parseCategoryKey(key);
+    const label = type === "income" ? "Income" : type === "saving" ? "Saving" : "Expense";
+    return `${t(cat)} (${t(label)})`;
+  };
+  return (
+    <Row
+      icon={<ShieldAlert size={18} />}
+      title={t("Ask before deleting")}
+      desc={t(
+        "Deleting a record in these categories asks you to confirm first. Saved on this device.",
+      )}
+    >
+      <form
+        className="flex flex-wrap gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pick) return;
+          add(...parseCategoryKey(pick));
+          setPick("");
+        }}
+      >
+        <select
+          aria-label={t("Category")}
+          value={pick}
+          onChange={(e) => setPick(e.target.value)}
+          className="min-h-11 rounded-full clay-cream px-4 f-ui"
+        >
+          <option value="">{t("Pick a category")}</option>
+          {groups.map(
+            ([label, options]) =>
+              options.length > 0 && (
+                <optgroup key={label} label={t(label)}>
+                  {options.map((k) => (
+                    <option key={k} value={k}>
+                      {t(parseCategoryKey(k)[1])}
+                    </option>
+                  ))}
+                </optgroup>
+              ),
+          )}
+        </select>
+        <Button type="submit" icon={<Plus size={16} />} disabled={!pick}>
+          {t("Add")}
+        </Button>
+      </form>
+      <div className="basis-full">
+        {keys.length === 0 ? (
+          <p className="m-0 text-sm text-soft">
+            {t("No categories yet. Entries are deleted right away, with an undo.")}
+          </p>
+        ) : (
+          <ul
+            className="m-0 p-0 list-none flex flex-wrap gap-2"
+            aria-label={t("Ask before deleting")}
+          >
+            {keys.map((k) => (
+              <li
+                key={k}
+                className="inline-flex items-center gap-1 rounded-full bg-peach pl-3 f-ui text-sm"
+              >
+                {name(k)}
+                <button
+                  type="button"
+                  aria-label={t("Remove {c}", { c: name(k) })}
+                  onClick={() => remove(k)}
+                  className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
+                >
+                  <X size={16} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Row>
+  );
+}
+
 export function SettingsPage({
   reset,
   logout,
@@ -171,10 +280,12 @@ export function SettingsPage({
   retake: () => void;
   name?: string;
 }) {
-  const { profile, setProfile, setTour, setTab, entries, goals, decisions, waiting } = useApp();
+  const { profile, setProfile, setTour, setTab, entries, holdings, goals, decisions, waiting } =
+    useApp();
   const t = useT();
   const pwa = usePwa();
   const { lang, setLang } = useContext(LangCtx);
+  const theme = useTheme();
   const [confirm, setConfirm] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [password, setPassword] = useState(false);
@@ -202,7 +313,15 @@ export function SettingsPage({
       `spendsense-backup-${today()}.json`,
       "application/json",
       JSON.stringify(
-        { exportedAt: new Date().toISOString(), profile, entries, goals, decisions, waiting },
+        {
+          exportedAt: new Date().toISOString(),
+          profile,
+          entries,
+          holdings,
+          goals,
+          decisions,
+          waiting,
+        },
         null,
         2,
       ),
@@ -241,6 +360,22 @@ export function SettingsPage({
             options={[
               ["en", "English"],
               ["tr", "Türkçe"],
+            ]}
+          />
+        </Row>
+        <Row
+          icon={<SunMoon size={18} />}
+          title={t("Theme")}
+          desc={t("System follows your device's light or dark setting.")}
+        >
+          <Segmented
+            label={t("Theme")}
+            value={theme.preference}
+            onChange={theme.setPreference}
+            options={[
+              ["light", t("Light")],
+              ["dark", t("Dark")],
+              ["system", t("System")],
             ]}
           />
         </Row>
@@ -329,6 +464,10 @@ export function SettingsPage({
         </Row>
       </Section>
 
+      <Section title={t("Delete confirmation")}>
+        <DeleteConfirmRow />
+      </Section>
+
       <Section title={t("Your data")}>
         <Row
           icon={<FileSpreadsheet size={18} />}
@@ -342,7 +481,7 @@ export function SettingsPage({
         <Row
           icon={<FileJson size={18} />}
           title={t("Full backup")}
-          desc={t("Everything you saved, including goals and decisions (JSON).")}
+          desc={t("Everything you saved, including savings, goals and decisions (JSON).")}
         >
           <Button icon={<Download size={16} />} onClick={exportJson}>
             {t("Download JSON")}
@@ -351,7 +490,7 @@ export function SettingsPage({
         <Row
           icon={<Trash2 size={18} className="text-danger" />}
           title={t("Reset data")}
-          desc={t("Deletes entries, goals, analyses and decisions. Your account stays.")}
+          desc={t("Deletes entries, savings, goals, analyses and decisions. Your account stays.")}
         >
           <Button onClick={() => setConfirm(true)} className="text-danger!">
             {t("Reset data")}
@@ -414,7 +553,7 @@ export function SettingsPage({
           danger
           title={t("Reset all data?")}
           body={t(
-            "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.",
+            "This deletes your saved entries, savings, goals, analyses and decisions. It cannot be undone.",
           )}
           confirm={t("Reset data")}
           onClose={() => setConfirm(false)}

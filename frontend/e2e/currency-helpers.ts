@@ -146,6 +146,8 @@ export type SavePayload = {
   analyses: { purchase: { price: number; currency: string }; result: Record<string, unknown> }[];
   decisions: { price: number; currency: string; decision: string }[];
   waiting: { price: number; currency: string }[];
+  holdings?: Record<string, unknown>[];
+  deletions: Record<string, string[]>;
 };
 export function watch(page: Page) {
   const saves: SavePayload[] = [];

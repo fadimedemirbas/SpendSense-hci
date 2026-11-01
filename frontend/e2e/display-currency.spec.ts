@@ -34,7 +34,7 @@ test("Settings saves USD as the display currency and Home switches to dollars", 
   await group.getByRole("radio", { name: "$ USD" }).click();
   await expect(group.getByRole("radio", { name: "$ USD" })).toBeChecked();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].profile).toMatchObject({ displayCurrency: "USD", currency: "symbol" });
   // Records keep their own currency; nothing was converted in storage.
   expect(saves[0].entries.map((e) => [e.id, e.amount, e.currency])).toEqual([
@@ -55,8 +55,12 @@ test("Settings saves USD as the display currency and Home switches to dollars", 
 
   // Home now totals the month in dollars: (50.000 − 6.150) / 40 = 1.096,25.
   await go(page, "Home");
-  await expect(page.getByText("≈ $1.096", { exact: true })).toBeVisible();
-  await expect(page.getByText("≈ $1.250", { exact: true })).toBeVisible();
+  await expect(page.getByText("$1.096,25", { exact: true })).toBeVisible();
+  await expect(page.getByText("$1.250", { exact: true })).toBeVisible();
+  // Earlier records are shown in dollars too, with their original amount underneath.
+  await expect(page.getByText("−$31,25", { exact: true })).toBeVisible(); // ₺1.250 / 40
+  await expect(page.getByText("−₺1.250", { exact: true })).toBeVisible();
+  await expect(page.getByText(/≈/)).toHaveCount(0);
   await page.reload();
   await go(page, "Settings");
   await expect(
@@ -114,7 +118,7 @@ test("onboarding saves the chosen currency and keeps lira income ranges", async 
   await expect(page.locator("main")).toBeVisible();
   await expect.poll(() => saves.length).toBeGreaterThan(0);
   expect(saves.at(-1)).toMatchObject({
-    schemaVersion: 3,
+    schemaVersion: 4,
     profile: { onboarded: true, displayCurrency: "EUR", currency: "symbol" },
   });
 });

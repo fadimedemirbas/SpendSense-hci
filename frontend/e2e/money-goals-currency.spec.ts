@@ -24,17 +24,20 @@ test("Money: mixed month is converted with fresh rates and dated", async ({ page
   await login(page);
   await go(page, "Money");
   await expect(page.getByText("Totals in Turkish lira")).toBeVisible();
-  await expect(summary(page)).toContainText("Income≈ ₺50.000");
-  await expect(summary(page)).toContainText("Spent≈ ₺6.150");
-  await expect(summary(page)).toContainText("Left≈ ₺43.850");
+  await expect(summary(page)).toContainText("Income₺50.000");
+  await expect(summary(page)).toContainText("Spent₺6.150");
+  await expect(summary(page)).toContainText("Left₺43.850");
   await expect(
-    page.getByText(`Approximate. Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
-  ).toBeVisible();
+    page.getByText(`Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
+  ).toHaveCount(1);
   await expect(page.getByText("These rates may be out of date.")).toHaveCount(0);
-  // Each entry is listed in its original currency.
+  await expect(page.getByText(/≈|Approximate/)).toHaveCount(0);
+  // Every entry is shown in the display currency, the original amount underneath.
+  await expect(page.getByText("+₺20.000", { exact: true })).toBeVisible();
   await expect(page.getByText("+$500", { exact: true })).toBeVisible();
+  await expect(page.getByText("−₺4.500", { exact: true })).toBeVisible();
   await expect(page.getByText("−€100", { exact: true })).toBeVisible();
-  await expect(page.getByText("−₺1.250", { exact: true })).toBeVisible();
+  await expect(page.getByText("−₺1.250", { exact: true })).toHaveCount(1); // already TRY
 });
 
 test("Money: stale rates are used but flagged as possibly out of date", async ({
@@ -46,7 +49,7 @@ test("Money: stale rates are used but flagged as possibly out of date", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await go(page, "Money");
-  await expect(summary(page)).toContainText("Left≈ ₺43.850");
+  await expect(summary(page)).toContainText("Left₺43.850");
   await expect(page.getByText("These rates may be out of date.")).toBeVisible();
 });
 
@@ -58,6 +61,13 @@ test("Money: without rates different currencies are never added", async ({ page,
   await go(page, "Money");
   await expect(summary(page)).toContainText("Income₺30.000 + $500");
   await expect(summary(page)).toContainText("Spent₺1.250 + $10 + €100");
+  // Without rates each entry keeps its own currency.
+  await expect(page.getByText("+$500", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Exchange rates are unavailable right now, so amounts are shown in their own currency.",
+    ),
+  ).toBeVisible();
   await expect(page.getByText("By currency")).toBeVisible();
   await expect(
     page.getByText(
@@ -90,11 +100,12 @@ test("Money: a USD expense is saved in dollars and keeps its currency when edite
   await sheet.getByLabel("Note (optional)").fill("Lunch");
   await sheet.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].entries[0]).toMatchObject({ name: "Lunch", amount: 25.5, currency: "USD" });
   // 6.150 + 25,50 × 40 = 7.170
-  await expect(summary(page)).toContainText("Spent≈ ₺7.170");
-  await expect(page.getByText("−$26", { exact: true })).toBeVisible();
+  await expect(summary(page)).toContainText("Spent₺7.170");
+  await expect(page.getByText("−₺1.020", { exact: true })).toBeVisible();
+  await expect(page.getByText("−$25,50", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit Lunch", exact: true }).click();
   const edit = page.getByRole("dialog", { name: "Edit entry" });
@@ -115,6 +126,7 @@ test("Money: a USD expense is saved in dollars and keeps its currency when edite
   });
   await page.reload();
   await go(page, "Money");
+  await expect(page.getByText("−₺1.000", { exact: true })).toBeVisible();
   await expect(page.getByText("−$25", { exact: true })).toBeVisible();
 });
 
@@ -129,11 +141,11 @@ test("Goals: a EUR goal shows its progress in euros and a lira equivalent", asyn
   await login(page);
   await go(page, "Goals");
   await expect(page.getByRole("img", { name: "Rome 25%" })).toBeVisible();
-  await expect(page.getByText("€500 / €2.000")).toBeVisible();
-  await expect(
-    page.getByText("About ₺22.500 of ₺90.000 in Turkish lira.", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("₺2.500 / ₺10.000")).toBeVisible(); // TRY goal: no equivalent
+  // Shown in the display currency (TRY), the euro amounts underneath.
+  await expect(page.getByText("₺22.500 / ₺90.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("€500 / €2.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("₺2.500 / ₺10.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("₺67.500", { exact: false })).toBeVisible(); // remaining
 
   // New goal in dollars.
   await page.getByRole("button", { name: "Add goal", exact: true }).click();
@@ -151,9 +163,10 @@ test("Goals: a EUR goal shows its progress in euros and a lira equivalent", asyn
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].goals[0]).toMatchObject({ target: 1000, saved: 250, currency: "USD" });
-  await expect(page.getByText("$250 / $1.000")).toBeVisible();
+  await expect(page.getByText("₺10.000 / ₺40.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("$250 / $1.000", { exact: true })).toBeVisible();
 
   // Editing keeps the euro target unconverted.
   await page.getByRole("button", { name: "Edit Rome", exact: true }).click();
@@ -192,10 +205,12 @@ test("Goals without rates show the goal in its own currency only", async ({ page
   await mockRates(page, "missing");
   await login(page);
   await go(page, "Goals");
-  await expect(page.getByText("€500 / €2.000")).toBeVisible();
+  await expect(page.getByText("€500 / €2.000", { exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "Rome 25%" })).toBeVisible(); // no rate needed
   await expect(
-    page.getByText("Exchange rates are unavailable, so this goal is shown in euro only."),
+    page.getByText(
+      "Exchange rates are unavailable right now, so amounts are shown in their own currency.",
+    ),
   ).toBeVisible();
 });
 
@@ -208,9 +223,9 @@ test("legacy TRY data loads as lira and never requests exchange rates", async ({
   await login(page);
   await go(page, "Money");
   await expect(summary(page)).toContainText("Left₺28.350");
-  await expect(page.getByText(/≈|Approximate/)).toHaveCount(0);
+  await expect(page.getByText(/≈|Converted with/)).toHaveCount(0);
   await go(page, "Goals");
-  await expect(page.getByText("₺2.500 / ₺10.000")).toBeVisible();
+  await expect(page.getByText("₺2.500 / ₺10.000", { exact: true })).toBeVisible();
   expect(rateRequests).toEqual([]);
 });
 
@@ -225,9 +240,7 @@ test("Money and Goals currency controls are translated, accessible and fit 320px
   await go(page, "Para");
   await expect(page.getByRole("heading", { name: "Bu ay" })).toBeVisible();
   await expect(page.getByText("Türk lirası cinsinden toplamlar")).toBeVisible();
-  await expect(
-    page.getByText(/Yaklaşık değer\. .* tarihli TCMB kurlarıyla çevrildi\./),
-  ).toBeVisible();
+  await expect(page.getByText(/^.+ tarihli TCMB kurlarıyla çevrildi\.$/)).toBeVisible();
   await fitsAndIsAccessible(page);
   await page.getByRole("button", { name: "Gider ekle", exact: true }).click();
   await expect(
@@ -236,8 +249,6 @@ test("Money and Goals currency controls are translated, accessible and fit 320px
   await fitsAndIsAccessible(page);
   await page.keyboard.press("Escape");
   await go(page, "Hedefler");
-  await expect(
-    page.getByText("Türk lirası cinsinden yaklaşık ₺90.000 içinden ₺22.500."),
-  ).toBeVisible();
+  await expect(page.getByText("₺22.500 / ₺90.000", { exact: true })).toBeVisible();
   await fitsAndIsAccessible(page);
 });

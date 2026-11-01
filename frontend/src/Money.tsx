@@ -1,9 +1,18 @@
-import { useState } from "react";
-import { Plus, Pencil, Trash2, MessageCircleQuestionMark, Delete } from "lucide-react";
+import { useContext, useState } from "react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  MessageCircleQuestionMark,
+  Delete,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useApp } from "./context";
 import {
   Button,
   Card,
+  Dialog,
   Empty,
   PageHead,
   Segmented,
@@ -14,13 +23,27 @@ import {
   fmtIn,
   Blob,
   curLabelIn,
+  LangCtx,
 } from "./ui";
-import { EXP_CATS, INC_CATS, catIcon, uid, today, type Entry, type EType } from "./store";
+import {
+  EXP_CATS,
+  HOLD_KINDS,
+  INC_CATS,
+  catIcon,
+  uid,
+  today,
+  type Entry,
+  type EType,
+  type Holding,
+} from "./store";
+import { HoldingRow, SavingsSummary } from "./Savings";
 import type { Currency } from "./lib/currency";
 import { parseAmount } from "./lib/currency";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
-import { MoneySummary } from "./CurrencyTotals";
+import { ConversionNote, DisplayAmount, MoneySummary, useDisplayMoney } from "./CurrencyTotals";
+import { formatMonth, monthBounds, monthOf, shiftMonth, type MonthKey } from "./lib/months";
+import { useDeleteConfirm } from "./useDeleteConfirm";
 
 export function dayLabel(iso: string, t: (s: string) => string) {
   const y = new Date();
@@ -35,7 +58,15 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
   const { setQuickAdd, entries, setEntries } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
+  const { needsConfirm } = useDeleteConfirm();
+  const [confirm, setConfirm] = useState(false);
   const I = catIcon(e.type, e.cat);
+  const remove = async () => {
+    const prev = entries;
+    if (!(await setEntries(entries.filter((x) => x.id !== e.id)))) return false;
+    toast(t("Entry deleted."), () => setEntries(prev));
+  };
   return (
     <li className="entry-row flex items-center gap-3 py-3 border-t border-cardline first:border-0">
       <span
@@ -49,53 +80,144 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
           {t(e.cat)} · {dayLabel(e.date, t)}
         </span>
       </span>
-      <span
+      {/* Shown in the display currency; the original amount underneath if converted. */}
+      <DisplayAmount
+        amount={e.amount}
+        currency={e.currency}
+        money={money}
+        sign={e.type === "income" ? "+" : "−"}
         className={`f-num text-lg shrink-0 whitespace-nowrap ${e.type === "income" ? "text-leaf" : ""}`}
-      >
-        {e.type === "income" ? "+" : "−"}
-        {fmtIn(e.amount, e.currency)}
-      </span>
+      />
       {actions && (
-        <span className="entry-actions contents">
+        // Quiet icon buttons: visible, but they don't compete with the amounts.
+        <span className="entry-actions flex items-center gap-0.5 shrink-0">
           <button
             aria-label={`${t("Edit")} ${e.name}`}
             onClick={() => setQuickAdd(e)}
-            className="btn clay-cream w-11 px-0!"
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
           >
-            <Pencil size={16} />
+            <Pencil size={16} aria-hidden />
           </button>
           <button
             aria-label={`${t("Delete")} ${e.name}`}
-            onClick={async () => {
-              const prev = entries;
-              if (!(await setEntries(entries.filter((x) => x.id !== e.id)))) return;
-              toast(t("Entry deleted."), () => setEntries(prev));
-            }}
-            className="btn clay-cream w-11 px-0!"
+            onClick={() => (needsConfirm(e.type, e.cat) ? setConfirm(true) : void remove())}
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-peach hover:text-danger"
           >
-            <Trash2 size={16} />
+            <Trash2 size={16} aria-hidden />
           </button>
         </span>
+      )}
+      {confirm && (
+        <Dialog
+          danger
+          title={t("Delete this entry?")}
+          body={t("{n} is in {c}, a category you asked to confirm before deleting.", {
+            n: e.name,
+            c: t(e.cat),
+          })}
+          confirm={t("Delete")}
+          onClose={() => setConfirm(false)}
+          onConfirm={remove}
+        />
       )}
     </li>
   );
 }
 
-export function Money() {
-  const { entries, setQuickAdd, profile } = useApp();
+/** Previous / next month, with a shortcut back to the current month. */
+function MonthSwitcher({
+  month,
+  label,
+  earliest,
+  latest,
+  onChange,
+}: {
+  month: MonthKey;
+  label: string;
+  earliest: MonthKey;
+  latest: MonthKey;
+  onChange: (month: MonthKey) => void;
+}) {
   const t = useT();
-  const [type, setType] = useState<"all" | EType>("all");
+  const arrow =
+    "w-11 h-11 rounded-full inline-flex items-center justify-center shrink-0 hover:bg-card disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent";
+  return (
+    <nav aria-label={t("Month")} className="grid gap-1">
+      <div className="flex items-center gap-1 rounded-full bg-track p-1">
+        <button
+          type="button"
+          aria-label={t("Previous month")}
+          disabled={month <= earliest}
+          onClick={() => onChange(shiftMonth(month, -1))}
+          className={arrow}
+        >
+          <ChevronLeft size={20} aria-hidden />
+        </button>
+        <h2 aria-live="polite" className="flex-1 m-0 text-center f-ui text-lg">
+          {label}
+        </h2>
+        <button
+          type="button"
+          aria-label={t("Next month")}
+          disabled={month >= latest}
+          onClick={() => onChange(shiftMonth(month, 1))}
+          className={arrow}
+        >
+          <ChevronRight size={20} aria-hidden />
+        </button>
+      </div>
+      {month !== latest && (
+        <button
+          type="button"
+          onClick={() => onChange(latest)}
+          className="justify-self-center f-ui text-sm text-info min-h-11 px-3 hover:underline"
+        >
+          {t("Back to this month")}
+        </button>
+      )}
+    </nav>
+  );
+}
+
+export function Money() {
+  const { entries, holdings, setQuickAdd, setSaveSheet, profile } = useApp();
+  const t = useT();
+  const money = useDisplayMoney();
+  const { lang } = useContext(LangCtx);
+  const [type, setType] = useState<"all" | EType | "saving">("all");
   const [cat, setCat] = useState("all");
+  // Entries are listed one calendar month at a time, newest month first.
+  const bounds = monthBounds(
+    [...entries, ...holdings].map((e) => e.date),
+    today(),
+  );
+  const any = entries.length + holdings.length > 0;
+  const [month, setMonth] = useState<MonthKey>(bounds.latest);
+  const monthName = formatMonth(month, lang);
+  const monthEntries = entries.filter((e) => monthOf(e.date) === month);
+  const monthHoldings = holdings.filter((h) => monthOf(h.date) === month);
   const cats =
     type === "income"
       ? INC_CATS
       : type === "expense"
         ? EXP_CATS
-        : [...EXP_CATS, ...INC_CATS.filter((c) => c[0] !== "Other")];
-  const list = entries
-    .filter((e) => (type === "all" || e.type === type) && (cat === "all" || e.cat === cat))
+        : type === "saving"
+          ? HOLD_KINDS
+          : [...EXP_CATS, ...INC_CATS, ...HOLD_KINDS].filter(
+              (c, i, all) => all.findIndex((x) => x[0] === c[0]) === i,
+            );
+  // Savings are listed with the entries; their kind is their category.
+  const list = [
+    ...(type === "saving" ? [] : monthEntries),
+    ...(type === "all" || type === "saving" ? monthHoldings : []),
+  ]
+    .filter(
+      (e) =>
+        ("kind" in e || type === "all" || e.type === type) &&
+        (cat === "all" || ("kind" in e ? e.kind : e.cat) === cat),
+    )
     .sort((a, b) => b.date.localeCompare(a.date));
-  const groups = list.reduce<Record<string, Entry[]>>(
+  const groups = list.reduce<Record<string, (Entry | Holding)[]>>(
     (g, e) => ((g[e.date] ??= []).push(e), g),
     {},
   );
@@ -115,6 +237,9 @@ export function Money() {
             <Button variant="coral" icon={<Plus size={18} />} onClick={() => setQuickAdd("new")}>
               {t("Add expense")}
             </Button>
+            <Button variant="sun" icon={<Plus size={18} />} onClick={() => setSaveSheet("new")}>
+              {t("Add saving")}
+            </Button>
           </div>
         }
       />
@@ -130,6 +255,7 @@ export function Money() {
             ["all", t("All")],
             ["expense", t("Expenses")],
             ["income", t("Income")],
+            ["saving", t("Savings")],
           ]}
         />
         <label className="f-ui flex items-center gap-2">
@@ -148,11 +274,37 @@ export function Money() {
           </select>
         </label>
       </div>
-      {entries.length > 0 && <MoneySummary entries={entries} currency={profile.displayCurrency} />}
+      {any && (
+        <MonthSwitcher
+          month={month}
+          label={monthName}
+          earliest={bounds.earliest}
+          latest={bounds.latest}
+          onChange={setMonth}
+        />
+      )}
+      {entries.length > 0 && (
+        <MoneySummary
+          entries={monthEntries}
+          currency={profile.displayCurrency}
+          title={month === bounds.latest ? t("This month") : t("Month summary")}
+        />
+      )}
+      <SavingsSummary
+        holdings={monthHoldings}
+        title={
+          month === bounds.latest ? t("Saved this month") : t("Saved in {m}", { m: monthName })
+        }
+      />
+      <ConversionNote money={money} currencies={monthEntries.map((e) => e.currency)} />
       {Object.keys(groups).length === 0 ? (
         <Card>
           <Empty
-            text={t("Nothing here yet. Want to start together?")}
+            text={
+              !any
+                ? t("Nothing here yet. Want to start together?")
+                : t("No entries in {m}.", { m: monthName })
+            }
             action={
               <Button variant="coral" onClick={() => setQuickAdd("new")}>
                 {t("Add entry")}
@@ -165,9 +317,13 @@ export function Money() {
           <Card key={d}>
             <h2 className="f-ui text-soft text-sm m-0 mb-1">{dayLabel(d, t)}</h2>
             <ul className="m-0 p-0 list-none">
-              {es.map((e) => (
-                <EntryRow key={e.id} e={e} actions />
-              ))}
+              {es.map((e) =>
+                "kind" in e ? (
+                  <HoldingRow key={e.id} h={e} />
+                ) : (
+                  <EntryRow key={e.id} e={e} actions />
+                ),
+              )}
             </ul>
           </Card>
         ))
@@ -274,7 +430,7 @@ export function QuickAdd() {
               onKeyDown={(e) => e.key === "Enter" && void save()}
               aria-invalid={!!err.a}
               aria-describedby={err.a ? "amt-err" : undefined}
-              className="f-num text-5xl rounded-tile bg-white border border-line px-4 py-4 text-right w-full min-w-0"
+              className="f-num text-5xl rounded-tile bg-field border border-line px-4 py-4 text-right w-full min-w-0"
             />
           </label>
           <div className="grid gap-1">
@@ -316,7 +472,7 @@ export function QuickAdd() {
               max={today()}
               value={date}
               onChange={(e) => setDate(e.target.value || today())}
-              className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+              className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
             />
           </label>
           <label className="f-ui grid gap-1">
@@ -324,7 +480,7 @@ export function QuickAdd() {
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+              className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
             />
           </label>
         </div>
@@ -374,7 +530,7 @@ export function QuickAdd() {
             variant={type === "income" ? "leaf" : "coral"}
             big
             onClick={save}
-            className={type === "income" ? "bg-leaf! text-white!" : ""}
+            className={type === "income" ? "bg-leaf! text-onstrong!" : ""}
           >
             {t("Save")}
           </Button>

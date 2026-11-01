@@ -1,4 +1,4 @@
-import type { Decision, Entry, Goal, Profile, Purchase, Waiting } from "../store";
+import type { Decision, Entry, Goal, Holding, Profile, Purchase, Waiting } from "../store";
 import { emptyProfile } from "../store.ts";
 
 export interface AnalysisRecord {
@@ -15,6 +15,8 @@ export interface Workspace {
   waiting: Waiting[];
   decisions: Decision[];
   analyses: AnalysisRecord[];
+  /** Savings without a goal; loaded and saved only by protocol 4. */
+  holdings: Holding[];
 }
 export type WorkspaceChange = (previous: Workspace) => Workspace;
 export const emptyWorkspace = (email: string): Workspace => ({
@@ -24,11 +26,14 @@ export const emptyWorkspace = (email: string): Workspace => ({
   waiting: [],
   decisions: [],
   analyses: [],
+  holdings: [],
 });
 
 // Shown (and translated) by the existing error display; no SQL or server detail.
 export const UPDATE_REQUIRED_MESSAGE =
   "A newer version of the app is available. Please update the app to keep your data safe.";
+export const HOLDINGS_UNSUPPORTED_MESSAGE =
+  "Saving savings is not available in this app version. Your data was not changed.";
 export const CURRENCY_UNSUPPORTED_MESSAGE =
   "Saving USD or EUR amounts is not available yet. Your data was not changed.";
 
@@ -37,6 +42,7 @@ export function persistenceMessage(error: unknown): string {
   // 0A000: the database refused a TRY-only (protocol 1) load or save because the
   // account holds USD/EUR records that this app version cannot show correctly.
   if (code === "0A000") return UPDATE_REQUIRED_MESSAGE;
+  if (code === "SS_HOLDINGS_UNSUPPORTED") return HOLDINGS_UNSUPPORTED_MESSAGE;
   if (code === "SS_PROTOCOL_UNSUPPORTED") return CURRENCY_UNSUPPORTED_MESSAGE;
   if (code === "SS_CURRENCY_CONTRACT")
     return "Some data was incomplete or invalid. Reload your saved data before trying again.";

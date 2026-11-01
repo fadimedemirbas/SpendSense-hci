@@ -23,11 +23,11 @@
   bottom: calc(88px + env(safe-area-inset-bottom));
   max-width: min(420px, calc(100vw - 32px));
   padding: 16px;
-  border: 2px solid #6b5a66;
+  border: 2px solid var(--color-soft);
   border-radius: 20px;
-  background: #fff6ec;
-  color: #2a1a2c;
-  box-shadow: 0 8px 24px #2a1a2c26;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  box-shadow: 0 8px 24px var(--shadow-drop);
   max-height: calc(100dvh - 112px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
 }
@@ -45,10 +45,10 @@
   margin: max(8px, env(safe-area-inset-top)) auto 0;
   margin-inline: max(16px, env(safe-area-inset-left));
   padding: 12px 16px;
-  border: 2px solid #6b5a66;
+  border: 2px solid var(--color-soft);
   border-radius: 20px;
-  background: #fff6ec;
-  color: #2a1a2c;
+  background: var(--color-cream);
+  color: var(--color-ink);
 }
 @media (min-width: 912px) {
   .pwa-update-error {
@@ -83,11 +83,69 @@
   --color-violet: #6b4fa3;
   --color-violettint: #efe8fa;
   --color-danger: #b3261e;
+  /* Semantic tokens (Light values; Dark values are below). */
+  --color-field: #ffffff; /* text inputs and selects */
+  --color-leafstrong: #176044; /* green text on pale green */
+  --color-onbright: #2a1a2c; /* text on coral/sun: dark in both themes */
+  --color-onstrong: #ffffff; /* text on leaf/violet/danger fills */
+  --color-scrim: #2a1a2c66; /* behind sheets and dialogs */
   --font-sans: "Bricolage Grotesque", system-ui, sans-serif;
   --radius-card: 28px;
   --radius-tile: 20px;
   --radius-inner: 16px;
   --ease-clay: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/*
+ * Theme. Light is the original SpendSense palette (the @theme values above).
+ * Dark keeps the same identity: warm plum surfaces taken from the ink colour
+ * instead of black, the same coral/sun brand colours, muted tints for pills and
+ * badges, and lighter green/violet/red so text keeps WCAG AA contrast.
+ * <html data-theme> is set before the first paint (index.html, src/lib/theme.ts).
+ */
+:root {
+  color-scheme: light;
+  --shadow-hi: #ffffff; /* clay top highlight */
+  --shadow-drop: #2a1a2c26;
+  --shadow-inset: #2a1a2c1a;
+  --clay-card-lo: #f1dfcc80;
+  --clay-cream-lo: #ebd9c8;
+  --clay-butter-lo: #ecd585;
+  --clay-leaf-lo: #a9d6bf;
+  --glow-coral: #ff6b4a99;
+  --glow-sun: #ffc93c99;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-cream: #1a1219;
+  --color-card: #251b24;
+  --color-field: #1f161e;
+  --color-ink: #f7ede6;
+  --color-soft: #bfadb8;
+  --color-line: #56454f;
+  --color-cardline: #3a2d38;
+  --color-track: #3b2c33;
+  --color-coral: #ff7f61;
+  --color-peach: #47302a;
+  --color-butter: #3d3218;
+  --color-leaf: #6ad0a3;
+  --color-leafstrong: #84dbb6;
+  --color-leaftint: #193a2e;
+  --color-info: #9db8ff;
+  --color-attn: #f0c060;
+  --color-violet: #c0a8f5;
+  --color-violettint: #2e2540;
+  --color-danger: #ff8f87;
+  --color-onstrong: #1a1219;
+  --color-scrim: #0b070bb3;
+  --shadow-hi: #ffffff12;
+  --shadow-drop: #00000073;
+  --shadow-inset: #00000059;
+  --clay-card-lo: #00000040;
+  --clay-cream-lo: #00000059;
+  --clay-butter-lo: #00000059;
+  --clay-leaf-lo: #00000059;
+  --glow-coral: #ff6b4a40;
+  --glow-sun: #ffc93c33;
 }
 /* Element defaults live in the base layer so Tailwind utilities on a specific
    element (min-w-*, text-5xl, [overflow-wrap:normal]…) can still override them.
@@ -159,9 +217,9 @@
   left: 12px;
   top: -100px;
   z-index: 100;
-  background: #fff6ec;
+  background: var(--color-cream);
   padding: 12px;
-  color: #2a1a2c;
+  color: var(--color-ink);
 }
 .skip-link:focus {
   top: max(12px, env(safe-area-inset-top));
@@ -180,11 +238,11 @@
     grid-template-columns: 44px minmax(0, 1fr) auto;
     gap: 12px;
   }
+  /* Edit/Delete sit quietly under the amount instead of on their own row. */
   .entry-row > .entry-actions {
-    grid-column: 2 / -1;
+    grid-column: 3;
     justify-self: end;
-    display: flex;
-    gap: 8px;
+    margin-top: -6px;
   }
   .btn {
     white-space: normal;
@@ -206,52 +264,52 @@
 }
 /* Darker ink from the same green palette meets AA on pale green badges/steps. */
 .bg-leaftint.text-leaf {
-  color: #176044;
+  color: var(--color-leafstrong);
 }
 .clay {
   background: var(--color-card);
   border: 1px solid var(--color-cardline);
   border-radius: var(--radius-card);
   box-shadow:
-    inset 0 2px 0 #fff,
-    inset 0 -3px 0 #f1dfcc80,
-    0 8px 24px -10px #2a1a2c26;
+    inset 0 2px 0 var(--shadow-hi),
+    inset 0 -3px 0 var(--clay-card-lo),
+    0 8px 24px -10px var(--shadow-drop);
 }
 .clay-coral {
   background: var(--color-coral);
   box-shadow:
     inset 0 2px 0 #ffffff66,
     inset 0 -3px 0 #c9452a,
-    0 6px 14px -6px #ff6b4a99;
+    0 6px 14px -6px var(--glow-coral);
 }
 .clay-sun {
   background: var(--color-sun);
   box-shadow:
     inset 0 2px 0 #ffffff80,
     inset 0 -3px 0 #d9a21a,
-    0 6px 14px -6px #ffc93c99;
+    0 6px 14px -6px var(--glow-sun);
 }
 .clay-butter {
   background: var(--color-butter);
   box-shadow:
-    inset 0 2px 0 #fff,
-    inset 0 -3px 0 #ecd585,
+    inset 0 2px 0 var(--shadow-hi),
+    inset 0 -3px 0 var(--clay-butter-lo),
     0 4px 10px -6px #8a5a0055;
 }
 .clay-leaf {
   background: var(--color-leaftint);
   box-shadow:
-    inset 0 2px 0 #fff,
-    inset 0 -3px 0 #a9d6bf,
+    inset 0 2px 0 var(--shadow-hi),
+    inset 0 -3px 0 var(--clay-leaf-lo),
     0 4px 10px -6px #1f7a5855;
 }
 .clay-cream {
   background: var(--color-card);
   border: 1px solid var(--color-line);
   box-shadow:
-    inset 0 2px 0 #fff,
-    inset 0 -3px 0 #ebd9c8,
-    0 4px 10px -6px #2a1a2c33;
+    inset 0 2px 0 var(--shadow-hi),
+    inset 0 -3px 0 var(--clay-cream-lo),
+    0 4px 10px -6px var(--shadow-drop);
 }
 .btn {
   font-family: Fredoka, sans-serif;
@@ -268,6 +326,11 @@
   transition:
     transform 0.15s var(--ease-clay),
     filter 0.15s;
+}
+/* Coral and sun stay bright in both themes, so their text stays dark. */
+.clay-coral,
+.clay-sun {
+  color: var(--color-onbright);
 }
 .btn:hover {
   filter: brightness(1.04);

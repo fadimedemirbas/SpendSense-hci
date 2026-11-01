@@ -28,13 +28,13 @@ test("Home and Insights: TRY-only figures are exactly as before, without rates",
   await expect(page.getByText("₺28.350", { exact: true })).toBeVisible();
   await expect(page.getByText("₺30.000", { exact: true })).toBeVisible();
   await expect(page.getByText("₺1.650", { exact: true })).toBeVisible();
-  await expect(page.getByText("₺2.500 / ₺10.000")).toBeVisible();
+  await expect(page.getByText("₺2.500 / ₺10.000", { exact: true })).toBeVisible();
   await go(page, "Insights");
   await expect(page.getByText("Food · ₺1.250", { exact: true })).toBeVisible();
   await expect(page.getByText("Transport · ₺400", { exact: true })).toBeVisible();
   await expect(page.getByText("Income · ₺30.000", { exact: true })).toBeVisible();
   await expect(page.getByText("Expenses · ₺1.650", { exact: true })).toBeVisible();
-  await expect(page.getByText(/≈|Approximate|can't be calculated/)).toHaveCount(0);
+  await expect(page.getByText(/≈|Converted with|can't be calculated/)).toHaveCount(0);
   expect(rateRequests).toEqual([]);
 });
 
@@ -46,22 +46,26 @@ test("Home and Insights: a mixed month is converted with dated, approximate tota
   await mockRates(page, "fresh");
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
-  await expect(page.getByText("≈ ₺43.850", { exact: true })).toBeVisible();
-  await expect(page.getByText("≈ ₺50.000", { exact: true })).toBeVisible();
-  await expect(page.getByText("≈ ₺6.150", { exact: true })).toBeVisible();
-  const note = `Approximate. Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`;
+  await expect(page.getByText("₺43.850", { exact: true })).toBeVisible();
+  await expect(page.getByText("₺50.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("₺6.150", { exact: true })).toBeVisible();
+  const note = `Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`;
   await expect(page.getByText(note)).toBeVisible();
-  await expect(page.getByText("₺2.500 / ₺10.000")).toBeVisible(); // first active goal, in TRY
+  await expect(page.getByText(/≈/)).toHaveCount(0);
+  await expect(page.getByText("₺2.500 / ₺10.000", { exact: true })).toBeVisible();
+  // Recent entries in lira, with the dollar/euro original underneath.
+  await expect(page.getByText("+₺20.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("+$500", { exact: true })).toBeVisible();
 
   await go(page, "Insights");
   // Largest first: Transport €100 (₺4.500), Food ₺1.250, Subscriptions $10 (₺400).
-  const bars = page.locator("main").getByText(/ · ≈ ₺/);
+  const bars = page.locator("main").getByText(/ · ₺/);
   await expect(bars).toHaveText([
-    "Transport · ≈ ₺4.500",
-    "Food · ≈ ₺1.250",
-    "Subscriptions · ≈ ₺400",
-    "Income · ≈ ₺50.000",
-    "Expenses · ≈ ₺6.150",
+    "Transport · ₺4.500",
+    "Food · ₺1.250",
+    "Subscriptions · ₺400",
+    "Income · ₺50.000",
+    "Expenses · ₺6.150",
   ]);
   await expect(page.getByText(note)).toHaveCount(2);
 });
@@ -92,7 +96,7 @@ test("Home and Insights: stale rates are used but flagged", async ({ page, reque
   await seed(request, mixedWorkspace());
   await mockRates(page, "stale");
   await login(page);
-  await expect(page.getByText("≈ ₺43.850", { exact: true })).toBeVisible();
+  await expect(page.getByText("₺43.850", { exact: true })).toBeVisible();
   await expect(page.getByText("These rates may be out of date.")).toBeVisible();
   await go(page, "Insights");
   await expect(page.getByText("These rates may be out of date.")).toHaveCount(2);
@@ -152,14 +156,16 @@ test("Decide: a USD purchase is scored on lira values and saved in dollars", asy
   await login(page);
   await answerUsdPurchase(page);
   await expect(page.getByRole("heading", { level: 1, name: "Headphones" })).toBeFocused();
-  await expect(page.locator("main p.f-num").first()).toHaveText("$60 · Shopping");
+  // In the display currency (60 × 40), the original price underneath.
+  await expect(page.locator("main p.f-num").first()).toHaveText("₺2.400 · Shopping");
+  await expect(page.locator("main p.f-num").nth(1)).toHaveText("$60");
   const expected = expectedAnalysis();
   await expect(page.getByText(`${expected.fit}/100`, { exact: true })).toBeVisible();
   await expect(
-    page.getByText(`Approximate. Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
+    page.getByText(`Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
   ).toBeVisible();
   await expect.poll(() => saves.length).toBe(1);
-  expect(saves[0].schemaVersion).toBe(3);
+  expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].analyses[0].purchase).toMatchObject({ price: 60, currency: "USD" });
   expect(saves[0].analyses[0].result).toMatchObject({
     fit: expected.fit,
@@ -175,8 +181,10 @@ test("Decide: a USD purchase is scored on lira values and saved in dollars", asy
   await expect.poll(() => saves.length).toBe(2);
   expect(saves[1].entries[0]).toMatchObject({ name: "Headphones", amount: 60, currency: "USD" });
   expect(saves[1].decisions[0]).toMatchObject({ decision: "Buy", price: 60, currency: "USD" });
-  await expect(page.getByText(/\$60/).first()).toBeVisible(); // History
+  await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+  await expect(page.getByText("₺2.400", { exact: true })).toBeVisible();
   await go(page, "Money");
+  await expect(page.getByText("−₺2.400", { exact: true })).toBeVisible();
   await expect(page.getByText("−$60", { exact: true })).toBeVisible();
 });
 
@@ -190,7 +198,7 @@ test("Decide: Wait keeps the dollar price on the waiting list", async ({ page, r
   await expect.poll(() => saves.length).toBe(2);
   expect(saves[1].waiting[0]).toMatchObject({ price: 60, currency: "USD" });
   await expect(page.getByRole("heading", { name: "Waiting List" })).toBeVisible();
-  await expect(page.getByText(/\$60/).first()).toBeVisible();
+  await expect(page.getByText(/^₺2\.400(?!,)/).first()).toBeVisible();
 });
 
 test("Decide: without rates only the analysis is blocked, nothing is saved", async ({
@@ -231,7 +239,7 @@ test("Decide: TRY purchases with TRY data score exactly as before", async ({ pag
   await next();
   await page.getByRole("button", { name: "3 days", exact: true }).click();
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
-  await expect(page.locator("main p.f-num").first()).toHaveText("₺2,499.90 · Shopping");
+  await expect(page.locator("main p.f-num").first()).toHaveText("₺2.499,90 · Shopping");
   const ws = legacyWorkspace();
   const expected = analyze(
     {
@@ -252,7 +260,7 @@ test("Decide: TRY purchases with TRY data score exactly as before", async ({ pag
   await expect(page.getByText(`${expected.fit}/100`, { exact: true })).toBeVisible();
   await expect.poll(() => saves.length).toBe(1);
   expect(saves[0].analyses[0].result).toMatchObject({ fit: expected.fit, budget: expected.budget });
-  await expect(page.getByText(/Approximate/)).toHaveCount(0);
+  await expect(page.getByText(/Converted with|≈/)).toHaveCount(0);
   expect(rateRequests).toEqual([]);
 });
 
@@ -289,11 +297,11 @@ test("Home, Insights and Decide are translated, accessible and fit 320px", async
   await page.setViewportSize({ width: 320, height: 640 });
   await login(page, "tr");
   await expect(page.getByRole("heading", { name: "Bu ay kalan" })).toBeVisible();
-  await expect(page.getByText("≈ ₺43.850", { exact: true })).toBeVisible();
+  await expect(page.getByText("₺43.850", { exact: true })).toBeVisible();
   await expect(page.getByText(/tarihli TCMB kurlarıyla çevrildi/)).toBeVisible();
   await fitsAndIsAccessible(page);
   await go(page, "İçgörüler");
-  await expect(page.getByText("Gelir · ≈ ₺50.000", { exact: true })).toBeVisible();
+  await expect(page.getByText("Gelir · ₺50.000", { exact: true })).toBeVisible();
   await fitsAndIsAccessible(page);
   await goDecide(page);
   await page

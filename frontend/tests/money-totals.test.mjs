@@ -12,8 +12,8 @@ import {
   amountUnit,
   entriesInMonth,
   formatBulletinDate,
-  formatWholeAmount,
-  goalEquivalent,
+  displayValue,
+  formatAmount,
   goalProgress,
   goalTargetIdeas,
   needsConversion,
@@ -56,19 +56,23 @@ const deepFreeze = (value) => {
     if (inner && typeof inner === "object") deepFreeze(inner);
   return Object.freeze(value);
 };
-// The app-wide fmt() in ui.tsx, copied here as the reference for TRY output.
-const legacyFmt = (n, mode) => {
-  const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
-  return (n < 0 ? "−" : "") + (mode === "symbol" ? "₺" + s : s + " TRY");
-};
-
-test("TRY amounts look exactly as before; USD/EUR use their own symbol or code", () => {
-  for (const mode of ["symbol", "code"])
-    for (const n of [0, 1, 12.5, 999.49, 1250, 1250.5, 1234567])
-      assert.equal(formatWholeAmount(n, "TRY", mode), legacyFmt(n, mode), `${n} ${mode}`);
-  assert.equal(formatWholeAmount(1250, "USD", "symbol"), "$1.250");
-  assert.equal(formatWholeAmount(1250, "EUR", "code"), "1.250 EUR");
-  assert.equal(formatWholeAmount(1250, "TRY", "symbol", true), "≈ ₺1.250");
+test("amounts use Turkish separators; decimals only when there are kuruş/cents", () => {
+  assert.equal(formatAmount(52340, "TRY", "symbol"), "₺52.340");
+  assert.equal(formatAmount(52340.4, "TRY", "symbol"), "₺52.340,40");
+  assert.equal(formatAmount(52340.004, "TRY", "symbol"), "₺52.340"); // rounds to whole
+  assert.equal(formatAmount(52340, "TRY", "code"), "52.340 TRY");
+  assert.equal(formatAmount(0, "TRY", "symbol"), "₺0");
+  assert.equal(formatAmount(12.5, "TRY", "symbol"), "₺12,50");
+  assert.equal(formatAmount(1250, "TRY", "symbol"), "₺1.250");
+  assert.equal(formatAmount(12345.67, "TRY", "symbol"), "₺12.345,67");
+  assert.equal(formatAmount(1234567.891, "TRY", "symbol"), "₺1.234.567,89");
+  assert.equal(formatAmount(-42.5, "TRY", "symbol"), "−₺42,50");
+  assert.equal(formatAmount(1250, "USD", "symbol"), "$1.250");
+  assert.equal(formatAmount(1250.5, "EUR", "code"), "1.250,50 EUR");
+  assert.equal(formatAmount(99.99, "TRY", "code"), "99,99 TRY");
+  // Never an approximation sign.
+  for (const currency of ["TRY", "USD", "EUR"])
+    assert.doesNotMatch(formatAmount(1, currency, "symbol"), /≈/);
   assert.equal(amountUnit("TRY", "symbol"), "₺");
   assert.equal(amountUnit("USD", "code"), "USD");
   assert.equal(amountUnit("EUR", "symbol"), "€");
@@ -212,18 +216,31 @@ test("goals: progress in their own currency, conversions only with rates", () =>
   assert.equal(goalProgress({ saved: 10, target: 0 }), 0);
   assert.deepEqual(goalTargetIdeas("TRY"), [5000, 10000, 25000, 50000]);
   assert.deepEqual(goalTargetIdeas("EUR"), [500, 1000, 2500, 5000]);
-  assert.equal(goalEquivalent(bike, "USD", NO_RATES), null);
-  assert.deepEqual(goalEquivalent(bike, "TRY", NO_RATES), { kind: "unavailable" });
-  assert.deepEqual(goalEquivalent(bike, "TRY", stale), {
-    kind: "approximate",
-    saved: 5000,
-    target: 20000,
-    currency: "TRY",
-    rate: { status: "stale", bulletinDate: "2026-09-04" },
-  });
   assert.deepEqual([bike.target, bike.saved, bike.currency], [500, 125, "USD"]);
-  const lira = { target: 10000, saved: 2500, currency: "TRY" };
-  assert.equal(goalEquivalent(lira, "TRY", fresh), null);
+});
+
+test("every record is shown in the display currency; originals stay untouched", () => {
+  const record = deepFreeze({ amount: 125, currency: "USD" });
+  // Same currency: shown as stored, no rate needed.
+  assert.deepEqual(displayValue(125, "USD", "USD", NO_RATES), {
+    ok: true,
+    amount: 125,
+    currency: "USD",
+    converted: false,
+  });
+  // Another currency: converted with validated rates (fresh or stale), to the cent.
+  for (const view of [fresh, stale])
+    assert.deepEqual(displayValue(record.amount, record.currency, "TRY", view), {
+      ok: true,
+      amount: 5000,
+      currency: "TRY",
+      converted: true,
+    });
+  assert.equal(displayValue(1000, "TRY", "EUR", fresh).amount, 22.22); // 1000 / 45
+  assert.equal(displayValue(33.33, "EUR", "USD", fresh).amount, 37.5); // 33.33 × 45 / 40
+  // No usable rates: the caller shows the original amount instead.
+  assert.deepEqual(displayValue(125, "USD", "TRY", NO_RATES), { ok: false });
+  assert.deepEqual([record.amount, record.currency], [125, "USD"]);
 });
 
 test("protocol 1: new records start in TRY and USD/EUR cannot be chosen or saved", () => {

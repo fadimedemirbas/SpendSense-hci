@@ -3,16 +3,16 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
   type ButtonHTMLAttributes,
 } from "react";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
-import { formatExactAmount } from "./lib/money";
 import { nextSegmentIndex } from "./lib/segmented";
-import { formatMoney, type Currency } from "./lib/currency";
-import { amountUnit, formatWholeAmount } from "./lib/moneyTotals";
+import type { Currency } from "./lib/currency";
+import { amountUnit, formatAmount } from "./lib/moneyTotals";
 
 /* ---------- i18n ---------- */
 export type Lang = "en" | "tr";
@@ -49,9 +49,41 @@ const TR: Record<string, string> = {
   // Multi-currency (Phase 4: prepared, shown by later phases).
   "A newer version of the app is available. Please update the app to keep your data safe.":
     "Uygulamanın yeni bir sürümü mevcut. Verilerinizi korumak için lütfen uygulamayı güncelleyin.",
+  "The database setup is not ready. Ask your team to review and apply the SpendSense migration.":
+    "Veritabanı kurulumu hazır değil. Ekibinden SpendSense migration'ını gözden geçirip uygulamasını iste.",
   "Saving USD or EUR amounts is not available yet. Your data was not changed.":
     "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
   "Display currency": "Görüntüleme para birimi",
+  "Income minus spending in this calendar month, in your display currency. Amounts in other currencies are converted with the latest TCMB rates.":
+    "Bu takvim ayındaki gelirden harcamaların çıkarılmasıyla bulunur; görüntüleme para biriminde gösterilir. Diğer para birimlerindeki tutarlar en güncel TCMB kurlarıyla çevrilir.",
+  "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.":
+    "İlerleme, biriken tutarın hedefe oranıdır ve hedefin kendi para biriminde hesaplanır. Kenara para ayırdıkça ekleyebilirsin.",
+  "Purchases you decided to wait on. On their review date you can buy, keep waiting or skip.":
+    "Beklemeyi seçtiğin alımlar. İnceleme tarihinde satın alabilir, beklemeye devam edebilir ya da vazgeçebilirsin.",
+  "Fit is the overall score from when you analyzed this purchase. When it is ready to revisit, decide again with what you know now.":
+    "Uyum, bu alımı analiz ettiğindeki genel puandır. Yeniden bakmaya hazır olduğunda, şimdi bildiklerinle tekrar karar ver.",
+  "Your five largest expense categories this month and their share of all spending.":
+    "Bu aydaki en büyük beş harcama kategorin ve toplam harcamadaki payları.",
+  "This month's total income and total spending side by side. The longer bar sets the scale.":
+    "Bu ayın toplam geliri ve toplam harcaması yan yana. Uzun olan çubuk ölçeği belirler.",
+  "How often each feeling and reason came up in your decisions and waiting items.":
+    "Kararlarında ve bekleyen alımlarında her duygu ve nedenin ne sıklıkla geçtiği.",
+  "Your average later rating (1–5), grouped by how you felt when you decided.":
+    "Kararlarına sonradan verdiğin ortalama puan (1–5), karar anındaki duygularına göre gruplanmış.",
+  "Income, spending and what is left for the month you are viewing, in your display currency.":
+    "Görüntülediğin aydaki gelir, harcama ve kalan tutar; görüntüleme para biriminde.",
+  Month: "Ay",
+  "Previous month": "Önceki ay",
+  "Next month": "Sonraki ay",
+  "Back to this month": "Bu aya dön",
+  "Month summary": "Ay özeti",
+  "No entries in {m}.": "{m} ayında kayıt yok.",
+  Theme: "Tema",
+  Light: "Açık",
+  Dark: "Koyu",
+  System: "Sistem",
+  "System follows your device's light or dark setting.":
+    "Sistem, cihazının açık veya koyu tema ayarını izler.",
   "Amount format": "Tutar biçimi",
   "Which currency do you use?": "Hangi para birimini kullanıyorsun?",
   "You can change this later in Settings.": "Bunu daha sonra Ayarlar'dan değiştirebilirsin.",
@@ -64,8 +96,9 @@ const TR: Record<string, string> = {
   Left: "Kalan",
   "Totals in {c}": "{c} cinsinden toplamlar",
   "By currency": "Para birimine göre",
-  "Approximate. Converted with TCMB rates from {date}.":
-    "Yaklaşık değer. {date} tarihli TCMB kurlarıyla çevrildi.",
+  "Converted with TCMB rates from {date}.": "{date} tarihli TCMB kurlarıyla çevrildi.",
+  "Exchange rates are unavailable right now, so amounts are shown in their own currency.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden tutarlar kendi para birimlerinde gösteriliyor.",
   "These rates may be out of date.": "Bu kurlar güncel olmayabilir.",
   "Exchange rates are unavailable right now, so amounts in different currencies are not added together.":
     "Döviz kurları şu anda alınamıyor, bu yüzden farklı para birimlerindeki tutarlar toplanmıyor.",
@@ -75,9 +108,7 @@ const TR: Record<string, string> = {
   "A saved entry keeps its original currency.": "Kaydedilen bir işlem kendi para birimini korur.",
   "Goal currency": "Hedef para birimi",
   "A goal keeps the currency it was created in.": "Bir hedef, oluşturulduğu para birimini korur.",
-  "About {saved} of {target} in {c}.": "{c} cinsinden yaklaşık {target} içinden {saved}.",
-  "Exchange rates are unavailable, so this goal is shown in {c} only.":
-    "Döviz kurları alınamadığı için bu hedef yalnızca {c} cinsinden gösteriliyor.",
+
   "Exchange rates are unavailable right now, so what's left this month can't be calculated. Amounts are shown by currency.":
     "Döviz kurları şu anda alınamıyor, bu yüzden bu ay kalan tutar hesaplanamıyor. Tutarlar para birimine göre gösteriliyor.",
   "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.":
@@ -94,8 +125,6 @@ const TR: Record<string, string> = {
     "Binlik ayırıcı olmadan yalnızca rakam gir. Sent için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
   "Transaction currency": "İşlem para birimi",
   Currency: "Para birimi",
-  "Approximate amount": "Yaklaşık tutar",
-  "Approximate, converted with TCMB rates.": "TCMB kurlarıyla yaklaşık olarak çevrildi.",
   "TCMB bulletin {date}": "TCMB {date} bülteni",
   "Exchange rates may be outdated (TCMB bulletin {date}).":
     "Döviz kurları güncel olmayabilir (TCMB {date} bülteni).",
@@ -172,8 +201,8 @@ const TR: Record<string, string> = {
     "Bu e-posta bağlantısı geçersiz ya da süresi dolmuş. Giriş yap veya yeni bir bağlantı iste.",
   "You are offline. Reconnect and try again.": "Çevrimdışısın. Bağlan ve tekrar dene.",
   "You are offline. Reconnect before signing in.": "Çevrimdışısın. Giriş yapmadan önce bağlan.",
-  "This deletes your saved entries, goals, analyses and decisions. It cannot be undone.":
-    "Kaydedilen kayıtların, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
+  "This deletes your saved entries, savings, goals, analyses and decisions. It cannot be undone.":
+    "Kaydedilen kayıtların, birikimlerin, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
   Home: "Ana Sayfa",
   Money: "Para",
   Decide: "Karar",
@@ -279,6 +308,52 @@ const TR: Record<string, string> = {
   "Entry saved.": "Kayıt eklendi.",
   "Entry updated.": "Kayıt güncellendi.",
   "Entry deleted.": "Kayıt silindi.",
+  "Delete this entry?": "Bu kayıt silinsin mi?",
+  "Delete this saving?": "Bu birikim silinsin mi?",
+  "Add saving": "Birikim ekle",
+  "Edit saving": "Birikimi düzenle",
+  Saving: "Birikim",
+  Savings: "Birikimler",
+  "Salary surplus": "Maaş fazlası",
+  Gold: "Altın",
+  Silver: "Gümüş",
+  Crypto: "Kripto para",
+  "Saving added.": "Birikim eklendi.",
+  "Saving updated.": "Birikim güncellendi.",
+  "Saving deleted.": "Birikim silindi.",
+  "Saved this month": "Bu ay biriktirdiklerin",
+  "Saved in {m}": "{m} birikimleri",
+  "Kept as you entered them. Not counted in what's left.":
+    "Girdiğin gibi saklanır. Kalan tutara dahil edilmez.",
+  "What did you save?": "Ne biriktirdin?",
+  "Not linked to a goal. Saved as you enter it, not at today's price.":
+    "Bir hedefe bağlı değil. Bugünkü fiyatla değil, girdiğin gibi kaydedilir.",
+  "Amount (grams)": "Miktar (gram)",
+  "Amount (coins)": "Miktar (adet)",
+  Coin: "Coin",
+  coin: "adet",
+  "Purchase price per {u} (optional)": "1 {u} alış fiyatı (isteğe bağlı)",
+  "Purchase price currency": "Alış fiyatı para birimi",
+  "Just a reminder for you; nothing is calculated from it.":
+    "Sadece hatırlaman için; bununla hiçbir hesap yapılmaz.",
+  "Bought at {p} / {u}": "Alış: {p} / {u}",
+  "Pick what you saved.": "Neyi biriktirdiğini seç.",
+  "Enter the coin's symbol, for example BTC.": "Coin'in simgesini gir, örneğin BTC.",
+  "Leave the purchase price empty or enter an amount above zero.":
+    "Alış fiyatını boş bırak ya da sıfırdan büyük bir tutar gir.",
+  "Saving savings is not available in this app version. Your data was not changed.":
+    "Birikimler bu uygulama sürümünde kaydedilemiyor. Verilerin değişmedi.",
+  "{n} is in {c}, a category you asked to confirm before deleting.":
+    "{n}, silmeden önce onay istediğin {c} kategorisinde.",
+  "Delete confirmation": "Silme onayı",
+  "Ask before deleting": "Silmeden önce sor",
+  "Deleting a record in these categories asks you to confirm first. Saved on this device.":
+    "Bu kategorilerdeki bir kaydı silerken önce onayın istenir. Bu cihazda saklanır.",
+  "Pick a category": "Bir kategori seç",
+  Add: "Ekle",
+  "Remove {c}": "{c} kaldır",
+  "No categories yet. Entries are deleted right away, with an undo.":
+    "Henüz kategori yok. Kayıtlar hemen silinir, geri alınabilir.",
   "All set! I've added that to your month.": "Tamamdır! Bunu ayına ekledim.",
   "Not bought yet? Check it first.": "Henüz almadın mı? Önce bir bak.",
   Food: "Yemek",
@@ -520,7 +595,7 @@ const TR: Record<string, string> = {
     "Verilerini görmek için tekrar giriş yapman gerekecek. Verilerin hesabında kalır.",
   "You can finish these questions the next time you log in.":
     "Bu soruları bir sonraki girişinde tamamlayabilirsin.",
-  "More info": "Daha fazla bilgi",
+  "Info about {x}": "{x} hakkında bilgi",
   "Example fit {n}": "Örnek uyum {n}",
   "Give your goal a name.": "Hedefine bir ad ver.",
   "Enter a target above zero.": "Sıfırdan büyük bir hedef tutarı gir.",
@@ -587,11 +662,11 @@ const TR: Record<string, string> = {
   "Income and expenses as a spreadsheet (CSV).": "Gelir ve giderlerin tablo dosyası olarak (CSV).",
   "Download CSV": "CSV indir",
   "Full backup": "Tam yedek",
-  "Everything you saved, including goals and decisions (JSON).":
-    "Hedefler ve kararlar dahil kaydettiğin her şey (JSON).",
+  "Everything you saved, including savings, goals and decisions (JSON).":
+    "Birikimler, hedefler ve kararlar dahil kaydettiğin her şey (JSON).",
   "Download JSON": "JSON indir",
-  "Deletes entries, goals, analyses and decisions. Your account stays.":
-    "Kayıtları, hedefleri, analizleri ve kararları siler. Hesabın kalır.",
+  "Deletes entries, savings, goals, analyses and decisions. Your account stays.":
+    "Kayıtları, birikimleri, hedefleri, analizleri ve kararları siler. Hesabın kalır.",
   Help: "Yardım",
   "A short walkthrough of the main features.": "Ana özelliklerin kısa bir turu.",
   Start: "Başlat",
@@ -787,27 +862,15 @@ export const curLabel = () => (curMode === "symbol" ? "₺" : "TRY");
 // Range labels are written with ₺; show them in the chosen display mode.
 export const rangeLabel = (r: string) =>
   curMode === "symbol" || !r.includes("₺") ? r : `${r.replace("₺", "")} TRY`;
-export const fmt = (n: number) => {
-  const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
-  return (n < 0 ? "−" : "") + (curMode === "symbol" ? "₺" + s : s + " TRY");
-};
-/** An amount in its own currency, in the same style as fmt() (identical for TRY). */
-export const fmtIn = (n: number, currency: Currency, approximate = false) =>
-  formatWholeAmount(n, currency, curMode, approximate);
+// Every amount, Turkish separators: ₺12.345,67 / 12.345,67 TRY, whole amounts as ₺52.340.
+export const fmt = (n: number) => formatAmount(n, "TRY", curMode);
+/** An amount in `currency`, in the same format as fmt(). */
+export const fmtIn = (n: number, currency: Currency) => formatAmount(n, currency, curMode);
 /** Unit for an amount field in `currency`: "₺" / "TRY", "$" / "USD". */
 export const curLabelIn = (currency: Currency) => amountUnit(currency, curMode);
-/** Decide only: keeps kuruş and uses the UI language's separators (fmt() is unchanged). */
-export function useExactAmount() {
-  const { lang } = useContext(LangCtx);
-  return (n: number) => formatExactAmount(n, lang, curMode);
-}
-/** Decide: the exact amount in its own currency; TRY is formatted exactly as by useExactAmount. */
+/** Decide: the exact amount in its own currency (same format as fmtIn). */
 export function useExactAmountIn() {
-  const { lang } = useContext(LangCtx);
-  return (n: number, currency: Currency) =>
-    currency === "TRY"
-      ? formatExactAmount(n, lang, curMode)
-      : formatMoney(n, currency, lang, { display: curMode });
+  return (n: number, currency: Currency) => fmtIn(n, currency);
 }
 
 /* ---------- display ---------- */
@@ -944,14 +1007,11 @@ export function CountUp({
   value,
   className = "",
   currency = "TRY",
-  approximate = false,
 }: {
   value: number;
   className?: string;
   /** Currency of `value`; TRY (the default) renders exactly as before. */
   currency?: Currency;
-  /** Prefix "≈ " for a converted value. */
-  approximate?: boolean;
 }) {
   const [v, setV] = useState(value);
   const from = useRef(0);
@@ -972,11 +1032,7 @@ export function CountUp({
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return (
-    <span className={`f-num ${className}`}>
-      {currency === "TRY" && !approximate ? fmt(v) : fmtIn(v, currency, approximate)}
-    </span>
-  );
+  return <span className={`f-num ${className}`}>{fmtIn(v, currency)}</span>;
 }
 
 /* ---------- inputs ---------- */
@@ -1033,7 +1089,7 @@ export const Pill = ({
     butter: "bg-butter text-attn",
     leaf: "bg-leaftint text-leaf",
     violet: "bg-violettint text-violet",
-    sun: "bg-sun text-ink",
+    sun: "bg-sun text-onbright",
   }[tone];
   return (
     <span className={`f-ui text-sm px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${c}`}>
@@ -1127,7 +1183,7 @@ export function Ring({
   value,
   size = 96,
   label,
-  color = "#1f7a58",
+  color = "var(--color-leaf)",
   suffix = "",
 }: {
   value: number;
@@ -1148,19 +1204,26 @@ export function Ring({
       aria-label={label ?? `${Math.round(v)}%`}
       className="shrink-0"
     >
-      <circle cx="50" cy="50" r={r} stroke="#fbe3cf" strokeWidth="12" fill="none" />
+      {/* Colours come from theme tokens (style, so CSS variables apply). */}
       <circle
         cx="50"
         cy="50"
         r={r}
-        stroke={color}
+        style={{ stroke: "var(--color-track)" }}
+        strokeWidth="12"
+        fill="none"
+      />
+      <circle
+        cx="50"
+        cy="50"
+        r={r}
+        style={{ stroke: color, transition: "stroke-dashoffset .8s var(--ease-clay)" }}
         strokeWidth="12"
         fill="none"
         strokeDasharray={c}
         strokeDashoffset={c * (1 - v / 100)}
         strokeLinecap="round"
         transform="rotate(-90 50 50)"
-        style={{ transition: "stroke-dashoffset .8s var(--ease-clay)" }}
       />
       <text
         x="50"
@@ -1168,7 +1231,7 @@ export function Ring({
         textAnchor="middle"
         className="f-num"
         fontSize={suffix ? 20 : 22}
-        fill="#2a1a2c"
+        style={{ fill: "var(--color-ink)" }}
       >
         {Math.round(value)}
         {suffix}
@@ -1196,7 +1259,7 @@ export const Tube = ({
       {showPct && <span className="f-num shrink-0 whitespace-nowrap">{Math.round(value)}%</span>}
     </div>
     <div
-      className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_#2a1a2c1a]"
+      className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_var(--shadow-inset)]"
       {...(decorative
         ? { "aria-hidden": true }
         : {
@@ -1219,29 +1282,92 @@ export const Tube = ({
 );
 
 /* ---------- help & layout ---------- */
-export function Tip({ text }: { text: string }) {
-  const [o, setO] = useState(false);
-  const id = useId();
+/**
+ * A small "i" button that explains a card. The bubble is SpendSense's own (not the
+ * browser's title tooltip): it opens on hover, keyboard focus or tap, stays while
+ * the pointer moves onto it, closes with Escape, a second tap or a tap elsewhere,
+ * and is kept inside the screen on 320px phones. Screen readers hear the text.
+ */
+export function InfoTip({ label, text }: { label: string; text: string }) {
   const t = useT();
+  const id = useId();
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [place, setPlace] = useState({ shift: 0, above: false });
+  const wrap = useRef<HTMLSpanElement>(null);
+  const bubble = useRef<HTMLSpanElement>(null);
+  const open = hovered || pinned;
+  const close = () => {
+    setHovered(false);
+    setPinned(false);
+  };
+  // Keep the bubble on screen: shift it sideways, or show it above the button.
+  useLayoutEffect(() => {
+    if (!open || !bubble.current) return;
+    const margin = 12;
+    const rect = bubble.current.getBoundingClientRect();
+    const left = rect.left - place.shift;
+    const right = rect.right - place.shift;
+    const shift =
+      left < margin ? margin - left : right > innerWidth - margin ? innerWidth - margin - right : 0;
+    const anchor = wrap.current!.getBoundingClientRect();
+    const above =
+      anchor.bottom + rect.height + margin > innerHeight && anchor.top - rect.height - margin > 0;
+    if (shift !== place.shift || above !== place.above) setPlace({ shift, above });
+  }, [open, place]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && close();
+    const onPointer = (event: PointerEvent) =>
+      !wrap.current?.contains(event.target as Node) && close();
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open]);
   return (
-    <span className="relative inline-flex">
+    <span
+      ref={wrap}
+      className="relative inline-flex shrink-0"
+      onPointerEnter={(event) => event.pointerType === "mouse" && setHovered(true)}
+      onPointerLeave={(event) => event.pointerType === "mouse" && setHovered(false)}
+      onBlur={(event) => !wrap.current?.contains(event.relatedTarget as Node) && close()}
+    >
       <button
-        aria-label={t("More info")}
-        aria-expanded={o}
-        aria-describedby={o ? id : undefined}
-        onClick={() => setO(!o)}
-        onBlur={() => setO(false)}
-        className="w-11 h-11 -m-2 inline-flex items-center justify-center text-info"
+        type="button"
+        aria-label={t("Info about {x}", { x: label })}
+        aria-expanded={open}
+        aria-describedby={open ? id : undefined}
+        onFocus={(event) => event.currentTarget.matches(":focus-visible") && setHovered(true)}
+        // A click or tap pins it open (even if hovering already showed it); the next closes it.
+        onClick={() => (pinned ? close() : setPinned(true))}
+        className="w-9 h-9 -my-1.5 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
       >
-        <Info size={18} />
+        <Info size={18} aria-hidden />
       </button>
-      {o && (
+      {/* Announced when opened with a tap or click (a tooltip alone is only read on focus). */}
+      <span className="sr-only" aria-live="polite">
+        {pinned ? text : ""}
+      </span>
+      {open && (
+        // The transparent padding bridges the gap, so the pointer can move onto the bubble.
         <span
+          ref={bubble}
           role="tooltip"
           id={id}
-          className="absolute z-20 top-9 left-1/2 -translate-x-1/2 w-60 clay rounded-inner! p-3 text-sm"
+          style={{ transform: `translateX(calc(-50% + ${place.shift}px))` }}
+          className={`absolute z-[35] left-1/2 w-64 max-w-[calc(100vw-24px)] ${place.above ? "bottom-full pb-2" : "top-full pt-2"}`}
         >
-          {text}
+          <span className="relative block clay rounded-inner! px-3.5 py-3 text-sm f-ui font-normal text-left text-ink normal-case tracking-normal">
+            <span
+              aria-hidden
+              style={{ left: `calc(50% - ${place.shift}px)` }}
+              className={`absolute w-3 h-3 -ml-1.5 rotate-45 bg-card border-cardline ${place.above ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"}`}
+            />
+            {text}
+          </span>
         </span>
       )}
     </span>
@@ -1430,7 +1556,7 @@ export function Sheet({
   const t = useT();
   return (
     <div
-      className="fixed inset-0 z-40 bg-ink/40 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-40 bg-scrim flex items-end md:items-center justify-center"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -1478,7 +1604,7 @@ export function Dialog({
   const ref = useModal(onClose);
   const t = useT();
   return (
-    <div className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
       <div
         ref={ref}
         role="alertdialog"
@@ -1491,7 +1617,7 @@ export function Dialog({
         <div className="flex gap-2 justify-end flex-wrap">
           <Button onClick={onClose}>{cancel ?? t("Cancel")}</Button>
           <button
-            className={`btn ${danger ? "bg-danger text-white!" : "clay-coral"}`}
+            className={`btn ${danger ? "bg-danger text-onstrong!" : "clay-coral"}`}
             onClick={async () => {
               if ((await onConfirm()) !== false) onClose();
             }}

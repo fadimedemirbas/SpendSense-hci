@@ -85,7 +85,7 @@ export function InstallHelp({ onClose }: { onClose: () => void }) {
           <ol className="m-0 p-0 list-none grid gap-2">
             {steps.map(([s, I], i) => (
               <li key={s} className="flex items-center gap-3">
-                <span className="f-num w-8 h-8 rounded-full bg-sun flex items-center justify-center shrink-0">
+                <span className="f-num w-8 h-8 rounded-full bg-sun text-onbright flex items-center justify-center shrink-0">
                   {i + 1}
                 </span>
                 <span className="flex-1">{t(s)}</span>
@@ -413,7 +413,7 @@ export function Onboarding({
                         set(e.target.value);
                         if (errField === "name") clearError();
                       }}
-                      className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+                      className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
                     />
                   </label>
                 ))}
@@ -435,7 +435,7 @@ export function Onboarding({
                   setP({ ...p, email: e.target.value });
                   if (errField === "email") clearError(); // no stale feedback
                 }}
-                className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+                className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
               />
             </label>
             <PasswordInput

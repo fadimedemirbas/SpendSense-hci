@@ -65,7 +65,7 @@ import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency
 import type { RatesState } from "./lib/rates";
 import { useRates } from "./lib/useRates";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
-import { RateNote, RatesUnavailable } from "./CurrencyTotals";
+import { RateNote, RatesUnavailable, useDisplayMoney } from "./CurrencyTotals";
 
 export const REASONS: [string, typeof Check][] = [
   ["need", HeartHandshake],
@@ -379,7 +379,7 @@ export function Decide() {
                             if (fieldErr.name) setFieldErr({ ...fieldErr, name: undefined });
                           }}
                           onKeyDown={enter}
-                          className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+                          className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
                         />
                       </label>
                       {fieldErr.name && (
@@ -406,7 +406,7 @@ export function Decide() {
                             }
                           }}
                           onKeyDown={enter}
-                          className="h-13 rounded-tile border border-line bg-white px-4 f-num text-xl"
+                          className="h-13 rounded-tile border border-line bg-field px-4 f-num text-xl"
                         />
                       </label>
                       {/* Matches the parser: digits, one comma or dot, up to 2 decimals. */}
@@ -747,6 +747,20 @@ function Analysis({
   const title = useRef<HTMLHeadingElement>(null);
   const exactAmount = useExactAmountIn();
   const amount = (n: number) => exactAmount(n, p.currency);
+  // The result shows the price in the display currency, the original underneath.
+  const money = useDisplayMoney();
+  const shownPrice = money.value(p.price, p.currency);
+  const priceLine = (
+    <>
+      <p className="f-num text-xl m-0 mt-1">
+        {money.text(p.price, p.currency)}{" "}
+        <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
+      </p>
+      {shownPrice.ok && shownPrice.converted && (
+        <p className="f-num text-sm text-soft m-0">{amount(p.price)}</p>
+      )}
+    </>
+  );
   const waitHelpId = useId();
   useEffect(() => {
     if (focusTitle) title.current?.focus();
@@ -776,9 +790,7 @@ function Analysis({
             <h1 ref={title} tabIndex={-1} className="text-3xl font-bold m-0">
               {p.name}
             </h1>
-            <p className="f-num text-xl m-0 mt-1">
-              {amount(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
-            </p>
+            {priceLine}
           </div>
           {context.reason === "missing-rate" ? (
             <RatesUnavailable loading={rates.loading} message={blocked(context.reason)} />
@@ -870,14 +882,17 @@ function Analysis({
     <>
       <Say expr="calm">{t("Here's the context. It's your call.")}</Say>
       <Card className="flex flex-wrap gap-5 items-center">
-        <Ring value={a.fit} size={128} label={`${t("Overall fit")} ${a.fit}/100`} color="#6b4fa3" />
+        <Ring
+          value={a.fit}
+          size={128}
+          label={`${t("Overall fit")} ${a.fit}/100`}
+          color="var(--color-violet)"
+        />
         <div className="flex-1 min-w-0 basis-52">
           <h1 ref={title} tabIndex={-1} className="text-3xl font-bold m-0">
             {p.name}
           </h1>
-          <p className="f-num text-xl m-0 mt-1">
-            {amount(p.price)} <span className="f-ui text-base text-soft">· {t(p.cat)}</span>
-          </p>
+          {priceLine}
           {/* The explanation below stays visible; the duplicate info tooltip was removed. */}
           <p className="m-0 mt-2">
             {t("Overall fit")} <b className="f-num">{a.fit}/100</b>

@@ -1,4 +1,4 @@
-import type { Decision, Entry, Goal, Profile, Purchase, Waiting } from "../store";
+import type { Decision, Entry, Goal, Holding, Profile, Purchase, Waiting } from "../store";
 import { isCurrency, type Currency } from "./currency.ts";
 import type { AnalysisRecord, Workspace } from "./workspace";
 
@@ -106,12 +106,15 @@ export function assertLoadedWorkspace(
  *   explicit currencies; saves schemaVersion 3 with a currency on every record.
  * Storage support alone is not enough: a build may claim 3 only together with
  * screens that show USD/EUR correctly (Phase 5).
+ * - 4: protocol 3 plus holdings (migration 202611010001). Loads
+ *   spendsense_load_workspace_v4(uuid, 4); saves schemaVersion 4 with holdings.
+ *   Protocol 1 and 3 never see holdings and their saves leave them untouched.
  */
-export type ClientProtocol = 1 | 3;
-// Every screen shows each record in its own currency (Phase 5), so this build is
-// currency-aware. It needs migration 202610280001 in the database; without it the
-// load RPC is missing and the app stops with "setup not ready" (no fallback to 1).
-export const CLIENT_PROTOCOL: ClientProtocol = 3;
+export type ClientProtocol = 1 | 3 | 4;
+// 4: protocol 3 plus savings holdings (migration 202611010001). Every screen shows
+// each record in its own currency and Money shows holdings. Without that migration
+// the load RPC is missing and the app stops with "setup not ready" (no fallback).
+export const CLIENT_PROTOCOL: ClientProtocol = 4;
 
 /** The load RPC for a protocol. Anything else fails before a request is made. */
 export function workspaceLoadRequest(protocol: number, userId: string) {
@@ -121,6 +124,11 @@ export function workspaceLoadRequest(protocol: number, userId: string) {
     return {
       fn: "spendsense_load_workspace_v3",
       args: { expected_user_id: userId, client_protocol: 3 },
+    };
+  if (protocol === 4)
+    return {
+      fn: "spendsense_load_workspace_v4",
+      args: { expected_user_id: userId, client_protocol: 4 },
     };
   throw new WorkspaceProtocolError("SS_PROTOCOL_UNSUPPORTED", "Unsupported client protocol.");
 }
@@ -134,6 +142,8 @@ export interface LoadedWorkspace {
   waiting: Legacy<Waiting>[];
   decisions: Legacy<Decision>[];
   analyses: (Omit<AnalysisRecord, "purchase"> & { purchase: Legacy<Purchase> })[];
+  /** Only in protocol 4 responses. */
+  holdings?: Holding[];
 }
 
 const optionalCurrency = (value: unknown) => value === undefined || isCurrency(value);
@@ -166,8 +176,16 @@ function matchesProtocol(
     return loadedCurrencies(workspace).every(
       (currency) => currency === undefined || currency === "TRY",
     );
+  if (
+    protocol === 4 &&
+    !(
+      Array.isArray(workspace.holdings) &&
+      workspace.holdings.every((holding) => holding && typeof holding.id === "string")
+    )
+  )
+    return false;
   return (
-    envelope.protocol === 3 &&
+    envelope.protocol === protocol &&
     isCurrency(workspace.profile.displayCurrency) &&
     [...workspace.entries, ...workspace.goals].every((record) => isCurrency(record.currency))
   );
@@ -184,6 +202,7 @@ function withCurrency<T extends { currency?: Currency }>(record: T): T & { curre
  */
 export function normalizeLoadedWorkspace(loaded: LoadedWorkspace): Workspace {
   return {
+    holdings: loaded.holdings ?? [],
     profile: { ...loaded.profile, displayCurrency: loaded.profile.displayCurrency ?? "TRY" },
     entries: loaded.entries.map(withCurrency),
     goals: loaded.goals.map(withCurrency),
@@ -195,7 +214,10 @@ export function normalizeLoadedWorkspace(loaded: LoadedWorkspace): Workspace {
   };
 }
 
-export type ProtocolErrorCode = "SS_CURRENCY_CONTRACT" | "SS_PROTOCOL_UNSUPPORTED";
+export type ProtocolErrorCode =
+  | "SS_CURRENCY_CONTRACT"
+  | "SS_PROTOCOL_UNSUPPORTED"
+  | "SS_HOLDINGS_UNSUPPORTED";
 /** A save refused in the browser before any request; nothing was sent or changed. */
 export class WorkspaceProtocolError extends Error {
   readonly code: ProtocolErrorCode;
@@ -222,7 +244,8 @@ function currencies(workspace: Workspace): unknown[] {
  * protocol. Every entry, goal and purchase and the profile's displayCurrency must
  * carry a valid currency; nothing is filled in here, so a missing value is a bug
  * that fails the save instead of being saved as lira.
- * - 3: schemaVersion 3.
+ * - 4: schemaVersion 4, with holdings and their deletions.
+ * - 3: schemaVersion 3. Holdings are not part of it, so there must be none.
  * - 1: schemaVersion 1, allowed only while everything is TRY. Anything else is
  *   refused, never stripped or downgraded, so currency information is not lost.
  * - anything else: refused.
@@ -233,9 +256,14 @@ export function prepareVersionedWorkspaceSave(
   ownerId: string,
   protocol: number,
 ) {
-  if (protocol !== 1 && protocol !== 3)
+  if (protocol !== 1 && protocol !== 3 && protocol !== 4)
     throw new WorkspaceProtocolError("SS_PROTOCOL_UNSUPPORTED", "Unsupported client protocol.");
   const prepared = prepareWorkspaceSave(previous, next, ownerId);
+  if (protocol !== 4 && prepared.workspace.holdings.length > 0)
+    throw new WorkspaceProtocolError(
+      "SS_HOLDINGS_UNSUPPORTED",
+      "This app version cannot save holdings.",
+    );
   const { workspace } = prepared;
   const values = currencies(workspace);
   const display = workspace.profile.displayCurrency;
@@ -244,12 +272,27 @@ export function prepareVersionedWorkspaceSave(
       "SS_CURRENCY_CONTRACT",
       "Every amount needs a valid currency before saving.",
     );
-  if (protocol === 3)
-    return { workspace, payload: { ...prepared.payload, schemaVersion: 3 as const } };
+  if (protocol === 4) {
+    const kept = new Set(workspace.holdings.map((holding) => holding.id));
+    return {
+      workspace,
+      payload: {
+        ...prepared.payload,
+        schemaVersion: 4 as const,
+        deletions: {
+          ...prepared.payload.deletions,
+          holdings: previous.holdings.filter((h) => !kept.has(h.id)).map((h) => h.id),
+        },
+      },
+    };
+  }
+  // Older protocols do not know holdings: they are left out of the snapshot.
+  const { holdings: _holdings, ...older } = prepared.payload;
+  if (protocol === 3) return { workspace, payload: { ...older, schemaVersion: 3 as const } };
   if (display !== "TRY" || values.some((currency) => currency !== "TRY"))
     throw new WorkspaceProtocolError(
       "SS_PROTOCOL_UNSUPPORTED",
       "This app version can only save TRY amounts.",
     );
-  return { workspace, payload: { ...prepared.payload, schemaVersion: 1 as const } };
+  return { workspace, payload: { ...older, schemaVersion: 1 as const } };
 }

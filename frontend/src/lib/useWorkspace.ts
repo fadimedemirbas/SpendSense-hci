@@ -151,6 +151,7 @@ export function useWorkspace(userId: string, email: string) {
     setGoals: setter("goals"),
     setWaiting: setter("waiting"),
     setDecisions: setter("decisions"),
+    setHoldings: setter("holdings"),
     setProfile: setter("profile"),
   };
 }

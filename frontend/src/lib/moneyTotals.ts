@@ -1,6 +1,6 @@
-// Money and Goals in their own currencies, with totals in the display currency.
-// Pure functions only. Records are never converted in place: a conversion is a
-// view, computed from one validated rate snapshot and clearly approximate.
+// Money in the display currency. Pure functions only. Records are never converted
+// in place: every record keeps its original amount and currency in storage, and a
+// conversion is a view computed from one validated TCMB rate snapshot.
 // Different currencies are never added without valid rates; the caller gets the
 // separate per-currency subtotals instead.
 import {
@@ -20,16 +20,12 @@ import type { Entry, Goal } from "../store.ts";
 export type AmountMode = "symbol" | "code";
 
 /**
- * Whole-unit amount in its own currency, matching the app-wide fmt() style
- * (₺1.250 / 1.250 TRY): for TRY the output is identical to fmt().
+ * Every amount in the app, with Turkish separators: two decimals when there are
+ * kuruş/cents (₺12.345,67, ₺129,50) and none for whole amounts (₺52.340), in
+ * "symbol" or "code" (52.340 TRY) mode. Rounded half away from zero to the cent.
  */
-export function formatWholeAmount(
-  amount: number,
-  currency: Currency,
-  mode: AmountMode,
-  approximate = false,
-): string {
-  return formatMoney(amount, currency, "tr", { display: mode, fraction: "none", approximate });
+export function formatAmount(amount: number, currency: Currency, mode: AmountMode): string {
+  return formatMoney(amount, currency, "tr", { display: mode, fraction: "auto" });
 }
 
 /** The unit shown next to an amount field: "₺" / "TRY", "$" / "USD". */
@@ -164,36 +160,30 @@ export function goalProgress(goal: Pick<Goal, "saved" | "target">): number {
   return goal.target > 0 ? Math.round((goal.saved / goal.target) * 100) : 0;
 }
 
-export type GoalEquivalent =
+export type DisplayValue =
   | {
-      readonly kind: "approximate";
-      readonly saved: number;
-      readonly target: number;
+      readonly ok: true;
+      /** The amount in the display currency. */
+      readonly amount: number;
       readonly currency: Currency;
-      readonly rate: RateInfo;
+      /** True when a rate was used (the record is in another currency). */
+      readonly converted: boolean;
     }
-  | { readonly kind: "unavailable" };
+  /** Another currency and no usable rates: show the original amount instead. */
+  | { readonly ok: false };
 
-/**
- * A goal's saved/target amounts shown approximately in `target`, or null when the
- * goal is already in that currency. The goal itself is never changed.
- */
-export function goalEquivalent(
-  goal: Pick<Goal, "saved" | "target" | "currency">,
+/** One record's amount shown in `target`, converted only with validated rates. */
+export function displayValue(
+  amount: number,
+  currency: Currency,
   target: Currency,
   view: RatesView,
-): GoalEquivalent | null {
-  if (goal.currency === target) return null;
+): DisplayValue {
+  if (currency === target) return { ok: true, amount, currency, converted: false };
   const usable = usableRates(view);
-  if (!usable) return { kind: "unavailable" };
-  const saved = convertAmount(goal.saved, goal.currency, target, usable.rates);
-  const goalTarget = convertAmount(goal.target, goal.currency, target, usable.rates);
-  if (!saved.ok || !goalTarget.ok) return { kind: "unavailable" };
-  return {
-    kind: "approximate",
-    saved: saved.amount,
-    target: goalTarget.amount,
-    currency: target,
-    rate: usable.rate,
-  };
+  if (!usable) return { ok: false };
+  const result = convertAmount(amount, currency, target, usable.rates);
+  return result.ok
+    ? { ok: true, amount: result.amount, currency: target, converted: true }
+    : { ok: false };
 }

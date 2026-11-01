@@ -33,16 +33,22 @@ import {
   Segmented,
   Sheet,
   Tube,
+  InfoTip,
   useT,
   useToast,
-  fmt,
   fmtIn,
   curLabelIn,
 } from "./ui";
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
-import { GoalEquivalentNote, NeedsRates, RateNote } from "./CurrencyTotals";
+import {
+  ConversionNote,
+  GoalAmounts,
+  NeedsRates,
+  RateNote,
+  useDisplayMoney,
+} from "./CurrencyTotals";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
 import { entriesInMonth, goalProgress, goalTargetIdeas, needsConversion } from "./lib/moneyTotals";
 import { averagePriceInTry, monthView, spendingView } from "./lib/summaries";
@@ -63,6 +69,7 @@ const daysUntil = (iso: string) =>
 export function HomePage({ firstName }: { firstName?: string }) {
   const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide, profile } = useApp();
   const t = useT();
+  const money = useDisplayMoney();
   // Each record keeps its own currency; totals are shown in the display currency and
   // only converted with validated rates (requested only when something needs them).
   const currency = profile.displayCurrency;
@@ -94,33 +101,30 @@ export function HomePage({ firstName }: { firstName?: string }) {
           : t("Hi there! Let's look at your month together.")}
       </Say>
       <Card>
-        <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
+          <InfoTip
+            label={t("Left this month")}
+            text={t(
+              "Income minus spending in this calendar month, in your display currency. Amounts in other currencies are converted with the latest TCMB rates.",
+            )}
+          />
+        </div>
         {month.kind === "exact" || month.kind === "approximate" ? (
           <>
             <CountUp
               value={month.income - month.spent}
               currency={month.currency}
-              approximate={month.kind === "approximate"}
               className="text-5xl block my-2"
             />
             <div className="flex flex-wrap gap-x-6 gap-y-1">
               <span className="text-leaf flex items-center gap-1">
                 <ArrowUp size={16} aria-hidden />
-                {t("Income")}{" "}
-                <CountUp
-                  value={month.income}
-                  currency={month.currency}
-                  approximate={month.kind === "approximate"}
-                />
+                {t("Income")} <CountUp value={month.income} currency={month.currency} />
               </span>
               <span className="flex items-center gap-1">
                 <ArrowDown size={16} aria-hidden />
-                {t("Spent")}{" "}
-                <CountUp
-                  value={month.spent}
-                  currency={month.currency}
-                  approximate={month.kind === "approximate"}
-                />
+                {t("Spent")} <CountUp value={month.spent} currency={month.currency} />
               </span>
             </div>
             <div className="mt-4">
@@ -187,10 +191,21 @@ export function HomePage({ firstName }: { firstName?: string }) {
               suffix="%"
             />
             <div>
-              <h2 className="text-xl font-bold m-0">{goal.name}</h2>
-              <p className="f-num m-0">
-                {fmtIn(goal.saved, goal.currency)} / {fmtIn(goal.target, goal.currency)}
-              </p>
+              <div className="flex items-center gap-1">
+                <h2 className="text-xl font-bold m-0">{goal.name}</h2>
+                <InfoTip
+                  label={goal.name}
+                  text={t(
+                    "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.",
+                  )}
+                />
+              </div>
+              <GoalAmounts
+                saved={goal.saved}
+                target={goal.target}
+                currency={goal.currency}
+                money={money}
+              />
               <p className="f-voice m-0 mt-1">
                 {t(
                   goal.saved > 0
@@ -203,7 +218,15 @@ export function HomePage({ firstName }: { firstName?: string }) {
         )}
         <Card>
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold m-0">{t("Up for review")}</h2>
+            <div className="flex items-center gap-1">
+              <h2 className="text-xl font-bold m-0">{t("Up for review")}</h2>
+              <InfoTip
+                label={t("Up for review")}
+                text={t(
+                  "Purchases you decided to wait on. On their review date you can buy, keep waiting or skip.",
+                )}
+              />
+            </div>
             <Clock size={18} aria-hidden />
           </div>
           {due.length ? (
@@ -410,7 +433,7 @@ function GoalFlow({
         aria-describedby={err ? "goal-flow-error" : undefined}
         onChange={(e) => /^\d{0,8}$/.test(e.target.value) && setG({ ...g, [k]: +e.target.value })}
         onKeyDown={(e) => e.key === "Enter" && void next()}
-        className="h-14 rounded-tile border border-line bg-white px-4 f-num text-2xl"
+        className="h-14 rounded-tile border border-line bg-field px-4 f-num text-2xl"
       />
     </label>
   );
@@ -454,7 +477,7 @@ function GoalFlow({
                 aria-describedby={err ? "goal-flow-error" : undefined}
                 onChange={(e) => setG({ ...g, name: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && void next()}
-                className="h-14 rounded-tile border border-line bg-white px-4 font-sans text-lg"
+                className="h-14 rounded-tile border border-line bg-field px-4 font-sans text-lg"
               />
             </label>
             <div className="flex flex-wrap gap-2">
@@ -510,7 +533,7 @@ function GoalFlow({
                 aria-invalid={!!err}
                 aria-describedby={err ? "goal-flow-error" : undefined}
                 onChange={(e) => setG({ ...g, date: e.target.value || undefined })}
-                className="h-14 rounded-tile border border-line bg-white px-4 font-sans"
+                className="h-14 rounded-tile border border-line bg-field px-4 font-sans"
               />
             </label>
             <div className="flex flex-wrap gap-2">
@@ -579,6 +602,7 @@ export function Goals() {
   const { goals, setGoals, profile } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const [f, setF] = useState<GStatus>("Active");
   const [form, setForm] = useState<Goal | null>(null);
   const [add, setAdd] = useState<Goal | null>(null);
@@ -639,6 +663,7 @@ export function Goals() {
         onChange={setF}
         options={(["Active", "Completed", "Archived"] as GStatus[]).map((s) => [s, t(s)])}
       />
+      <ConversionNote money={money} currencies={goals.map((g) => g.currency)} />
       {note && (
         <Say expr="calm" size={56} live>
           {note}
@@ -657,7 +682,15 @@ export function Goals() {
                 <div className="flex gap-4 items-center">
                   <Ring value={pct} label={`${g.name} ${pct}%`} suffix="%" />
                   <div className="min-w-0">
-                    <h2 className="text-xl font-bold m-0">{g.name}</h2>
+                    <div className="flex items-center gap-1">
+                      <h2 className="text-xl font-bold m-0">{g.name}</h2>
+                      <InfoTip
+                        label={g.name}
+                        text={t(
+                          "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.",
+                        )}
+                      />
+                    </div>
                     <Pill
                       tone={
                         g.status === "Completed"
@@ -669,14 +702,17 @@ export function Goals() {
                     >
                       {t(g.status)}
                     </Pill>
-                    <p className="f-num m-0 mt-1">
-                      {fmtIn(g.saved, g.currency)} / {fmtIn(g.target, g.currency)}
-                    </p>
+                    <GoalAmounts
+                      saved={g.saved}
+                      target={g.target}
+                      currency={g.currency}
+                      money={money}
+                      className="mt-1"
+                    />
                     <p className="text-sm text-soft m-0">
-                      {t("Remaining")} {fmtIn(Math.max(0, g.target - g.saved), g.currency)}
+                      {t("Remaining")} {money.text(Math.max(0, g.target - g.saved), g.currency)}
                       {g.date && ` · ${new Date(g.date).toLocaleDateString()}`}
                     </p>
-                    <GoalEquivalentNote goal={g} currency={profile.displayCurrency} />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -750,7 +786,7 @@ export function Goals() {
                 inputMode="numeric"
                 value={amt}
                 onChange={(e) => /^\d{0,8}$/.test(e.target.value) && setAmt(e.target.value)}
-                className="h-13 rounded-tile border border-line bg-white px-4 f-num text-2xl"
+                className="h-13 rounded-tile border border-line bg-field px-4 f-num text-2xl"
               />
             </label>
             {err && (
@@ -797,6 +833,7 @@ export function WaitingPage() {
   const { waiting, decisions, entries, updateWorkspace, setTab, openDecide } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const act = async (id: string, d: DecisionKind) => {
     const w = waiting.find((x) => x.id === id)!;
     const pw = waiting,
@@ -823,6 +860,7 @@ export function WaitingPage() {
   return (
     <>
       <PageHead title={t("Waiting List")} />
+      <ConversionNote money={money} currencies={waiting.map((w) => w.currency)} />
       {waiting.length === 0 ? (
         <Card>
           <Empty expr="calm" text={t("We can revisit this whenever you're ready.")} />
@@ -838,9 +876,17 @@ export function WaitingPage() {
                   <Clock size={20} aria-hidden />
                 </span>
                 <div className="flex-1 basis-40">
-                  <h2 className="text-xl font-bold m-0">{w.name}</h2>
+                  <div className="flex items-center gap-1">
+                    <h2 className="text-xl font-bold m-0">{w.name}</h2>
+                    <InfoTip
+                      label={w.name}
+                      text={t(
+                        "Fit is the overall score from when you analyzed this purchase. When it is ready to revisit, decide again with what you know now.",
+                      )}
+                    />
+                  </div>
                   <p className="f-num m-0">
-                    {fmtIn(w.price, w.currency)}{" "}
+                    {money.text(w.price, w.currency)}{" "}
                     <span className="f-ui text-sm text-soft">
                       · {t("Fit")} {w.fit}/100
                     </span>
@@ -884,11 +930,13 @@ export function HistoryPage() {
   const { decisions, setDecisions } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const [f, setF] = useState<"all" | DecisionKind>("all");
   const list = decisions.filter((d) => f === "all" || d.decision === f);
   return (
     <>
       <PageHead title={t("History")} />
+      <ConversionNote money={money} currencies={decisions.map((d) => d.currency)} />
       <Segmented
         label={t("Filter")}
         value={f}
@@ -921,7 +969,7 @@ export function HistoryPage() {
               </Pill>
             </div>
             <p className="m-0 text-sm text-soft">
-              <span className="f-num text-ink">{fmtIn(d.price, d.currency)}</span> ·{" "}
+              <span className="f-num text-ink">{money.text(d.price, d.currency)}</span> ·{" "}
               {dayLabel(d.date, t)} · {t("Fit")} <span className="f-num">{d.fit}</span>
             </p>
             <Expand title={t("How do you feel about this decision now?")}>
@@ -991,12 +1039,7 @@ export function Insights() {
   const currency = profile.displayCurrency;
   const rates = useRates(needsConversion(entriesInMonth(entries, today()), currency));
   const sv = spendingView(entries, currency, rates, today());
-  const money = (v: number) =>
-    sv.kind === "ok" && sv.rate
-      ? fmtIn(v, currency, true)
-      : currency === "TRY"
-        ? fmt(v)
-        : fmtIn(v, currency);
+  const money = (v: number) => fmtIn(v, currency);
   const chartUnavailable =
     "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.";
   const all = [...decisions, ...waiting];
@@ -1018,7 +1061,15 @@ export function Insights() {
     <>
       <PageHead title={t("Insights")} />
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("Spending by category")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("Spending by category")}</h2>
+          <InfoTip
+            label={t("Spending by category")}
+            text={t(
+              "Your five largest expense categories this month and their share of all spending.",
+            )}
+          />
+        </div>
         {sv.kind === "ok" ? (
           sv.byCat.length ? (
             <>
@@ -1045,7 +1096,15 @@ export function Insights() {
         )}
       </Card>
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("Income vs. expenses")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("Income vs. expenses")}</h2>
+          <InfoTip
+            label={t("Income vs. expenses")}
+            text={t(
+              "This month's total income and total spending side by side. The longer bar sets the scale.",
+            )}
+          />
+        </div>
         {sv.kind === "ok" ? (
           <>
             <Tube
@@ -1077,7 +1136,15 @@ export function Insights() {
         )}
       </Card>
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("Decision patterns")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("Decision patterns")}</h2>
+          <InfoTip
+            label={t("Decision patterns")}
+            text={t(
+              "How often each feeling and reason came up in your decisions and waiting items.",
+            )}
+          />
+        </div>
         {all.length < 3 ? (
           <Empty expr="thinking" text={t("A few more decisions and patterns will appear.")} />
         ) : (
@@ -1122,7 +1189,13 @@ export function Insights() {
         )}
       </Card>
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("How decisions felt later")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("How decisions felt later")}</h2>
+          <InfoTip
+            label={t("How decisions felt later")}
+            text={t("Your average later rating (1–5), grouped by how you felt when you decided.")}
+          />
+        </div>
         {byFeeling.length < 2 ? (
           <Empty
             expr="thinking"

@@ -104,6 +104,29 @@ Follow [the runbook](../docs/multi-currency-migration-runbook.md); in short:
   run automatically and refuses to run once any USD/EUR data or non-TRY display
   currency exists. After that point recover forward, never by dropping columns.
 
+## Savings holdings migration (`202611010001`)
+
+`migrations/202611010001_spendsense_holdings.sql` requires `202610280001` and
+is prepared and tested locally only; it has **not** been applied anywhere. The
+current frontend uses client protocol 4 and needs it: without it the app stops
+with "setup not ready".
+
+- **Table:** `spendsense_savings_holdings` keeps savings without a goal (salary
+  surplus, gold, silver, crypto, other) exactly as entered: an amount in
+  TRY/USD/EUR, grams or a coin quantity (up to 8 decimals), plus an optional
+  purchase price per unit kept only as a reminder. Nothing is valued at market
+  prices. RLS is forced with the same owner-only policy as the other tables.
+- **Client protocol 4:** `spendsense_load_workspace_v4(uuid, 4)` returns the v3
+  response plus `holdings`; saves with `schemaVersion` 4 must include `holdings`
+  and `deletions.holdings`. Protocol 1 and 3 clients never see holdings and
+  their saves leave them untouched.
+- **Role and ledger:** run it like `202610280001` (SQL Editor, `postgres`). It
+  refuses to run before `202610280001` or twice, and records itself in
+  `spendsense_meta.schema_migrations`.
+- **Rollback:** `rollback/202611010001_spendsense_holdings_rollback.sql` restores
+  the three `202610280001` functions verbatim and drops the table. It refuses to
+  run while any holding exists.
+
 ## Auth Configuration
 
 Keep email/password authentication enabled on the existing project. Configure
