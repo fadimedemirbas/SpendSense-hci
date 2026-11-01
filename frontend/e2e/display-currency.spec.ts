@@ -55,8 +55,12 @@ test("Settings saves USD as the display currency and Home switches to dollars", 
 
   // Home now totals the month in dollars: (50.000 − 6.150) / 40 = 1.096,25.
   await go(page, "Home");
-  await expect(page.getByText("≈ $1.096", { exact: true })).toBeVisible();
-  await expect(page.getByText("≈ $1.250", { exact: true })).toBeVisible();
+  await expect(page.getByText("$1.096,25", { exact: true })).toBeVisible();
+  await expect(page.getByText("$1.250", { exact: true })).toBeVisible();
+  // Earlier records are shown in dollars too, with their original amount underneath.
+  await expect(page.getByText("−$31,25", { exact: true })).toBeVisible(); // ₺1.250 / 40
+  await expect(page.getByText("−₺1.250", { exact: true })).toBeVisible();
+  await expect(page.getByText(/≈/)).toHaveCount(0);
   await page.reload();
   await go(page, "Settings");
   await expect(

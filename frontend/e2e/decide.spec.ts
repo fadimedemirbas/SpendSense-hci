@@ -148,8 +148,8 @@ test("the mobile receipt toggle has a readable name and controls its panel", asy
   await price(page).fill("2500");
   await next(page);
   const toggle = page.getByRole("button", {
-    // English Decide amounts use English separators since Batch 3 (D2).
-    name: /^Purchase receipt: Headphones · ₺2,500\s*, Step 2 of 5$/,
+    // Every amount uses Turkish separators (decimals only for kuruş), in both languages.
+    name: /^Purchase receipt: Headphones · ₺2\.500\s*, Step 2 of 5$/,
   });
   await expect(toggle).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -462,9 +462,9 @@ async function toResult(page: Page, productName: string, typedPrice: string) {
 }
 
 for (const [lang, typed, shown] of [
-  ["en", "129.95", "₺129.95"],
-  ["en", "129,5", "₺129.50"],
-  ["en", "2500", "₺2,500"],
+  ["en", "129.95", "₺129,95"],
+  ["en", "129,5", "₺129,50"],
+  ["en", "2500", "₺2.500"],
   ["tr", "129,95", "₺129,95"],
   ["tr", "2500", "₺2.500"],
 ] as const) {
@@ -496,7 +496,7 @@ test("the exact price reaches the result screen and is saved unrounded", async (
   await page.setViewportSize({ width: 390, height: 844 });
   await openDecide(page);
   await toResult(page, "Kettle", "129,95");
-  await expect(page.locator("main p.f-num").first()).toHaveText(/^₺129\.95 · Shopping$/);
+  await expect(page.locator("main p.f-num").first()).toHaveText(/^₺129,95 · Shopping$/);
   await page.getByRole("button", { name: "Wait", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Waiting List", exact: true })).toBeVisible();
   const saved = await workspace(request);

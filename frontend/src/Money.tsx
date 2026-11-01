@@ -20,7 +20,7 @@ import type { Currency } from "./lib/currency";
 import { parseAmount } from "./lib/currency";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
-import { MoneySummary } from "./CurrencyTotals";
+import { ConversionNote, DisplayAmount, MoneySummary, useDisplayMoney } from "./CurrencyTotals";
 
 export function dayLabel(iso: string, t: (s: string) => string) {
   const y = new Date();
@@ -35,6 +35,7 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
   const { setQuickAdd, entries, setEntries } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const I = catIcon(e.type, e.cat);
   return (
     <li className="entry-row flex items-center gap-3 py-3 border-t border-cardline first:border-0">
@@ -49,12 +50,14 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
           {t(e.cat)} · {dayLabel(e.date, t)}
         </span>
       </span>
-      <span
+      {/* Shown in the display currency; the original amount underneath if converted. */}
+      <DisplayAmount
+        amount={e.amount}
+        currency={e.currency}
+        money={money}
+        sign={e.type === "income" ? "+" : "−"}
         className={`f-num text-lg shrink-0 whitespace-nowrap ${e.type === "income" ? "text-leaf" : ""}`}
-      >
-        {e.type === "income" ? "+" : "−"}
-        {fmtIn(e.amount, e.currency)}
-      </span>
+      />
       {actions && (
         <span className="entry-actions contents">
           <button
@@ -84,6 +87,7 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
 export function Money() {
   const { entries, setQuickAdd, profile } = useApp();
   const t = useT();
+  const money = useDisplayMoney();
   const [type, setType] = useState<"all" | EType>("all");
   const [cat, setCat] = useState("all");
   const cats =
@@ -149,6 +153,7 @@ export function Money() {
         </label>
       </div>
       {entries.length > 0 && <MoneySummary entries={entries} currency={profile.displayCurrency} />}
+      <ConversionNote money={money} currencies={entries.map((e) => e.currency)} />
       {Object.keys(groups).length === 0 ? (
         <Card>
           <Empty

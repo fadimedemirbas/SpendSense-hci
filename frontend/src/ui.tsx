@@ -9,10 +9,9 @@ import {
   type ButtonHTMLAttributes,
 } from "react";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
-import { formatExactAmount } from "./lib/money";
 import { nextSegmentIndex } from "./lib/segmented";
-import { formatMoney, type Currency } from "./lib/currency";
-import { amountUnit, formatWholeAmount } from "./lib/moneyTotals";
+import type { Currency } from "./lib/currency";
+import { amountUnit, formatAmount } from "./lib/moneyTotals";
 
 /* ---------- i18n ---------- */
 export type Lang = "en" | "tr";
@@ -64,8 +63,9 @@ const TR: Record<string, string> = {
   Left: "Kalan",
   "Totals in {c}": "{c} cinsinden toplamlar",
   "By currency": "Para birimine göre",
-  "Approximate. Converted with TCMB rates from {date}.":
-    "Yaklaşık değer. {date} tarihli TCMB kurlarıyla çevrildi.",
+  "Converted with TCMB rates from {date}.": "{date} tarihli TCMB kurlarıyla çevrildi.",
+  "Exchange rates are unavailable right now, so amounts are shown in their own currency.":
+    "Döviz kurları şu anda alınamıyor, bu yüzden tutarlar kendi para birimlerinde gösteriliyor.",
   "These rates may be out of date.": "Bu kurlar güncel olmayabilir.",
   "Exchange rates are unavailable right now, so amounts in different currencies are not added together.":
     "Döviz kurları şu anda alınamıyor, bu yüzden farklı para birimlerindeki tutarlar toplanmıyor.",
@@ -75,9 +75,7 @@ const TR: Record<string, string> = {
   "A saved entry keeps its original currency.": "Kaydedilen bir işlem kendi para birimini korur.",
   "Goal currency": "Hedef para birimi",
   "A goal keeps the currency it was created in.": "Bir hedef, oluşturulduğu para birimini korur.",
-  "About {saved} of {target} in {c}.": "{c} cinsinden yaklaşık {target} içinden {saved}.",
-  "Exchange rates are unavailable, so this goal is shown in {c} only.":
-    "Döviz kurları alınamadığı için bu hedef yalnızca {c} cinsinden gösteriliyor.",
+
   "Exchange rates are unavailable right now, so what's left this month can't be calculated. Amounts are shown by currency.":
     "Döviz kurları şu anda alınamıyor, bu yüzden bu ay kalan tutar hesaplanamıyor. Tutarlar para birimine göre gösteriliyor.",
   "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.":
@@ -94,8 +92,6 @@ const TR: Record<string, string> = {
     "Binlik ayırıcı olmadan yalnızca rakam gir. Sent için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
   "Transaction currency": "İşlem para birimi",
   Currency: "Para birimi",
-  "Approximate amount": "Yaklaşık tutar",
-  "Approximate, converted with TCMB rates.": "TCMB kurlarıyla yaklaşık olarak çevrildi.",
   "TCMB bulletin {date}": "TCMB {date} bülteni",
   "Exchange rates may be outdated (TCMB bulletin {date}).":
     "Döviz kurları güncel olmayabilir (TCMB {date} bülteni).",
@@ -787,27 +783,15 @@ export const curLabel = () => (curMode === "symbol" ? "₺" : "TRY");
 // Range labels are written with ₺; show them in the chosen display mode.
 export const rangeLabel = (r: string) =>
   curMode === "symbol" || !r.includes("₺") ? r : `${r.replace("₺", "")} TRY`;
-export const fmt = (n: number) => {
-  const s = Math.round(Math.abs(n)).toLocaleString("tr-TR");
-  return (n < 0 ? "−" : "") + (curMode === "symbol" ? "₺" + s : s + " TRY");
-};
-/** An amount in its own currency, in the same style as fmt() (identical for TRY). */
-export const fmtIn = (n: number, currency: Currency, approximate = false) =>
-  formatWholeAmount(n, currency, curMode, approximate);
+// Every amount, Turkish separators: ₺12.345,67 / 12.345,67 TRY, whole amounts as ₺52.340.
+export const fmt = (n: number) => formatAmount(n, "TRY", curMode);
+/** An amount in `currency`, in the same format as fmt(). */
+export const fmtIn = (n: number, currency: Currency) => formatAmount(n, currency, curMode);
 /** Unit for an amount field in `currency`: "₺" / "TRY", "$" / "USD". */
 export const curLabelIn = (currency: Currency) => amountUnit(currency, curMode);
-/** Decide only: keeps kuruş and uses the UI language's separators (fmt() is unchanged). */
-export function useExactAmount() {
-  const { lang } = useContext(LangCtx);
-  return (n: number) => formatExactAmount(n, lang, curMode);
-}
-/** Decide: the exact amount in its own currency; TRY is formatted exactly as by useExactAmount. */
+/** Decide: the exact amount in its own currency (same format as fmtIn). */
 export function useExactAmountIn() {
-  const { lang } = useContext(LangCtx);
-  return (n: number, currency: Currency) =>
-    currency === "TRY"
-      ? formatExactAmount(n, lang, curMode)
-      : formatMoney(n, currency, lang, { display: curMode });
+  return (n: number, currency: Currency) => fmtIn(n, currency);
 }
 
 /* ---------- display ---------- */
@@ -944,14 +928,11 @@ export function CountUp({
   value,
   className = "",
   currency = "TRY",
-  approximate = false,
 }: {
   value: number;
   className?: string;
   /** Currency of `value`; TRY (the default) renders exactly as before. */
   currency?: Currency;
-  /** Prefix "≈ " for a converted value. */
-  approximate?: boolean;
 }) {
   const [v, setV] = useState(value);
   const from = useRef(0);
@@ -972,11 +953,7 @@ export function CountUp({
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [value]);
-  return (
-    <span className={`f-num ${className}`}>
-      {currency === "TRY" && !approximate ? fmt(v) : fmtIn(v, currency, approximate)}
-    </span>
-  );
+  return <span className={`f-num ${className}`}>{fmtIn(v, currency)}</span>;
 }
 
 /* ---------- inputs ---------- */

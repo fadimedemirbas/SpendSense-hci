@@ -1,23 +1,106 @@
 import { useContext } from "react";
 import { RefreshCw } from "lucide-react";
 import { CURRENCIES, currencyName, type Currency, type Subtotals } from "./lib/currency";
+import { useApp } from "./context";
 import {
   NO_RATES,
+  displayValue,
   entriesInMonth,
   formatBulletinDate,
-  goalEquivalent,
   needsConversion,
   summarizeEntries,
+  usableRates,
   type ConvertedSum,
   type RateInfo,
   type RatesView,
 } from "./lib/moneyTotals";
 import { ratesClient, useRates } from "./lib/useRates";
-import { today, type Entry, type Goal } from "./store";
+import { today, type Entry } from "./store";
 import { Card, LangCtx, fmtIn, useT } from "./ui";
 
-// Rates are only requested when a total actually mixes currencies, so a
-// TRY-only workspace never depends on (or waits for) exchange rates.
+// Every amount is shown in the display currency (Profile.displayCurrency). Records
+// keep their original amount and currency in storage; conversion happens only on
+// screen, with validated TCMB rates. Rates are requested only when something is in
+// another currency, so a single-currency workspace never depends on them.
+
+/** Display-currency formatting for any record, with the rates it needs. */
+export function useDisplayMoney() {
+  const { profile, entries, goals, waiting, decisions } = useApp();
+  const target = profile.displayCurrency;
+  const needed = [entries, goals, waiting, decisions].some((list) =>
+    list.some((record) => record.currency !== target),
+  );
+  const rates = useRates(needed);
+  const value = (amount: number, currency: Currency) =>
+    displayValue(amount, currency, target, rates);
+  return {
+    target,
+    rates,
+    value,
+    /** Formatted in the display currency, or in its own currency without rates. */
+    text: (amount: number, currency: Currency) => {
+      const shown = value(amount, currency);
+      return shown.ok ? fmtIn(shown.amount, shown.currency) : fmtIn(amount, currency);
+    },
+  };
+}
+export type DisplayMoney = ReturnType<typeof useDisplayMoney>;
+
+/**
+ * An amount in the display currency; when it was converted, the original amount
+ * is shown underneath. Without rates the original amount is shown on its own.
+ */
+export function DisplayAmount({
+  amount,
+  currency,
+  money,
+  sign = "",
+  className = "",
+}: {
+  amount: number;
+  currency: Currency;
+  money: DisplayMoney;
+  sign?: string;
+  className?: string;
+}) {
+  const value = money.value(amount, currency);
+  return (
+    <span className={`inline-grid justify-items-end ${className}`}>
+      <span>
+        {sign}
+        {value.ok ? fmtIn(value.amount, value.currency) : fmtIn(amount, currency)}
+      </span>
+      {value.ok && value.converted && (
+        <span className="text-xs text-soft font-normal">
+          {sign}
+          {fmtIn(amount, currency)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * One note per screen for its records in other currencies: the TCMB bulletin used,
+ * or why the original currencies are shown.
+ */
+export function ConversionNote({
+  money,
+  currencies,
+}: {
+  money: DisplayMoney;
+  currencies: readonly Currency[];
+}) {
+  if (!currencies.some((currency) => currency !== money.target)) return null;
+  const usable = usableRates(money.rates);
+  if (usable) return <RateNote rate={usable.rate} />;
+  return (
+    <RatesUnavailable
+      loading={money.rates.loading}
+      message="Exchange rates are unavailable right now, so amounts are shown in their own currency."
+    />
+  );
+}
 
 /** "₺1.000 + $50": separate per-currency sums, never added together. */
 export const subtotalText = (subtotals: Subtotals) =>
@@ -31,7 +114,7 @@ export const subtotalText = (subtotals: Subtotals) =>
 
 export function sumText(sum: ConvertedSum) {
   if (sum.kind === "exact") return fmtIn(sum.amount, sum.currency);
-  if (sum.kind === "approximate") return fmtIn(sum.amount, sum.currency, true);
+  if (sum.kind === "approximate") return fmtIn(sum.amount, sum.currency);
   if (sum.kind === "unavailable") return subtotalText(sum.subtotals) || "—";
   return "—";
 }
@@ -42,7 +125,7 @@ export function RateNote({ rate }: { rate: RateInfo }) {
   const { lang } = useContext(LangCtx);
   return (
     <p className="m-0 text-sm text-soft">
-      {t("Approximate. Converted with TCMB rates from {date}.", {
+      {t("Converted with TCMB rates from {date}.", {
         date: formatBulletinDate(rate.bulletinDate, lang),
       })}
       {rate.status === "stale" && (
@@ -58,8 +141,11 @@ export function RateNote({ rate }: { rate: RateInfo }) {
 export function RatesUnavailable({
   loading,
   message = "Exchange rates are unavailable right now, so amounts in different currencies are not added together.",
+  retry = true,
 }: {
   loading: boolean;
+  /** False where the same screen already offers "Try again" (one button per screen). */
+  retry?: boolean;
   /** English key for useT(): what cannot be calculated. */
   message?: string;
 }) {
@@ -73,14 +159,16 @@ export function RatesUnavailable({
   return (
     <div role="status" className="flex flex-wrap items-center gap-2">
       <p className="m-0 text-sm text-attn bg-butter rounded-inner px-3 py-2">{t(message)}</p>
-      <button
-        type="button"
-        onClick={() => void ratesClient().refresh({ force: true })}
-        className="btn clay-cream min-h-11 inline-flex items-center gap-2"
-      >
-        <RefreshCw size={16} aria-hidden />
-        {t("Try again")}
-      </button>
+      {retry && (
+        <button
+          type="button"
+          onClick={() => void ratesClient().refresh({ force: true })}
+          className="btn clay-cream min-h-11 inline-flex items-center gap-2"
+        >
+          <RefreshCw size={16} aria-hidden />
+          {t("Try again")}
+        </button>
+      )}
     </div>
   );
 }
@@ -130,10 +218,10 @@ function SummaryCard({
         <p role="status" className="m-0 text-sm text-attn">
           {t("Totals could not be calculated.")}
         </p>
-      ) : unavailable ? (
-        <RatesUnavailable loading={loading} />
       ) : (
-        approximate?.kind === "approximate" && <RateNote rate={approximate.rate} />
+        // The bulletin used for a conversion is named once per screen (ConversionNote).
+        // Money's ConversionNote below offers "Try again" for the whole screen.
+        unavailable && <RatesUnavailable loading={loading} retry={false} />
       )}
     </Card>
   );
@@ -163,40 +251,6 @@ export function MoneySummary({
   );
 }
 
-function LiveGoalEquivalent({ goal, currency }: { goal: Goal; currency: Currency }) {
-  const t = useT();
-  const { lang } = useContext(LangCtx);
-  const rates = useRates();
-  const equivalent = goalEquivalent(goal, currency, rates);
-  if (!equivalent) return null;
-  if (equivalent.kind === "unavailable")
-    return rates.loading ? null : (
-      <p className="m-0 text-sm text-soft">
-        {t("Exchange rates are unavailable, so this goal is shown in {c} only.", {
-          c: currencyName(goal.currency, lang),
-        })}
-      </p>
-    );
-  return (
-    <div className="grid gap-1">
-      <p className="m-0 text-sm f-num">
-        {t("About {saved} of {target} in {c}.", {
-          // "About" already says it is approximate, so no extra "≈" here.
-          saved: fmtIn(equivalent.saved, currency),
-          target: fmtIn(equivalent.target, currency),
-          c: currencyName(currency, lang),
-        })}
-      </p>
-      <RateNote rate={equivalent.rate} />
-    </div>
-  );
-}
-
-/** A goal's amounts approximately in the display currency (nothing when it matches). */
-export function GoalEquivalentNote({ goal, currency }: { goal: Goal; currency: Currency }) {
-  return goal.currency === currency ? null : <LiveGoalEquivalent goal={goal} currency={currency} />;
-}
-
 /**
  * Shown instead of a chart or total that would need exchange rates: the amounts
  * per currency (never added together) and why the figure is missing.
@@ -223,5 +277,36 @@ export function NeedsRates({
       </ul>
       <RatesUnavailable loading={loading} message={message} />
     </div>
+  );
+}
+
+/** "saved / target" of a goal in the display currency, with the original underneath. */
+export function GoalAmounts({
+  saved,
+  target,
+  currency,
+  money,
+  className = "",
+}: {
+  saved: number;
+  target: number;
+  currency: Currency;
+  money: DisplayMoney;
+  className?: string;
+}) {
+  const shownSaved = money.value(saved, currency);
+  const shownTarget = money.value(target, currency);
+  const converted = shownSaved.ok && shownTarget.ok && shownSaved.converted;
+  return (
+    <>
+      <p className={`f-num m-0 ${className}`}>
+        {money.text(saved, currency)} / {money.text(target, currency)}
+      </p>
+      {converted && (
+        <p className="f-num text-xs text-soft m-0">
+          {fmtIn(saved, currency)} / {fmtIn(target, currency)}
+        </p>
+      )}
+    </>
   );
 }

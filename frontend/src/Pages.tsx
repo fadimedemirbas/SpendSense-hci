@@ -35,14 +35,19 @@ import {
   Tube,
   useT,
   useToast,
-  fmt,
   fmtIn,
   curLabelIn,
 } from "./ui";
 import { EntryRow, dayLabel } from "./Money";
 import { REASONS, FEELINGS } from "./Decide";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
-import { GoalEquivalentNote, NeedsRates, RateNote } from "./CurrencyTotals";
+import {
+  ConversionNote,
+  GoalAmounts,
+  NeedsRates,
+  RateNote,
+  useDisplayMoney,
+} from "./CurrencyTotals";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
 import { entriesInMonth, goalProgress, goalTargetIdeas, needsConversion } from "./lib/moneyTotals";
 import { averagePriceInTry, monthView, spendingView } from "./lib/summaries";
@@ -63,6 +68,7 @@ const daysUntil = (iso: string) =>
 export function HomePage({ firstName }: { firstName?: string }) {
   const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide, profile } = useApp();
   const t = useT();
+  const money = useDisplayMoney();
   // Each record keeps its own currency; totals are shown in the display currency and
   // only converted with validated rates (requested only when something needs them).
   const currency = profile.displayCurrency;
@@ -100,27 +106,16 @@ export function HomePage({ firstName }: { firstName?: string }) {
             <CountUp
               value={month.income - month.spent}
               currency={month.currency}
-              approximate={month.kind === "approximate"}
               className="text-5xl block my-2"
             />
             <div className="flex flex-wrap gap-x-6 gap-y-1">
               <span className="text-leaf flex items-center gap-1">
                 <ArrowUp size={16} aria-hidden />
-                {t("Income")}{" "}
-                <CountUp
-                  value={month.income}
-                  currency={month.currency}
-                  approximate={month.kind === "approximate"}
-                />
+                {t("Income")} <CountUp value={month.income} currency={month.currency} />
               </span>
               <span className="flex items-center gap-1">
                 <ArrowDown size={16} aria-hidden />
-                {t("Spent")}{" "}
-                <CountUp
-                  value={month.spent}
-                  currency={month.currency}
-                  approximate={month.kind === "approximate"}
-                />
+                {t("Spent")} <CountUp value={month.spent} currency={month.currency} />
               </span>
             </div>
             <div className="mt-4">
@@ -188,9 +183,12 @@ export function HomePage({ firstName }: { firstName?: string }) {
             />
             <div>
               <h2 className="text-xl font-bold m-0">{goal.name}</h2>
-              <p className="f-num m-0">
-                {fmtIn(goal.saved, goal.currency)} / {fmtIn(goal.target, goal.currency)}
-              </p>
+              <GoalAmounts
+                saved={goal.saved}
+                target={goal.target}
+                currency={goal.currency}
+                money={money}
+              />
               <p className="f-voice m-0 mt-1">
                 {t(
                   goal.saved > 0
@@ -579,6 +577,7 @@ export function Goals() {
   const { goals, setGoals, profile } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const [f, setF] = useState<GStatus>("Active");
   const [form, setForm] = useState<Goal | null>(null);
   const [add, setAdd] = useState<Goal | null>(null);
@@ -639,6 +638,7 @@ export function Goals() {
         onChange={setF}
         options={(["Active", "Completed", "Archived"] as GStatus[]).map((s) => [s, t(s)])}
       />
+      <ConversionNote money={money} currencies={goals.map((g) => g.currency)} />
       {note && (
         <Say expr="calm" size={56} live>
           {note}
@@ -669,14 +669,17 @@ export function Goals() {
                     >
                       {t(g.status)}
                     </Pill>
-                    <p className="f-num m-0 mt-1">
-                      {fmtIn(g.saved, g.currency)} / {fmtIn(g.target, g.currency)}
-                    </p>
+                    <GoalAmounts
+                      saved={g.saved}
+                      target={g.target}
+                      currency={g.currency}
+                      money={money}
+                      className="mt-1"
+                    />
                     <p className="text-sm text-soft m-0">
-                      {t("Remaining")} {fmtIn(Math.max(0, g.target - g.saved), g.currency)}
+                      {t("Remaining")} {money.text(Math.max(0, g.target - g.saved), g.currency)}
                       {g.date && ` · ${new Date(g.date).toLocaleDateString()}`}
                     </p>
-                    <GoalEquivalentNote goal={g} currency={profile.displayCurrency} />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -797,6 +800,7 @@ export function WaitingPage() {
   const { waiting, decisions, entries, updateWorkspace, setTab, openDecide } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const act = async (id: string, d: DecisionKind) => {
     const w = waiting.find((x) => x.id === id)!;
     const pw = waiting,
@@ -823,6 +827,7 @@ export function WaitingPage() {
   return (
     <>
       <PageHead title={t("Waiting List")} />
+      <ConversionNote money={money} currencies={waiting.map((w) => w.currency)} />
       {waiting.length === 0 ? (
         <Card>
           <Empty expr="calm" text={t("We can revisit this whenever you're ready.")} />
@@ -840,7 +845,7 @@ export function WaitingPage() {
                 <div className="flex-1 basis-40">
                   <h2 className="text-xl font-bold m-0">{w.name}</h2>
                   <p className="f-num m-0">
-                    {fmtIn(w.price, w.currency)}{" "}
+                    {money.text(w.price, w.currency)}{" "}
                     <span className="f-ui text-sm text-soft">
                       · {t("Fit")} {w.fit}/100
                     </span>
@@ -884,11 +889,13 @@ export function HistoryPage() {
   const { decisions, setDecisions } = useApp();
   const t = useT();
   const toast = useToast();
+  const money = useDisplayMoney();
   const [f, setF] = useState<"all" | DecisionKind>("all");
   const list = decisions.filter((d) => f === "all" || d.decision === f);
   return (
     <>
       <PageHead title={t("History")} />
+      <ConversionNote money={money} currencies={decisions.map((d) => d.currency)} />
       <Segmented
         label={t("Filter")}
         value={f}
@@ -921,7 +928,7 @@ export function HistoryPage() {
               </Pill>
             </div>
             <p className="m-0 text-sm text-soft">
-              <span className="f-num text-ink">{fmtIn(d.price, d.currency)}</span> ·{" "}
+              <span className="f-num text-ink">{money.text(d.price, d.currency)}</span> ·{" "}
               {dayLabel(d.date, t)} · {t("Fit")} <span className="f-num">{d.fit}</span>
             </p>
             <Expand title={t("How do you feel about this decision now?")}>
@@ -991,12 +998,7 @@ export function Insights() {
   const currency = profile.displayCurrency;
   const rates = useRates(needsConversion(entriesInMonth(entries, today()), currency));
   const sv = spendingView(entries, currency, rates, today());
-  const money = (v: number) =>
-    sv.kind === "ok" && sv.rate
-      ? fmtIn(v, currency, true)
-      : currency === "TRY"
-        ? fmt(v)
-        : fmtIn(v, currency);
+  const money = (v: number) => fmtIn(v, currency);
   const chartUnavailable =
     "This chart can't be calculated right now because exchange rates are unavailable. Amounts are shown by currency.";
   const all = [...decisions, ...waiting];
