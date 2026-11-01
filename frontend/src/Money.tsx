@@ -12,6 +12,7 @@ import { useApp } from "./context";
 import {
   Button,
   Card,
+  Dialog,
   Empty,
   PageHead,
   Segmented,
@@ -31,6 +32,7 @@ import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
 import { ConversionNote, DisplayAmount, MoneySummary, useDisplayMoney } from "./CurrencyTotals";
 import { formatMonth, monthBounds, monthOf, shiftMonth, type MonthKey } from "./lib/months";
+import { useDeleteConfirm } from "./useDeleteConfirm";
 
 export function dayLabel(iso: string, t: (s: string) => string) {
   const y = new Date();
@@ -46,7 +48,14 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
   const t = useT();
   const toast = useToast();
   const money = useDisplayMoney();
+  const { needsConfirm } = useDeleteConfirm();
+  const [confirm, setConfirm] = useState(false);
   const I = catIcon(e.type, e.cat);
+  const remove = async () => {
+    const prev = entries;
+    if (!(await setEntries(entries.filter((x) => x.id !== e.id)))) return false;
+    toast(t("Entry deleted."), () => setEntries(prev));
+  };
   return (
     <li className="entry-row flex items-center gap-3 py-3 border-t border-cardline first:border-0">
       <span
@@ -80,16 +89,25 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
           </button>
           <button
             aria-label={`${t("Delete")} ${e.name}`}
-            onClick={async () => {
-              const prev = entries;
-              if (!(await setEntries(entries.filter((x) => x.id !== e.id)))) return;
-              toast(t("Entry deleted."), () => setEntries(prev));
-            }}
+            onClick={() => (needsConfirm(e.type, e.cat) ? setConfirm(true) : void remove())}
             className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-peach hover:text-danger"
           >
             <Trash2 size={16} aria-hidden />
           </button>
         </span>
+      )}
+      {confirm && (
+        <Dialog
+          danger
+          title={t("Delete this entry?")}
+          body={t("{n} is in {c}, a category you asked to confirm before deleting.", {
+            n: e.name,
+            c: t(e.cat),
+          })}
+          confirm={t("Delete")}
+          onClose={() => setConfirm(false)}
+          onConfirm={remove}
+        />
       )}
     </li>
   );

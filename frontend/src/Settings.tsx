@@ -18,7 +18,12 @@ import {
   Info,
   ShieldCheck,
   SunMoon,
+  ShieldAlert,
+  Plus,
+  X,
 } from "lucide-react";
+import { useDeleteConfirm } from "./useDeleteConfirm";
+import { categoryKey, parseCategoryKey } from "./lib/deleteConfirm";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
 import { displayCurrencyNote } from "./lib/displayCurrency";
 import { useApp } from "./context";
@@ -34,7 +39,7 @@ import {
   useT,
   useToast,
 } from "./ui";
-import { INCOME_RANGES, SAVINGS_RANGES, profileTubes, today } from "./store";
+import { EXP_CATS, INC_CATS, INCOME_RANGES, SAVINGS_RANGES, profileTubes, today } from "./store";
 import { InstallHelp, TENDENCY } from "./Onboarding";
 import { requireSupabase } from "./lib/supabase";
 import { onlineOperation } from "./pwa/network";
@@ -159,6 +164,98 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Categories whose entries ask for confirmation before they are deleted. */
+function DeleteConfirmRow() {
+  const t = useT();
+  const { keys, add, remove } = useDeleteConfirm();
+  const [pick, setPick] = useState("");
+  const groups = (
+    [
+      ["expense", "Expenses", EXP_CATS],
+      ["income", "Income", INC_CATS],
+    ] as const
+  ).map(
+    ([type, label, cats]) =>
+      [label, cats.map(([c]) => categoryKey(type, c)).filter((k) => !keys.includes(k))] as const,
+  );
+  const name = (key: string) => {
+    const [type, cat] = parseCategoryKey(key);
+    return `${t(cat)} (${t(type === "income" ? "Income" : "Expense")})`;
+  };
+  return (
+    <Row
+      icon={<ShieldAlert size={18} />}
+      title={t("Ask before deleting")}
+      desc={t(
+        "Deleting an entry in these categories asks you to confirm first. Saved on this device.",
+      )}
+    >
+      <form
+        className="flex flex-wrap gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pick) return;
+          add(...parseCategoryKey(pick));
+          setPick("");
+        }}
+      >
+        <select
+          aria-label={t("Category")}
+          value={pick}
+          onChange={(e) => setPick(e.target.value)}
+          className="min-h-11 rounded-full clay-cream px-4 f-ui"
+        >
+          <option value="">{t("Pick a category")}</option>
+          {groups.map(
+            ([label, options]) =>
+              options.length > 0 && (
+                <optgroup key={label} label={t(label)}>
+                  {options.map((k) => (
+                    <option key={k} value={k}>
+                      {t(parseCategoryKey(k)[1])}
+                    </option>
+                  ))}
+                </optgroup>
+              ),
+          )}
+        </select>
+        <Button type="submit" icon={<Plus size={16} />} disabled={!pick}>
+          {t("Add")}
+        </Button>
+      </form>
+      <div className="basis-full">
+        {keys.length === 0 ? (
+          <p className="m-0 text-sm text-soft">
+            {t("No categories yet. Entries are deleted right away, with an undo.")}
+          </p>
+        ) : (
+          <ul
+            className="m-0 p-0 list-none flex flex-wrap gap-2"
+            aria-label={t("Ask before deleting")}
+          >
+            {keys.map((k) => (
+              <li
+                key={k}
+                className="inline-flex items-center gap-1 rounded-full bg-peach pl-3 f-ui text-sm"
+              >
+                {name(k)}
+                <button
+                  type="button"
+                  aria-label={t("Remove {c}", { c: name(k) })}
+                  onClick={() => remove(k)}
+                  className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
+                >
+                  <X size={16} aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Row>
   );
 }
 
@@ -346,6 +443,10 @@ export function SettingsPage({
         >
           <Button onClick={retake}>{t("Retake spending style questions")}</Button>
         </Row>
+      </Section>
+
+      <Section title={t("Delete confirmation")}>
+        <DeleteConfirmRow />
       </Section>
 
       <Section title={t("Your data")}>

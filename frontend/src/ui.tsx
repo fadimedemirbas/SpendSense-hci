@@ -306,6 +306,18 @@ const TR: Record<string, string> = {
   "Entry saved.": "Kayıt eklendi.",
   "Entry updated.": "Kayıt güncellendi.",
   "Entry deleted.": "Kayıt silindi.",
+  "Delete this entry?": "Bu kayıt silinsin mi?",
+  "{n} is in {c}, a category you asked to confirm before deleting.":
+    "{n}, silmeden önce onay istediğin {c} kategorisinde.",
+  "Delete confirmation": "Silme onayı",
+  "Ask before deleting": "Silmeden önce sor",
+  "Deleting an entry in these categories asks you to confirm first. Saved on this device.":
+    "Bu kategorilerdeki bir kaydı silerken önce onayın istenir. Bu cihazda saklanır.",
+  "Pick a category": "Bir kategori seç",
+  Add: "Ekle",
+  "Remove {c}": "{c} kaldır",
+  "No categories yet. Entries are deleted right away, with an undo.":
+    "Henüz kategori yok. Kayıtlar hemen silinir, geri alınabilir.",
   "All set! I've added that to your month.": "Tamamdır! Bunu ayına ekledim.",
   "Not bought yet? Check it first.": "Henüz almadın mı? Önce bir bak.",
   Food: "Yemek",
