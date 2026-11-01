@@ -17,6 +17,7 @@ import {
   Download,
   Info,
   ShieldCheck,
+  SunMoon,
 } from "lucide-react";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
 import { displayCurrencyNote } from "./lib/displayCurrency";
@@ -38,6 +39,7 @@ import { InstallHelp, TENDENCY } from "./Onboarding";
 import { requireSupabase } from "./lib/supabase";
 import { onlineOperation } from "./pwa/network";
 import { usePwa } from "./pwa/Pwa";
+import { useTheme } from "./useTheme";
 import { version } from "../package.json";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -135,7 +137,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
             onChange={(e) => set(e.target.value)}
             aria-invalid={!!err}
             aria-describedby={err ? "password-error" : undefined}
-            className="h-12 rounded-tile border border-line bg-white px-4 font-sans"
+            className="h-12 rounded-tile border border-line bg-field px-4 font-sans"
           />
         </label>
       ))}
@@ -175,6 +177,7 @@ export function SettingsPage({
   const t = useT();
   const pwa = usePwa();
   const { lang, setLang } = useContext(LangCtx);
+  const theme = useTheme();
   const [confirm, setConfirm] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [password, setPassword] = useState(false);
@@ -241,6 +244,22 @@ export function SettingsPage({
             options={[
               ["en", "English"],
               ["tr", "Türkçe"],
+            ]}
+          />
+        </Row>
+        <Row
+          icon={<SunMoon size={18} />}
+          title={t("Theme")}
+          desc={t("System follows your device's light or dark setting.")}
+        >
+          <Segmented
+            label={t("Theme")}
+            value={theme.preference}
+            onChange={theme.setPreference}
+            options={[
+              ["light", t("Light")],
+              ["dark", t("Dark")],
+              ["system", t("System")],
             ]}
           />
         </Row>

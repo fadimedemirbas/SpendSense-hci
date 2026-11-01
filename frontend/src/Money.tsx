@@ -279,7 +279,7 @@ export function QuickAdd() {
               onKeyDown={(e) => e.key === "Enter" && void save()}
               aria-invalid={!!err.a}
               aria-describedby={err.a ? "amt-err" : undefined}
-              className="f-num text-5xl rounded-tile bg-white border border-line px-4 py-4 text-right w-full min-w-0"
+              className="f-num text-5xl rounded-tile bg-field border border-line px-4 py-4 text-right w-full min-w-0"
             />
           </label>
           <div className="grid gap-1">
@@ -321,7 +321,7 @@ export function QuickAdd() {
               max={today()}
               value={date}
               onChange={(e) => setDate(e.target.value || today())}
-              className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+              className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
             />
           </label>
           <label className="f-ui grid gap-1">
@@ -329,7 +329,7 @@ export function QuickAdd() {
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+              className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
             />
           </label>
         </div>
@@ -379,7 +379,7 @@ export function QuickAdd() {
             variant={type === "income" ? "leaf" : "coral"}
             big
             onClick={save}
-            className={type === "income" ? "bg-leaf! text-white!" : ""}
+            className={type === "income" ? "bg-leaf! text-onstrong!" : ""}
           >
             {t("Save")}
           </Button>

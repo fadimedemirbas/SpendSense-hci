@@ -78,7 +78,7 @@ function QuestionsPreview() {
         <div key={q} className="flex items-center gap-2 f-ui">
           <span
             className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-              i < 3 ? "bg-leaf text-white" : i === 3 ? "bg-sun" : "bg-track"
+              i < 3 ? "bg-leaf text-onstrong" : i === 3 ? "bg-sun text-onbright" : "bg-track"
             }`}
           >
             {i < 3 ? <Check size={14} /> : i + 1}

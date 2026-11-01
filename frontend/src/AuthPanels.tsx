@@ -9,7 +9,7 @@ import {
 } from "./lib/auth";
 
 const EMAIL = /^\S+@\S+\.\S+$/;
-const field = "h-13 rounded-tile border border-line bg-white px-4 font-sans";
+const field = "h-13 rounded-tile border border-line bg-field px-4 font-sans";
 
 /** Seconds left before an e-mail can be requested again (prevents repeated sends). */
 function useCooldown() {

@@ -408,7 +408,7 @@ function GoalFlow({
         aria-describedby={err ? "goal-flow-error" : undefined}
         onChange={(e) => /^\d{0,8}$/.test(e.target.value) && setG({ ...g, [k]: +e.target.value })}
         onKeyDown={(e) => e.key === "Enter" && void next()}
-        className="h-14 rounded-tile border border-line bg-white px-4 f-num text-2xl"
+        className="h-14 rounded-tile border border-line bg-field px-4 f-num text-2xl"
       />
     </label>
   );
@@ -452,7 +452,7 @@ function GoalFlow({
                 aria-describedby={err ? "goal-flow-error" : undefined}
                 onChange={(e) => setG({ ...g, name: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && void next()}
-                className="h-14 rounded-tile border border-line bg-white px-4 font-sans text-lg"
+                className="h-14 rounded-tile border border-line bg-field px-4 font-sans text-lg"
               />
             </label>
             <div className="flex flex-wrap gap-2">
@@ -508,7 +508,7 @@ function GoalFlow({
                 aria-invalid={!!err}
                 aria-describedby={err ? "goal-flow-error" : undefined}
                 onChange={(e) => setG({ ...g, date: e.target.value || undefined })}
-                className="h-14 rounded-tile border border-line bg-white px-4 font-sans"
+                className="h-14 rounded-tile border border-line bg-field px-4 font-sans"
               />
             </label>
             <div className="flex flex-wrap gap-2">
@@ -753,7 +753,7 @@ export function Goals() {
                 inputMode="numeric"
                 value={amt}
                 onChange={(e) => /^\d{0,8}$/.test(e.target.value) && setAmt(e.target.value)}
-                className="h-13 rounded-tile border border-line bg-white px-4 f-num text-2xl"
+                className="h-13 rounded-tile border border-line bg-field px-4 f-num text-2xl"
               />
             </label>
             {err && (

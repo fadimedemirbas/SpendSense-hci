@@ -93,7 +93,12 @@ function Demo() {
         </p>
       </div>
       <div className="flex gap-4 items-center" aria-live="polite">
-        <Ring value={a.fit} size={120} label={`${t("Overall fit")} ${a.fit}/100`} color="#6b4fa3" />
+        <Ring
+          value={a.fit}
+          size={120}
+          label={`${t("Overall fit")} ${a.fit}/100`}
+          color="var(--color-violet)"
+        />
         <div className="flex-1 grid gap-2">
           <Tube label={t("Budget fit")} value={a.budget * 4} color="bg-leaf" />
           <Tube label={t("Need level")} value={a.need * 4} color="bg-leaf" />

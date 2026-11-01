@@ -379,7 +379,7 @@ export function Decide() {
                             if (fieldErr.name) setFieldErr({ ...fieldErr, name: undefined });
                           }}
                           onKeyDown={enter}
-                          className="h-13 rounded-tile border border-line bg-white px-4 font-sans"
+                          className="h-13 rounded-tile border border-line bg-field px-4 font-sans"
                         />
                       </label>
                       {fieldErr.name && (
@@ -406,7 +406,7 @@ export function Decide() {
                             }
                           }}
                           onKeyDown={enter}
-                          className="h-13 rounded-tile border border-line bg-white px-4 f-num text-xl"
+                          className="h-13 rounded-tile border border-line bg-field px-4 f-num text-xl"
                         />
                       </label>
                       {/* Matches the parser: digits, one comma or dot, up to 2 decimals. */}
@@ -882,7 +882,12 @@ function Analysis({
     <>
       <Say expr="calm">{t("Here's the context. It's your call.")}</Say>
       <Card className="flex flex-wrap gap-5 items-center">
-        <Ring value={a.fit} size={128} label={`${t("Overall fit")} ${a.fit}/100`} color="#6b4fa3" />
+        <Ring
+          value={a.fit}
+          size={128}
+          label={`${t("Overall fit")} ${a.fit}/100`}
+          color="var(--color-violet)"
+        />
         <div className="flex-1 min-w-0 basis-52">
           <h1 ref={title} tabIndex={-1} className="text-3xl font-bold m-0">
             {p.name}

@@ -51,6 +51,12 @@ const TR: Record<string, string> = {
   "Saving USD or EUR amounts is not available yet. Your data was not changed.":
     "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
   "Display currency": "Görüntüleme para birimi",
+  Theme: "Tema",
+  Light: "Açık",
+  Dark: "Koyu",
+  System: "Sistem",
+  "System follows your device's light or dark setting.":
+    "Sistem, cihazının açık veya koyu tema ayarını izler.",
   "Amount format": "Tutar biçimi",
   "Which currency do you use?": "Hangi para birimini kullanıyorsun?",
   "You can change this later in Settings.": "Bunu daha sonra Ayarlar'dan değiştirebilirsin.",
@@ -1010,7 +1016,7 @@ export const Pill = ({
     butter: "bg-butter text-attn",
     leaf: "bg-leaftint text-leaf",
     violet: "bg-violettint text-violet",
-    sun: "bg-sun text-ink",
+    sun: "bg-sun text-onbright",
   }[tone];
   return (
     <span className={`f-ui text-sm px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${c}`}>
@@ -1104,7 +1110,7 @@ export function Ring({
   value,
   size = 96,
   label,
-  color = "#1f7a58",
+  color = "var(--color-leaf)",
   suffix = "",
 }: {
   value: number;
@@ -1125,19 +1131,26 @@ export function Ring({
       aria-label={label ?? `${Math.round(v)}%`}
       className="shrink-0"
     >
-      <circle cx="50" cy="50" r={r} stroke="#fbe3cf" strokeWidth="12" fill="none" />
+      {/* Colours come from theme tokens (style, so CSS variables apply). */}
       <circle
         cx="50"
         cy="50"
         r={r}
-        stroke={color}
+        style={{ stroke: "var(--color-track)" }}
+        strokeWidth="12"
+        fill="none"
+      />
+      <circle
+        cx="50"
+        cy="50"
+        r={r}
+        style={{ stroke: color, transition: "stroke-dashoffset .8s var(--ease-clay)" }}
         strokeWidth="12"
         fill="none"
         strokeDasharray={c}
         strokeDashoffset={c * (1 - v / 100)}
         strokeLinecap="round"
         transform="rotate(-90 50 50)"
-        style={{ transition: "stroke-dashoffset .8s var(--ease-clay)" }}
       />
       <text
         x="50"
@@ -1145,7 +1158,7 @@ export function Ring({
         textAnchor="middle"
         className="f-num"
         fontSize={suffix ? 20 : 22}
-        fill="#2a1a2c"
+        style={{ fill: "var(--color-ink)" }}
       >
         {Math.round(value)}
         {suffix}
@@ -1173,7 +1186,7 @@ export const Tube = ({
       {showPct && <span className="f-num shrink-0 whitespace-nowrap">{Math.round(value)}%</span>}
     </div>
     <div
-      className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_#2a1a2c1a]"
+      className="h-3.5 rounded-full bg-track overflow-hidden shadow-[inset_0_2px_3px_var(--shadow-inset)]"
       {...(decorative
         ? { "aria-hidden": true }
         : {
@@ -1407,7 +1420,7 @@ export function Sheet({
   const t = useT();
   return (
     <div
-      className="fixed inset-0 z-40 bg-ink/40 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-40 bg-scrim flex items-end md:items-center justify-center"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -1455,7 +1468,7 @@ export function Dialog({
   const ref = useModal(onClose);
   const t = useT();
   return (
-    <div className="fixed inset-0 z-50 bg-ink/40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
       <div
         ref={ref}
         role="alertdialog"
@@ -1468,7 +1481,7 @@ export function Dialog({
         <div className="flex gap-2 justify-end flex-wrap">
           <Button onClick={onClose}>{cancel ?? t("Cancel")}</Button>
           <button
-            className={`btn ${danger ? "bg-danger text-white!" : "clay-coral"}`}
+            className={`btn ${danger ? "bg-danger text-onstrong!" : "clay-coral"}`}
             onClick={async () => {
               if ((await onConfirm()) !== false) onClose();
             }}

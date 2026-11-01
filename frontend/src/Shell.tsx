@@ -215,10 +215,12 @@ export function Shell({ children }: { children: ReactNode }) {
               onClick={() => (k === "more" ? setMore(true) : go(k as Tab))}
               className="f-ui text-[11px] min-h-14 pt-1 flex flex-col items-center justify-start gap-0.5 rounded-inner"
             >
-              <span className={`px-3 py-1 rounded-full relative ${active ? "bg-sun" : ""}`}>
+              <span
+                className={`px-3 py-1 rounded-full relative ${active ? "bg-sun text-onbright" : ""}`}
+              >
                 <I size={20} aria-hidden />
                 {k === "more" && due > 0 && (
-                  <span className="absolute -top-1 -right-1 f-num text-[10px] bg-violet text-white rounded-full px-1">
+                  <span className="absolute -top-1 -right-1 f-num text-[10px] bg-violet text-onstrong rounded-full px-1">
                     {due}
                   </span>
                 )}
