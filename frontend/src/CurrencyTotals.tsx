@@ -5,7 +5,6 @@ import { useApp } from "./context";
 import {
   NO_RATES,
   displayValue,
-  entriesInMonth,
   formatBulletinDate,
   needsConversion,
   summarizeEntries,
@@ -15,8 +14,8 @@ import {
   type RatesView,
 } from "./lib/moneyTotals";
 import { ratesClient, useRates } from "./lib/useRates";
-import { today, type Entry } from "./store";
-import { Card, LangCtx, fmtIn, useT } from "./ui";
+import type { Entry } from "./store";
+import { Card, InfoTip, LangCtx, fmtIn, useT } from "./ui";
 
 // Every amount is shown in the display currency (Profile.displayCurrency). Records
 // keep their original amount and currency in storage; conversion happens only on
@@ -177,11 +176,13 @@ function SummaryCard({
   entries,
   currency,
   view,
+  title,
   loading = false,
 }: {
   entries: readonly Entry[];
   currency: Currency;
   view: RatesView;
+  title: string;
   loading?: boolean;
 }) {
   const t = useT();
@@ -200,7 +201,15 @@ function SummaryCard({
   return (
     <Card className="grid gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className="f-ui text-soft text-base m-0">{t("This month")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="f-ui text-soft text-base m-0">{title}</h2>
+          <InfoTip
+            label={title}
+            text={t(
+              "Income, spending and what is left for the month you are viewing, in your display currency.",
+            )}
+          />
+        </div>
         {(approximate || unavailable) && (
           <p className="m-0 text-sm text-soft">
             {unavailable
@@ -227,7 +236,7 @@ function SummaryCard({
   );
 }
 
-function LiveSummaryCard(props: { entries: readonly Entry[]; currency: Currency }) {
+function LiveSummaryCard(props: { entries: readonly Entry[]; currency: Currency; title: string }) {
   const rates = useRates();
   return <SummaryCard {...props} view={rates} loading={rates.loading} />;
 }
@@ -239,15 +248,17 @@ function LiveSummaryCard(props: { entries: readonly Entry[]; currency: Currency 
 export function MoneySummary({
   entries,
   currency,
+  title,
 }: {
+  /** The entries of the month being shown. */
   entries: readonly Entry[];
   currency: Currency;
+  title: string;
 }) {
-  const month = entriesInMonth(entries, today());
-  return needsConversion(month, currency) ? (
-    <LiveSummaryCard entries={month} currency={currency} />
+  return needsConversion(entries, currency) ? (
+    <LiveSummaryCard entries={entries} currency={currency} title={title} />
   ) : (
-    <SummaryCard entries={month} currency={currency} view={NO_RATES} />
+    <SummaryCard entries={entries} currency={currency} view={NO_RATES} title={title} />
   );
 }
 

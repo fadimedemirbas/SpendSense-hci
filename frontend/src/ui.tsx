@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -51,6 +52,30 @@ const TR: Record<string, string> = {
   "Saving USD or EUR amounts is not available yet. Your data was not changed.":
     "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
   "Display currency": "Görüntüleme para birimi",
+  "Income minus spending in this calendar month, in your display currency. Amounts in other currencies are converted with the latest TCMB rates.":
+    "Bu takvim ayındaki gelirden harcamaların çıkarılmasıyla bulunur; görüntüleme para biriminde gösterilir. Diğer para birimlerindeki tutarlar en güncel TCMB kurlarıyla çevrilir.",
+  "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.":
+    "İlerleme, biriken tutarın hedefe oranıdır ve hedefin kendi para biriminde hesaplanır. Kenara para ayırdıkça ekleyebilirsin.",
+  "Purchases you decided to wait on. On their review date you can buy, keep waiting or skip.":
+    "Beklemeyi seçtiğin alımlar. İnceleme tarihinde satın alabilir, beklemeye devam edebilir ya da vazgeçebilirsin.",
+  "Fit is the overall score from when you analyzed this purchase. When it is ready to revisit, decide again with what you know now.":
+    "Uyum, bu alımı analiz ettiğindeki genel puandır. Yeniden bakmaya hazır olduğunda, şimdi bildiklerinle tekrar karar ver.",
+  "Your five largest expense categories this month and their share of all spending.":
+    "Bu aydaki en büyük beş harcama kategorin ve toplam harcamadaki payları.",
+  "This month's total income and total spending side by side. The longer bar sets the scale.":
+    "Bu ayın toplam geliri ve toplam harcaması yan yana. Uzun olan çubuk ölçeği belirler.",
+  "How often each feeling and reason came up in your decisions and waiting items.":
+    "Kararlarında ve bekleyen alımlarında her duygu ve nedenin ne sıklıkla geçtiği.",
+  "Your average later rating (1–5), grouped by how you felt when you decided.":
+    "Kararlarına sonradan verdiğin ortalama puan (1–5), karar anındaki duygularına göre gruplanmış.",
+  "Income, spending and what is left for the month you are viewing, in your display currency.":
+    "Görüntülediğin aydaki gelir, harcama ve kalan tutar; görüntüleme para biriminde.",
+  Month: "Ay",
+  "Previous month": "Önceki ay",
+  "Next month": "Sonraki ay",
+  "Back to this month": "Bu aya dön",
+  "Month summary": "Ay özeti",
+  "No entries in {m}.": "{m} ayında kayıt yok.",
   Theme: "Tema",
   Light: "Açık",
   Dark: "Koyu",
@@ -522,7 +547,7 @@ const TR: Record<string, string> = {
     "Verilerini görmek için tekrar giriş yapman gerekecek. Verilerin hesabında kalır.",
   "You can finish these questions the next time you log in.":
     "Bu soruları bir sonraki girişinde tamamlayabilirsin.",
-  "More info": "Daha fazla bilgi",
+  "Info about {x}": "{x} hakkında bilgi",
   "Example fit {n}": "Örnek uyum {n}",
   "Give your goal a name.": "Hedefine bir ad ver.",
   "Enter a target above zero.": "Sıfırdan büyük bir hedef tutarı gir.",
@@ -1209,29 +1234,92 @@ export const Tube = ({
 );
 
 /* ---------- help & layout ---------- */
-export function Tip({ text }: { text: string }) {
-  const [o, setO] = useState(false);
-  const id = useId();
+/**
+ * A small "i" button that explains a card. The bubble is SpendSense's own (not the
+ * browser's title tooltip): it opens on hover, keyboard focus or tap, stays while
+ * the pointer moves onto it, closes with Escape, a second tap or a tap elsewhere,
+ * and is kept inside the screen on 320px phones. Screen readers hear the text.
+ */
+export function InfoTip({ label, text }: { label: string; text: string }) {
   const t = useT();
+  const id = useId();
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [place, setPlace] = useState({ shift: 0, above: false });
+  const wrap = useRef<HTMLSpanElement>(null);
+  const bubble = useRef<HTMLSpanElement>(null);
+  const open = hovered || pinned;
+  const close = () => {
+    setHovered(false);
+    setPinned(false);
+  };
+  // Keep the bubble on screen: shift it sideways, or show it above the button.
+  useLayoutEffect(() => {
+    if (!open || !bubble.current) return;
+    const margin = 12;
+    const rect = bubble.current.getBoundingClientRect();
+    const left = rect.left - place.shift;
+    const right = rect.right - place.shift;
+    const shift =
+      left < margin ? margin - left : right > innerWidth - margin ? innerWidth - margin - right : 0;
+    const anchor = wrap.current!.getBoundingClientRect();
+    const above =
+      anchor.bottom + rect.height + margin > innerHeight && anchor.top - rect.height - margin > 0;
+    if (shift !== place.shift || above !== place.above) setPlace({ shift, above });
+  }, [open, place]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && close();
+    const onPointer = (event: PointerEvent) =>
+      !wrap.current?.contains(event.target as Node) && close();
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open]);
   return (
-    <span className="relative inline-flex">
+    <span
+      ref={wrap}
+      className="relative inline-flex shrink-0"
+      onPointerEnter={(event) => event.pointerType === "mouse" && setHovered(true)}
+      onPointerLeave={(event) => event.pointerType === "mouse" && setHovered(false)}
+      onBlur={(event) => !wrap.current?.contains(event.relatedTarget as Node) && close()}
+    >
       <button
-        aria-label={t("More info")}
-        aria-expanded={o}
-        aria-describedby={o ? id : undefined}
-        onClick={() => setO(!o)}
-        onBlur={() => setO(false)}
-        className="w-11 h-11 -m-2 inline-flex items-center justify-center text-info"
+        type="button"
+        aria-label={t("Info about {x}", { x: label })}
+        aria-expanded={open}
+        aria-describedby={open ? id : undefined}
+        onFocus={(event) => event.currentTarget.matches(":focus-visible") && setHovered(true)}
+        // A click or tap pins it open (even if hovering already showed it); the next closes it.
+        onClick={() => (pinned ? close() : setPinned(true))}
+        className="w-9 h-9 -my-1.5 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
       >
-        <Info size={18} />
+        <Info size={18} aria-hidden />
       </button>
-      {o && (
+      {/* Announced when opened with a tap or click (a tooltip alone is only read on focus). */}
+      <span className="sr-only" aria-live="polite">
+        {pinned ? text : ""}
+      </span>
+      {open && (
+        // The transparent padding bridges the gap, so the pointer can move onto the bubble.
         <span
+          ref={bubble}
           role="tooltip"
           id={id}
-          className="absolute z-20 top-9 left-1/2 -translate-x-1/2 w-60 clay rounded-inner! p-3 text-sm"
+          style={{ transform: `translateX(calc(-50% + ${place.shift}px))` }}
+          className={`absolute z-[35] left-1/2 w-64 max-w-[calc(100vw-24px)] ${place.above ? "bottom-full pb-2" : "top-full pt-2"}`}
         >
-          {text}
+          <span className="relative block clay rounded-inner! px-3.5 py-3 text-sm f-ui font-normal text-left text-ink normal-case tracking-normal">
+            <span
+              aria-hidden
+              style={{ left: `calc(50% - ${place.shift}px)` }}
+              className={`absolute w-3 h-3 -ml-1.5 rotate-45 bg-card border-cardline ${place.above ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"}`}
+            />
+            {text}
+          </span>
         </span>
       )}
     </span>

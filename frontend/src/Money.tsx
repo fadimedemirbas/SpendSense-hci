@@ -1,5 +1,13 @@
-import { useState } from "react";
-import { Plus, Pencil, Trash2, MessageCircleQuestionMark, Delete } from "lucide-react";
+import { useContext, useState } from "react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  MessageCircleQuestionMark,
+  Delete,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useApp } from "./context";
 import {
   Button,
@@ -14,6 +22,7 @@ import {
   fmtIn,
   Blob,
   curLabelIn,
+  LangCtx,
 } from "./ui";
 import { EXP_CATS, INC_CATS, catIcon, uid, today, type Entry, type EType } from "./store";
 import type { Currency } from "./lib/currency";
@@ -21,6 +30,7 @@ import { parseAmount } from "./lib/currency";
 import { defaultRecordCurrency, recordCurrencyNote } from "./lib/displayCurrency";
 import { RecordCurrencyPicker } from "./DisplayCurrencyPicker";
 import { ConversionNote, DisplayAmount, MoneySummary, useDisplayMoney } from "./CurrencyTotals";
+import { formatMonth, monthBounds, monthOf, shiftMonth, type MonthKey } from "./lib/months";
 
 export function dayLabel(iso: string, t: (s: string) => string) {
   const y = new Date();
@@ -59,13 +69,14 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
         className={`f-num text-lg shrink-0 whitespace-nowrap ${e.type === "income" ? "text-leaf" : ""}`}
       />
       {actions && (
-        <span className="entry-actions contents">
+        // Quiet icon buttons: visible, but they don't compete with the amounts.
+        <span className="entry-actions flex items-center gap-0.5 shrink-0">
           <button
             aria-label={`${t("Edit")} ${e.name}`}
             onClick={() => setQuickAdd(e)}
-            className="btn clay-cream w-11 px-0!"
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
           >
-            <Pencil size={16} />
+            <Pencil size={16} aria-hidden />
           </button>
           <button
             aria-label={`${t("Delete")} ${e.name}`}
@@ -74,9 +85,9 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
               if (!(await setEntries(entries.filter((x) => x.id !== e.id)))) return;
               toast(t("Entry deleted."), () => setEntries(prev));
             }}
-            className="btn clay-cream w-11 px-0!"
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center text-soft hover:bg-peach hover:text-danger"
           >
-            <Trash2 size={16} />
+            <Trash2 size={16} aria-hidden />
           </button>
         </span>
       )}
@@ -84,19 +95,83 @@ export function EntryRow({ e, actions }: { e: Entry; actions?: boolean }) {
   );
 }
 
+/** Previous / next month, with a shortcut back to the current month. */
+function MonthSwitcher({
+  month,
+  label,
+  earliest,
+  latest,
+  onChange,
+}: {
+  month: MonthKey;
+  label: string;
+  earliest: MonthKey;
+  latest: MonthKey;
+  onChange: (month: MonthKey) => void;
+}) {
+  const t = useT();
+  const arrow =
+    "w-11 h-11 rounded-full inline-flex items-center justify-center shrink-0 hover:bg-card disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent";
+  return (
+    <nav aria-label={t("Month")} className="grid gap-1">
+      <div className="flex items-center gap-1 rounded-full bg-track p-1">
+        <button
+          type="button"
+          aria-label={t("Previous month")}
+          disabled={month <= earliest}
+          onClick={() => onChange(shiftMonth(month, -1))}
+          className={arrow}
+        >
+          <ChevronLeft size={20} aria-hidden />
+        </button>
+        <h2 aria-live="polite" className="flex-1 m-0 text-center f-ui text-lg">
+          {label}
+        </h2>
+        <button
+          type="button"
+          aria-label={t("Next month")}
+          disabled={month >= latest}
+          onClick={() => onChange(shiftMonth(month, 1))}
+          className={arrow}
+        >
+          <ChevronRight size={20} aria-hidden />
+        </button>
+      </div>
+      {month !== latest && (
+        <button
+          type="button"
+          onClick={() => onChange(latest)}
+          className="justify-self-center f-ui text-sm text-info min-h-11 px-3 hover:underline"
+        >
+          {t("Back to this month")}
+        </button>
+      )}
+    </nav>
+  );
+}
+
 export function Money() {
   const { entries, setQuickAdd, profile } = useApp();
   const t = useT();
   const money = useDisplayMoney();
+  const { lang } = useContext(LangCtx);
   const [type, setType] = useState<"all" | EType>("all");
   const [cat, setCat] = useState("all");
+  // Entries are listed one calendar month at a time, newest month first.
+  const bounds = monthBounds(
+    entries.map((e) => e.date),
+    today(),
+  );
+  const [month, setMonth] = useState<MonthKey>(bounds.latest);
+  const monthName = formatMonth(month, lang);
+  const monthEntries = entries.filter((e) => monthOf(e.date) === month);
   const cats =
     type === "income"
       ? INC_CATS
       : type === "expense"
         ? EXP_CATS
         : [...EXP_CATS, ...INC_CATS.filter((c) => c[0] !== "Other")];
-  const list = entries
+  const list = monthEntries
     .filter((e) => (type === "all" || e.type === type) && (cat === "all" || e.cat === cat))
     .sort((a, b) => b.date.localeCompare(a.date));
   const groups = list.reduce<Record<string, Entry[]>>(
@@ -152,12 +227,31 @@ export function Money() {
           </select>
         </label>
       </div>
-      {entries.length > 0 && <MoneySummary entries={entries} currency={profile.displayCurrency} />}
-      <ConversionNote money={money} currencies={entries.map((e) => e.currency)} />
+      {entries.length > 0 && (
+        <MonthSwitcher
+          month={month}
+          label={monthName}
+          earliest={bounds.earliest}
+          latest={bounds.latest}
+          onChange={setMonth}
+        />
+      )}
+      {entries.length > 0 && (
+        <MoneySummary
+          entries={monthEntries}
+          currency={profile.displayCurrency}
+          title={month === bounds.latest ? t("This month") : t("Month summary")}
+        />
+      )}
+      <ConversionNote money={money} currencies={monthEntries.map((e) => e.currency)} />
       {Object.keys(groups).length === 0 ? (
         <Card>
           <Empty
-            text={t("Nothing here yet. Want to start together?")}
+            text={
+              entries.length === 0
+                ? t("Nothing here yet. Want to start together?")
+                : t("No entries in {m}.", { m: monthName })
+            }
             action={
               <Button variant="coral" onClick={() => setQuickAdd("new")}>
                 {t("Add entry")}

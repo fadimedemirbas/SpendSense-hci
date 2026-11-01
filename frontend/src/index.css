@@ -238,11 +238,11 @@
     grid-template-columns: 44px minmax(0, 1fr) auto;
     gap: 12px;
   }
+  /* Edit/Delete sit quietly under the amount instead of on their own row. */
   .entry-row > .entry-actions {
-    grid-column: 2 / -1;
+    grid-column: 3;
     justify-self: end;
-    display: flex;
-    gap: 8px;
+    margin-top: -6px;
   }
   .btn {
     white-space: normal;

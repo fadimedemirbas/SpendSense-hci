@@ -33,6 +33,7 @@ import {
   Segmented,
   Sheet,
   Tube,
+  InfoTip,
   useT,
   useToast,
   fmtIn,
@@ -100,7 +101,15 @@ export function HomePage({ firstName }: { firstName?: string }) {
           : t("Hi there! Let's look at your month together.")}
       </Say>
       <Card>
-        <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
+          <InfoTip
+            label={t("Left this month")}
+            text={t(
+              "Income minus spending in this calendar month, in your display currency. Amounts in other currencies are converted with the latest TCMB rates.",
+            )}
+          />
+        </div>
         {month.kind === "exact" || month.kind === "approximate" ? (
           <>
             <CountUp
@@ -182,7 +191,15 @@ export function HomePage({ firstName }: { firstName?: string }) {
               suffix="%"
             />
             <div>
-              <h2 className="text-xl font-bold m-0">{goal.name}</h2>
+              <div className="flex items-center gap-1">
+                <h2 className="text-xl font-bold m-0">{goal.name}</h2>
+                <InfoTip
+                  label={goal.name}
+                  text={t(
+                    "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.",
+                  )}
+                />
+              </div>
               <GoalAmounts
                 saved={goal.saved}
                 target={goal.target}
@@ -201,7 +218,15 @@ export function HomePage({ firstName }: { firstName?: string }) {
         )}
         <Card>
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold m-0">{t("Up for review")}</h2>
+            <div className="flex items-center gap-1">
+              <h2 className="text-xl font-bold m-0">{t("Up for review")}</h2>
+              <InfoTip
+                label={t("Up for review")}
+                text={t(
+                  "Purchases you decided to wait on. On their review date you can buy, keep waiting or skip.",
+                )}
+              />
+            </div>
             <Clock size={18} aria-hidden />
           </div>
           {due.length ? (
@@ -657,7 +682,15 @@ export function Goals() {
                 <div className="flex gap-4 items-center">
                   <Ring value={pct} label={`${g.name} ${pct}%`} suffix="%" />
                   <div className="min-w-0">
-                    <h2 className="text-xl font-bold m-0">{g.name}</h2>
+                    <div className="flex items-center gap-1">
+                      <h2 className="text-xl font-bold m-0">{g.name}</h2>
+                      <InfoTip
+                        label={g.name}
+                        text={t(
+                          "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.",
+                        )}
+                      />
+                    </div>
                     <Pill
                       tone={
                         g.status === "Completed"
@@ -843,7 +876,15 @@ export function WaitingPage() {
                   <Clock size={20} aria-hidden />
                 </span>
                 <div className="flex-1 basis-40">
-                  <h2 className="text-xl font-bold m-0">{w.name}</h2>
+                  <div className="flex items-center gap-1">
+                    <h2 className="text-xl font-bold m-0">{w.name}</h2>
+                    <InfoTip
+                      label={w.name}
+                      text={t(
+                        "Fit is the overall score from when you analyzed this purchase. When it is ready to revisit, decide again with what you know now.",
+                      )}
+                    />
+                  </div>
                   <p className="f-num m-0">
                     {money.text(w.price, w.currency)}{" "}
                     <span className="f-ui text-sm text-soft">
@@ -1020,7 +1061,15 @@ export function Insights() {
     <>
       <PageHead title={t("Insights")} />
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("Spending by category")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("Spending by category")}</h2>
+          <InfoTip
+            label={t("Spending by category")}
+            text={t(
+              "Your five largest expense categories this month and their share of all spending.",
+            )}
+          />
+        </div>
         {sv.kind === "ok" ? (
           sv.byCat.length ? (
             <>
@@ -1047,7 +1096,15 @@ export function Insights() {
         )}
       </Card>
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("Income vs. expenses")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("Income vs. expenses")}</h2>
+          <InfoTip
+            label={t("Income vs. expenses")}
+            text={t(
+              "This month's total income and total spending side by side. The longer bar sets the scale.",
+            )}
+          />
+        </div>
         {sv.kind === "ok" ? (
           <>
             <Tube
@@ -1079,7 +1136,15 @@ export function Insights() {
         )}
       </Card>
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("Decision patterns")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("Decision patterns")}</h2>
+          <InfoTip
+            label={t("Decision patterns")}
+            text={t(
+              "How often each feeling and reason came up in your decisions and waiting items.",
+            )}
+          />
+        </div>
         {all.length < 3 ? (
           <Empty expr="thinking" text={t("A few more decisions and patterns will appear.")} />
         ) : (
@@ -1124,7 +1189,13 @@ export function Insights() {
         )}
       </Card>
       <Card className="grid gap-3">
-        <h2 className="text-xl font-bold m-0">{t("How decisions felt later")}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-xl font-bold m-0">{t("How decisions felt later")}</h2>
+          <InfoTip
+            label={t("How decisions felt later")}
+            text={t("Your average later rating (1–5), grouped by how you felt when you decided.")}
+          />
+        </div>
         {byFeeling.length < 2 ? (
           <Empty
             expr="thinking"
