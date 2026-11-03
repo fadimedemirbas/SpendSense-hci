@@ -32,6 +32,7 @@ import {
   Card,
   Chip,
   Expand,
+  InfoTip,
   PageHead,
   Pill,
   Ring,
@@ -167,6 +168,11 @@ export function Decide() {
   const currencyNote = lockedCurrency
     ? "A saved purchase keeps its original currency."
     : recordCurrencyNote();
+  const priceHint = t(
+    p.currency === "TRY"
+      ? "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50."
+      : "Numbers only, without thousands separators. Use a comma or dot for cents, e.g. 1250 or 1250.50.",
+  );
   // Back from the result via Edit: every answer is listed as editable (D9).
   const [reviewing, setReviewing] = useState(false);
   const answersRef = useRef<HTMLOListElement>(null);
@@ -387,9 +393,15 @@ export function Decide() {
                           {fieldErr.name}
                         </p>
                       )}
-                      <label className="f-ui grid gap-1">
-                        {t("Price")} ({curLabelIn(p.currency)})
+                      <div className="f-ui grid gap-1">
+                        <div className="flex items-center gap-1">
+                          <label htmlFor={`${fieldId}-price-input`}>
+                            {t("Price")} ({curLabelIn(p.currency)})
+                          </label>
+                          <InfoTip label={t("Price")} text={priceHint} />
+                        </div>
                         <input
+                          id={`${fieldId}-price-input`}
                           ref={priceRef}
                           inputMode="decimal"
                           value={priceStr}
@@ -408,14 +420,10 @@ export function Decide() {
                           onKeyDown={enter}
                           className="h-13 rounded-tile border border-line bg-field px-4 f-num text-xl"
                         />
-                      </label>
+                      </div>
                       {/* Matches the parser: digits, one comma or dot, up to 2 decimals. */}
-                      <p id={`${fieldId}-price-hint`} className="m-0 -mt-1 text-sm text-soft">
-                        {t(
-                          p.currency === "TRY"
-                            ? "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50."
-                            : "Numbers only, without thousands separators. Use a comma or dot for cents, e.g. 1250 or 1250.50.",
-                        )}
+                      <p id={`${fieldId}-price-hint`} className="sr-only">
+                        {priceHint}
                       </p>
                       {fieldErr.price && (
                         <p id={`${fieldId}-price`} role="alert" className={fieldError}>

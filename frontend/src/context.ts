@@ -50,6 +50,8 @@ export interface AppState {
   setSaveSheet: (h: Holding | "new" | null) => void;
   tour: number | null;
   setTour: (n: number | null) => void;
+  shortcutsEnabled: boolean;
+  setShortcutsEnabled: (enabled: boolean) => void;
   lastCat: string;
   setLastCat: (c: string) => void;
 }

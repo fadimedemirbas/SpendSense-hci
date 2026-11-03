@@ -16,6 +16,7 @@ import {
   Empty,
   PageHead,
   Segmented,
+  Select,
   Sheet,
   Tile,
   useT,
@@ -180,7 +181,7 @@ function MonthSwitcher({
 }
 
 export function Money() {
-  const { entries, holdings, setQuickAdd, setSaveSheet, profile } = useApp();
+  const { entries, holdings, setQuickAdd, setSaveSheet, profile, shortcutsEnabled } = useApp();
   const t = useT();
   const money = useDisplayMoney();
   const { lang } = useContext(LangCtx);
@@ -234,7 +235,12 @@ export function Money() {
             >
               {t("Add income")}
             </Button>
-            <Button variant="coral" icon={<Plus size={18} />} onClick={() => setQuickAdd("new")}>
+            <Button
+              variant="coral"
+              icon={<Plus size={18} />}
+              onClick={() => setQuickAdd("new")}
+              aria-keyshortcuts={shortcutsEnabled ? "n" : undefined}
+            >
               {t("Add expense")}
             </Button>
             <Button variant="sun" icon={<Plus size={18} />} onClick={() => setSaveSheet("new")}>
@@ -260,18 +266,14 @@ export function Money() {
         />
         <label className="f-ui flex items-center gap-2">
           <span className="sr-only">{t("Category")}</span>
-          <select
-            value={cat}
-            onChange={(e) => setCat(e.target.value)}
-            className="min-h-11 rounded-full clay-cream px-4"
-          >
+          <Select value={cat} onChange={(e) => setCat(e.target.value)}>
             <option value="all">{t("All categories")}</option>
             {cats.map(([c]) => (
               <option key={c} value={c}>
                 {t(c)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
       {any && (

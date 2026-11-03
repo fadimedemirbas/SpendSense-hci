@@ -503,15 +503,22 @@ test("the exact price reaches the result screen and is saved unrounded", async (
   expect(saved.waiting[0]).toMatchObject({ name: "Kettle", price: 129.95, wait: "3d" });
 });
 
-test("the price hint is visible, translated and announced with the field", async ({ page }) => {
+test("the price hint is a translated tooltip and remains announced with the field", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await openDecide(page);
-  const hint = page.getByText(
-    "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50.",
-  );
-  await expect(hint).toBeVisible();
+  const hint = page.locator('[id$="-price-hint"]');
+  await expect(hint).toHaveClass("sr-only");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   const hintId = await hint.getAttribute("id");
   expect(await price(page).getAttribute("aria-describedby")).toBe(hintId);
+  await page.getByRole("button", { name: "Info about Price", exact: true }).click();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Numbers only, without thousands separators. Use a comma or dot for kuruş, e.g. 1250 or 1250.50.",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await next(page); // empty: the error is added, the hint stays linked
   const described = ((await price(page).getAttribute("aria-describedby")) ?? "").split(" ");
   expect(described).toContain(hintId);
@@ -520,11 +527,10 @@ test("the price hint is visible, translated and announced with the field", async
   await page.getByRole("button", { name: "Settings" }).first().click();
   await page.getByRole("radio", { name: "Türkçe", exact: true }).click();
   await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
-  await expect(
-    page.getByText(
-      "Binlik ayırıcı olmadan yalnızca rakam gir. Kuruş için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
-    ),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Fiyat hakkında bilgi", exact: true }).click();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Binlik ayırıcı olmadan yalnızca rakam gir. Kuruş için virgül ya da nokta kullan, örn. 1250 veya 1250,50.",
+  );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

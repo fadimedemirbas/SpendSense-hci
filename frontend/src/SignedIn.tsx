@@ -11,6 +11,7 @@ import { Decide } from "./Decide";
 import { HomePage, Goals, WaitingPage, HistoryPage, Insights } from "./Pages";
 import { SettingsPage } from "./Settings";
 import { useWorkspace } from "./lib/useWorkspace";
+import { readShortcutPreference, writeShortcutPreference } from "./lib/keyboardShortcuts";
 
 export default function SignedIn({
   session,
@@ -34,6 +35,21 @@ export default function SignedIn({
   const [lastCat, setLastCat] = useState("Shopping");
   const [retaking, setRetaking] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [shortcutsEnabled, setShortcutsEnabledRaw] = useState(() => {
+    try {
+      return readShortcutPreference(localStorage);
+    } catch {
+      return false;
+    }
+  });
+  const setShortcutsEnabled = (enabled: boolean) => {
+    try {
+      writeShortcutPreference(localStorage, enabled);
+    } catch {
+      // Storage blocked: the preference still applies for this visit.
+    }
+    setShortcutsEnabledRaw(enabled);
+  };
   setCurrencyMode(data.profile.currency);
   useEffect(() => {
     // "/" or a signed-out page like /how-it-works becomes the current tab's path.
@@ -68,6 +84,8 @@ export default function SignedIn({
     setSaveSheet,
     tour,
     setTour,
+    shortcutsEnabled,
+    setShortcutsEnabled,
     lastCat,
     setLastCat,
     recordAnalysis: async (

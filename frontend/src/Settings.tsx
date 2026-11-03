@@ -18,6 +18,7 @@ import {
   Info,
   ShieldCheck,
   SunMoon,
+  Keyboard,
   ShieldAlert,
   Plus,
   X,
@@ -26,14 +27,18 @@ import { useDeleteConfirm } from "./useDeleteConfirm";
 import { categoryKey, parseCategoryKey } from "./lib/deleteConfirm";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
 import { displayCurrencyNote } from "./lib/displayCurrency";
+import { formatBulletinDate, usableRates } from "./lib/moneyTotals";
+import { useRates } from "./lib/useRates";
 import { useApp } from "./context";
 import {
   Button,
   Card,
   Dialog,
+  InfoTip,
   LangCtx,
   PageHead,
   Segmented,
+  Select,
   Tube,
   rangeLabel,
   useT,
@@ -71,7 +76,7 @@ function Row({
   children,
 }: {
   icon: ReactNode;
-  title: string;
+  title: ReactNode;
   desc?: string;
   children?: ReactNode;
 }) {
@@ -129,6 +134,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
   };
   return (
     <form
+      data-shortcuts-block
       className="basis-full grid gap-3 sm:grid-cols-2 rise"
       onSubmit={(e) => {
         e.preventDefault();
@@ -204,6 +210,7 @@ function DeleteConfirmRow() {
       )}
     >
       <form
+        data-shortcuts-block={pick ? "" : undefined}
         className="flex flex-wrap gap-2"
         onSubmit={(e) => {
           e.preventDefault();
@@ -212,12 +219,7 @@ function DeleteConfirmRow() {
           setPick("");
         }}
       >
-        <select
-          aria-label={t("Category")}
-          value={pick}
-          onChange={(e) => setPick(e.target.value)}
-          className="min-h-11 rounded-full clay-cream px-4 f-ui"
-        >
+        <Select aria-label={t("Category")} value={pick} onChange={(e) => setPick(e.target.value)}>
           <option value="">{t("Pick a category")}</option>
           {groups.map(
             ([label, options]) =>
@@ -231,7 +233,7 @@ function DeleteConfirmRow() {
                 </optgroup>
               ),
           )}
-        </select>
+        </Select>
         <Button type="submit" icon={<Plus size={16} />} disabled={!pick}>
           {t("Add")}
         </Button>
@@ -280,17 +282,38 @@ export function SettingsPage({
   retake: () => void;
   name?: string;
 }) {
-  const { profile, setProfile, setTour, setTab, entries, holdings, goals, decisions, waiting } =
-    useApp();
+  const {
+    profile,
+    setProfile,
+    setTour,
+    setTab,
+    entries,
+    holdings,
+    goals,
+    decisions,
+    waiting,
+    shortcutsEnabled,
+    setShortcutsEnabled,
+  } = useApp();
   const t = useT();
   const pwa = usePwa();
   const { lang, setLang } = useContext(LangCtx);
   const theme = useTheme();
+  const rates = useRates();
+  const rate = usableRates(rates)?.rate;
+  const rateInfo = rate
+    ? t("Converted with TCMB rates from {date}.", {
+        date: formatBulletinDate(rate.bulletinDate, lang),
+      }) + (rate.status === "stale" ? ` ${t("These rates may be out of date.")}` : "")
+    : t(
+        rates.loading
+          ? "Checking exchange rates…"
+          : "Exchange rates are unavailable right now, so amounts are shown in their own currency.",
+      );
   const [confirm, setConfirm] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [password, setPassword] = useState(false);
   const [installHelp, setInstallHelp] = useState(false);
-  const select = "min-h-11 rounded-full clay-cream px-4 f-ui";
   const exportCsv = () =>
     download(
       `spendsense-entries-${today()}.csv`,
@@ -380,8 +403,30 @@ export function SettingsPage({
           />
         </Row>
         <Row
+          icon={<Keyboard size={18} />}
+          title={t("Keyboard shortcuts")}
+          desc={t(
+            "Use N to add an expense, D to open Decide and ? for help. Saved on this device.",
+          )}
+        >
+          <Segmented
+            label={t("Keyboard shortcuts")}
+            value={shortcutsEnabled ? "on" : "off"}
+            onChange={(value) => setShortcutsEnabled(value === "on")}
+            options={[
+              ["off", t("Off")],
+              ["on", t("On")],
+            ]}
+          />
+        </Row>
+        <Row
           icon={<Banknote size={18} />}
-          title={t("Display currency")}
+          title={
+            <span className="inline-flex items-center gap-1">
+              {t("Display currency")}
+              <InfoTip label={t("Display currency")} text={rateInfo} />
+            </span>
+          }
           desc={t(displayCurrencyNote())}
         >
           {/* Shows the saved value only: it changes after the database confirms the save. */}
@@ -414,36 +459,34 @@ export function SettingsPage({
           title={t("Monthly income")}
           desc={t("Used until you add this month's income.")}
         >
-          <select
+          <Select
             aria-label={t("Monthly income")}
             value={profile.income}
             onChange={(e) => setProfile({ ...profile, income: +e.target.value })}
-            className={select}
           >
             {INCOME_RANGES.map((r, i) => (
               <option key={r} value={i}>
                 {rangeLabel(t(r))}
               </option>
             ))}
-          </select>
+          </Select>
         </Row>
         <Row
           icon={<PiggyBank size={18} />}
           title={t("Monthly savings")}
           desc={t("Used to estimate how purchases delay your goals.")}
         >
-          <select
+          <Select
             aria-label={t("Monthly savings")}
             value={profile.savings}
             onChange={(e) => setProfile({ ...profile, savings: +e.target.value })}
-            className={select}
           >
             {SAVINGS_RANGES.map((r, i) => (
               <option key={r} value={i}>
                 {rangeLabel(t(r))}
               </option>
             ))}
-          </select>
+          </Select>
         </Row>
       </Section>
 

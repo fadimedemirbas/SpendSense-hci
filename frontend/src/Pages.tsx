@@ -67,7 +67,17 @@ const daysUntil = (iso: string) =>
   Math.ceil((new Date(iso).getTime() - new Date(today()).getTime()) / 864e5);
 
 export function HomePage({ firstName }: { firstName?: string }) {
-  const { entries, goals, waiting, decisions, setQuickAdd, setTab, openDecide, profile } = useApp();
+  const {
+    entries,
+    goals,
+    waiting,
+    decisions,
+    setQuickAdd,
+    setTab,
+    openDecide,
+    profile,
+    shortcutsEnabled,
+  } = useApp();
   const t = useT();
   const money = useDisplayMoney();
   // Each record keeps its own currency; totals are shown in the display currency and
@@ -165,7 +175,13 @@ export function HomePage({ firstName }: { firstName?: string }) {
         >
           {t("Add income")}
         </Button>
-        <Button variant="coral" big icon={<Plus size={20} />} onClick={() => setQuickAdd("new")}>
+        <Button
+          variant="coral"
+          big
+          icon={<Plus size={20} />}
+          onClick={() => setQuickAdd("new")}
+          aria-keyshortcuts={shortcutsEnabled ? "n" : undefined}
+        >
           {t("Add expense")}
         </Button>
         <Button
@@ -440,7 +456,7 @@ function GoalFlow({
   return (
     <>
       <PageHead title={t(editing ? "Edit goal" : "Add goal")} />
-      <div>
+      <div data-shortcuts-block>
         <p className="f-ui text-sm m-0 mb-1">{t("Step {n} of {t}", { n: step + 1, t: 4 })}</p>
         <div className="h-2.5 rounded-full bg-track">
           <div

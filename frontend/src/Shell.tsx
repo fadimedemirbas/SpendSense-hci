@@ -10,10 +10,12 @@ import {
   History,
   Settings,
   ArrowLeft,
+  Keyboard,
 } from "lucide-react";
 import { Logo, Sheet, Button, Blob, useT } from "./ui";
 import { useApp, type Tab } from "./context";
 import { today } from "./store";
+import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 
 const MAIN: [Tab, string, typeof Home][] = [
   ["home", "Home", Home],
@@ -34,9 +36,24 @@ const TOUR: [string, string, string][] = [
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { tab, setTab, goBack, canGoBack, waiting, tour, setTour } = useApp();
+  const {
+    tab,
+    setTab,
+    goBack,
+    canGoBack,
+    waiting,
+    tour,
+    setTour,
+    quickAdd,
+    setQuickAdd,
+    saveSheet,
+    shortcutsEnabled,
+  } = useApp();
   const t = useT();
   const [more, setMore] = useState(false);
+  const [shortcutHelp, setShortcutHelp] = useState(false);
+  const shortcutOpener = useRef<HTMLElement | null>(null);
+  const mobileMore = useRef<HTMLButtonElement>(null);
   // When the desktop nav wraps (long Turkish labels at ~768px) "More" can sit at
   // the left edge; open the menu rightwards then so it stays on screen.
   const [menuFromLeft, setMenuFromLeft] = useState(false);
@@ -83,6 +100,30 @@ export function Shell({ children }: { children: ReactNode }) {
     setTab(k);
     setMore(false);
   };
+  const openShortcuts = () => {
+    shortcutOpener.current = more
+      ? mobile
+        ? mobileMore.current
+        : (menu.current?.querySelector<HTMLButtonElement>("[aria-haspopup]") ?? null)
+      : (document.activeElement as HTMLElement | null);
+    setMore(false);
+    setShortcutHelp(true);
+  };
+  const closeShortcuts = () => {
+    setShortcutHelp(false);
+    requestAnimationFrame(() => {
+      if (shortcutOpener.current?.isConnected) shortcutOpener.current.focus();
+    });
+  };
+  useKeyboardShortcuts({
+    enabled: shortcutsEnabled,
+    blocked: more || shortcutHelp || tour !== null || quickAdd !== null || saveSheet !== null,
+    onNewExpense: () => setQuickAdd("new"),
+    onDecide: () => {
+      if (tab !== "decide") setTab("decide");
+    },
+    onHelp: openShortcuts,
+  });
   const badge = due > 0 && (
     <span
       className="f-num text-xs bg-violettint text-violet rounded-full px-1.5"
@@ -96,6 +137,7 @@ export function Shell({ children }: { children: ReactNode }) {
       key={k}
       data-tour-id={k === "decide" || k === "goals" ? k : undefined}
       aria-current={tab === k ? "page" : undefined}
+      aria-keyshortcuts={shortcutsEnabled && k === "decide" ? "d" : undefined}
       onClick={() => go(k)}
       className={`btn f-ui min-h-11! px-4! ${tab === k ? "clay-sun" : "hover:bg-peach"}`}
     >
@@ -189,6 +231,15 @@ export function Shell({ children }: { children: ReactNode }) {
                   {k === "waiting" && badge}
                 </button>
               ))}
+              <button
+                role="menuitem"
+                onClick={openShortcuts}
+                aria-keyshortcuts={shortcutsEnabled ? "?" : undefined}
+                className="f-ui min-h-11 px-3 rounded-inner flex items-center gap-2 hover:bg-peach text-left"
+              >
+                <Keyboard size={18} aria-hidden />
+                {t("Keyboard shortcuts")}
+              </button>
             </div>
           )}
         </div>
@@ -209,6 +260,7 @@ export function Shell({ children }: { children: ReactNode }) {
           return (
             <button
               key={k}
+              ref={k === "more" ? mobileMore : undefined}
               aria-label={t(l)}
               data-tour-id={k === "decide" || k === "goals" ? k : undefined}
               aria-current={active ? "page" : undefined}
@@ -249,9 +301,47 @@ export function Shell({ children }: { children: ReactNode }) {
                   {k === "waiting" && badge}
                 </Button>
               ))}
+              <Button
+                onClick={openShortcuts}
+                className="justify-start!"
+                icon={<Keyboard size={18} aria-hidden />}
+              >
+                {t("Keyboard shortcuts")}
+              </Button>
             </div>
           </Sheet>
         </div>
+      )}
+      {shortcutHelp && (
+        <Sheet title={t("Keyboard shortcuts")} onClose={closeShortcuts}>
+          <p className="m-0 mb-4 text-sm text-soft">
+            {t(
+              shortcutsEnabled
+                ? "Shortcuts are on. They pause while you type or use an open dialog or menu."
+                : "Shortcuts are off. Turn them on in Settings to use N, D and ?.",
+            )}
+          </p>
+          <dl className="m-0 grid gap-3">
+            {[
+              ["N", "Add expense"],
+              ["D", "Go to Decide"],
+              ["?", "Show keyboard shortcuts"],
+              ["Tab / Shift+Tab", "Move between controls"],
+              ["Enter", "Activate a control, or continue or save in a form"],
+              ["Esc", "Close a dialog, menu or tooltip"],
+              ["← / →", "Choose between options"],
+            ].map(([key, label]) => (
+              <div key={key} className="flex flex-wrap items-center justify-between gap-2">
+                <dt>
+                  <kbd className="inline-block clay-cream rounded-inner px-2.5 py-1.5 f-ui text-sm">
+                    {key}
+                  </kbd>
+                </dt>
+                <dd className="m-0 text-sm text-right flex-1 min-w-32">{t(label)}</dd>
+              </div>
+            ))}
+          </dl>
+        </Sheet>
       )}
       {tour !== null && (
         <div

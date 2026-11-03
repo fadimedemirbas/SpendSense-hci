@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
   type ButtonHTMLAttributes,
+  type SelectHTMLAttributes,
 } from "react";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
 import { nextSegmentIndex } from "./lib/segmented";
@@ -23,6 +24,22 @@ export const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void }>
 const TR: Record<string, string> = {
   "Skip to content": "İçeriğe geç",
   "Main navigation": "Ana gezinme",
+  "Keyboard shortcuts": "Klavye kısayolları",
+  Off: "Kapalı",
+  On: "Açık",
+  "Use N to add an expense, D to open Decide and ? for help. Saved on this device.":
+    "N ile gider ekle, D ile Karar ekranını, ? ile yardımı aç. Bu cihazda saklanır.",
+  "Shortcuts are on. They pause while you type or use an open dialog or menu.":
+    "Kısayollar açık. Yazı yazarken veya açık bir pencere ya da menü kullanırken devre dışı kalırlar.",
+  "Shortcuts are off. Turn them on in Settings to use N, D and ?.":
+    "Kısayollar kapalı. N, D ve ? tuşlarını kullanmak için Ayarlar'dan açabilirsin.",
+  "Go to Decide": "Karar ekranına git",
+  "Show keyboard shortcuts": "Klavye kısayollarını göster",
+  "Move between controls": "Kontroller arasında gezin",
+  "Activate a control, or continue or save in a form":
+    "Seçili öğeyi çalıştır, formda ilerle veya kaydet",
+  "Close a dialog, menu or tooltip": "Pencereyi, menüyü veya ipucunu kapat",
+  "Choose between options": "Seçenekler arasında geçiş yap",
   Progress: "İlerleme",
   "Saving your changes…": "Değişikliklerin kaydediliyor…",
   Filter: "Filtre",
@@ -894,18 +911,54 @@ export function Loading({ text }: { text: string }) {
     </div>
   );
 }
-// The official logo (public/spendsense-logo.png) cropped to its rounded tile by
-// scripts/generate-icons.py. Decorative by default, because it sits next to the
-// "SpendSense" name; pass alt="SpendSense" where the image is the only brand label.
 export const Logo = ({ size = 36, alt = "" }: { size?: number; alt?: string }) => (
-  <img
-    src="/icons/spendsense-mark.png"
+  // A gold coin (reeded edge, visible thickness) wearing the mascot's face. Same drawing as public/icon.svg.
+  <svg
     width={size}
     height={size}
-    alt={alt}
-    draggable={false}
+    viewBox="0 0 48 48"
+    role={alt ? "img" : undefined}
+    aria-label={alt || undefined}
+    aria-hidden={alt ? undefined : true}
     className="shrink-0 select-none"
-  />
+  >
+    <rect x="1" y="1" width="46" height="46" rx="13" fill="#c9452a" />
+    <rect x="1" y="1" width="46" height="43" rx="13" fill="#ff6b4a" />
+    <path d="M11 4.5h26" stroke="#fff" strokeOpacity=".45" strokeWidth="2" strokeLinecap="round" />
+    <rect x="1" y="1" width="46" height="46" rx="13" fill="none" stroke="#2a1a2c" strokeWidth="2" />
+    <circle cx="24" cy="28" r="13.5" fill="#d9a21a" stroke="#2a1a2c" strokeWidth="2.2" />
+    <circle cx="24" cy="24.5" r="13.5" fill="#ffc93c" stroke="#2a1a2c" strokeWidth="2.2" />
+    <circle
+      cx="24"
+      cy="24.5"
+      r="11.4"
+      fill="none"
+      stroke="#d9a21a"
+      strokeWidth="1.4"
+      strokeDasharray=".7 1.29"
+    />
+    <circle cx="24" cy="24.5" r="9.6" fill="#ffd968" stroke="#d9a21a" strokeWidth="1.3" />
+    <path
+      d="M17.2 21a8 8 0 0 1 4.2-4"
+      fill="none"
+      stroke="#fff"
+      strokeOpacity=".85"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+    <ellipse cx="20.7" cy="23.6" rx="1.35" ry="1.9" fill="#2a1a2c" />
+    <ellipse cx="27.3" cy="23.6" rx="1.35" ry="1.9" fill="#2a1a2c" />
+    <circle cx="18.6" cy="27.2" r="1.4" fill="#ff6b4a" fillOpacity=".55" />
+    <circle cx="29.4" cy="27.2" r="1.4" fill="#ff6b4a" fillOpacity=".55" />
+    <path d="M39 6.5q.6 3 3 3.5-2.4.5-3 3.5-.6-3-3-3.5 2.4-.5 3-3.5Z" fill="#fff" />
+    <path
+      d="M21.2 27.3q2.8 2.6 5.6 0"
+      fill="none"
+      stroke="#2a1a2c"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
+  </svg>
 );
 export type Expr = "neutral" | "happy" | "thinking" | "calm" | "curious" | "sleepy" | "wave";
 export function Blob({
@@ -1097,6 +1150,21 @@ export const Pill = ({
     </span>
   );
 };
+export function Select({
+  children,
+  className = "",
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <span className="select-wrap">
+      <select {...props} className={`select-control clay-cream f-ui ${className}`}>
+        {children}
+      </select>
+      <ChevronDown className="select-chevron" aria-hidden focusable="false" />
+    </span>
+  );
+}
+
 export function Segmented<T extends string>({
   value,
   options,
@@ -1508,11 +1576,11 @@ function useModal(onClose: () => void) {
       );
     resize();
     window.visualViewport?.addEventListener("resize", resize);
-    ref.current
-      ?.querySelector<HTMLElement>(
+    const firstControl =
+      ref.current?.querySelector<HTMLElement>(
         "input:not(:disabled),button:not([data-modal-close]):not(:disabled):not([tabindex='-1']),select:not(:disabled),textarea:not(:disabled)",
-      )
-      ?.focus();
+      ) ?? ref.current?.querySelector<HTMLElement>("[data-modal-close]");
+    firstControl?.focus();
     const k = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !ref.current?.closest("fieldset:disabled")) close.current();
       if (e.key === "Tab" && ref.current) {

@@ -309,6 +309,7 @@ test("Home, Insights and Decide are translated, accessible and fit 320px", async
     .getByRole("radio", { name: "€ EUR" })
     .click();
   await expect(page.getByLabel("Fiyat (€)", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Sent için virgül/)).toBeVisible();
+  await page.getByRole("button", { name: "Fiyat hakkında bilgi", exact: true }).click();
+  await expect(page.getByRole("tooltip")).toContainText("Sent için virgül");
   await fitsAndIsAccessible(page);
 });
