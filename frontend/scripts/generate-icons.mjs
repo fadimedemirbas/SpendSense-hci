@@ -1,16 +1,11 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { Resvg } from "@resvg/resvg-js";
-// Render public/icon.svg (the SpendSense logo) into the PWA and Apple icons.
-const source = await readFile(new URL("../public/icon.svg", import.meta.url), "utf8");
-const output = new URL("../public/icons/", import.meta.url);
-await mkdir(output, { recursive: true });
-for (const [name, size, inset] of [
-  ["pwa-192.png", 192, 0],
-  ["pwa-512.png", 512, 0],
-  ["pwa-maskable-512.png", 512, 80],
-  ["apple-touch-icon.png", 180, 0],
-]) {
-  const inner = source.replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="#fff6ec"/><svg x="${inset}" y="${inset}" width="${size - 2 * inset}" height="${size - 2 * inset}" viewBox="0 0 48 48">${inner}</svg></svg>`;
-  await writeFile(new URL(name, output), new Resvg(svg).render().asPng());
-}
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+// Both commands use the original PNG artwork and the same sizing rules.
+const result = spawnSync(
+  process.env.PYTHON || "python",
+  [fileURLToPath(new URL("./generate-icons.py", import.meta.url))],
+  { stdio: "inherit" },
+);
+if (result.error) throw result.error;
+process.exit(result.status ?? 1);

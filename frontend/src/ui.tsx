@@ -912,53 +912,15 @@ export function Loading({ text }: { text: string }) {
   );
 }
 export const Logo = ({ size = 36, alt = "" }: { size?: number; alt?: string }) => (
-  // A gold coin (reeded edge, visible thickness) wearing the mascot's face. Same drawing as public/icon.svg.
-  <svg
+  <img
+    src="/icons/spendsense-mark.png"
     width={size}
     height={size}
-    viewBox="0 0 48 48"
-    role={alt ? "img" : undefined}
-    aria-label={alt || undefined}
+    alt={alt}
     aria-hidden={alt ? undefined : true}
     className="shrink-0 select-none"
-  >
-    <rect x="1" y="1" width="46" height="46" rx="13" fill="#c9452a" />
-    <rect x="1" y="1" width="46" height="43" rx="13" fill="#ff6b4a" />
-    <path d="M11 4.5h26" stroke="#fff" strokeOpacity=".45" strokeWidth="2" strokeLinecap="round" />
-    <rect x="1" y="1" width="46" height="46" rx="13" fill="none" stroke="#2a1a2c" strokeWidth="2" />
-    <circle cx="24" cy="28" r="13.5" fill="#d9a21a" stroke="#2a1a2c" strokeWidth="2.2" />
-    <circle cx="24" cy="24.5" r="13.5" fill="#ffc93c" stroke="#2a1a2c" strokeWidth="2.2" />
-    <circle
-      cx="24"
-      cy="24.5"
-      r="11.4"
-      fill="none"
-      stroke="#d9a21a"
-      strokeWidth="1.4"
-      strokeDasharray=".7 1.29"
-    />
-    <circle cx="24" cy="24.5" r="9.6" fill="#ffd968" stroke="#d9a21a" strokeWidth="1.3" />
-    <path
-      d="M17.2 21a8 8 0 0 1 4.2-4"
-      fill="none"
-      stroke="#fff"
-      strokeOpacity=".85"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-    />
-    <ellipse cx="20.7" cy="23.6" rx="1.35" ry="1.9" fill="#2a1a2c" />
-    <ellipse cx="27.3" cy="23.6" rx="1.35" ry="1.9" fill="#2a1a2c" />
-    <circle cx="18.6" cy="27.2" r="1.4" fill="#ff6b4a" fillOpacity=".55" />
-    <circle cx="29.4" cy="27.2" r="1.4" fill="#ff6b4a" fillOpacity=".55" />
-    <path d="M39 6.5q.6 3 3 3.5-2.4.5-3 3.5-.6-3-3-3.5 2.4-.5 3-3.5Z" fill="#fff" />
-    <path
-      d="M21.2 27.3q2.8 2.6 5.6 0"
-      fill="none"
-      stroke="#2a1a2c"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-  </svg>
+    draggable={false}
+  />
 );
 export type Expr = "neutral" | "happy" | "thinking" | "calm" | "curious" | "sleepy" | "wave";
 export function Blob({
