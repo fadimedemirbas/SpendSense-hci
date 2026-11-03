@@ -16,9 +16,9 @@ SOURCE = ROOT / "public" / "spendsense-logo.png"
 OUT = ROOT / "public" / "icons"
 
 # Where the rounded tile sits inside the 1254 px source, and its corner radius.
-TILE = (102, 103, 1152, 1153)
+TILE = (102, 104, 1151, 1153)
 RADIUS = 256
-BACKGROUND = (254, 249, 238)  # the logo's own cream margin
+BACKGROUND = (253, 249, 237)  # the logo's own cream margin
 
 
 def tile(logo: Image.Image, size: int) -> Image.Image:
