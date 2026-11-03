@@ -4,7 +4,10 @@ import { formatBulletinDate, type RateInfo } from "./lib/moneyTotals";
 import { useRates } from "./lib/useRates";
 import { InfoTip, LangCtx, useT } from "./ui";
 
-/** Disclosure reads the existing snapshot; it never fetches or changes calculations. */
+/**
+ * Disclosure reads the existing snapshot; it never fetches or changes calculations.
+ * Shown in Settings only, next to the last update time (RatesLastUpdate).
+ */
 export function ExchangeRateInfo({ rate }: { rate?: RateInfo }) {
   const state = useRates(false);
   const t = useT();
@@ -21,7 +24,6 @@ export function ExchangeRateInfo({ rate }: { rate?: RateInfo }) {
       timeZone: "Europe/Istanbul",
     }).format(new Date(value));
   };
-  const received = matches ? timestamp(state.receivedAt) : null;
   const fetched = timestamp(snapshot?.fetchedAt);
   const statusText = t(
     status === "fresh"
@@ -47,12 +49,6 @@ export function ExchangeRateInfo({ rate }: { rate?: RateInfo }) {
                 {formatBulletinDate(date, lang)}
                 {snapshot?.bulletin ? ` · ${snapshot.bulletin}` : ""}
               </dd>
-            </div>
-          )}
-          {received && (
-            <div>
-              <dt className="font-bold">{t("Last received by this app")}</dt>
-              <dd className="m-0">{received}</dd>
             </div>
           )}
           {fetched && (
@@ -110,5 +106,36 @@ export function ExchangeRateInfo({ rate }: { rate?: RateInfo }) {
         </div>
       </div>
     </InfoTip>
+  );
+}
+
+/** When this app last received validated rates; nothing is shown as a time without one. */
+export function RatesLastUpdate() {
+  const state = useRates(false);
+  const t = useT();
+  const { lang } = useContext(LangCtx);
+  const received =
+    state.receivedAt && Number.isFinite(Date.parse(state.receivedAt))
+      ? new Intl.DateTimeFormat(lang === "tr" ? "tr-TR" : "en-GB", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Europe/Istanbul",
+          timeZoneName: "short",
+        }).format(new Date(state.receivedAt))
+      : null;
+  return (
+    <span className="block">
+      {t("Last exchange rate update")}:{" "}
+      {received ? (
+        <time dateTime={state.receivedAt!} className="f-num">
+          {received}
+        </time>
+      ) : (
+        t("No successful update yet.")
+      )}
+    </span>
   );
 }

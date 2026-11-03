@@ -24,11 +24,11 @@ export const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void }>
 });
 const TR: Record<string, string> = {
   "Exchange rate information": "Döviz kuru bilgisi",
-  "Approximate conversion": "Yaklaşık çevrim",
   "Exchange rate source": "Döviz kuru kaynağı",
   "No validated rate data is available.": "Doğrulanmış kur verisi bulunmuyor.",
   "Bulletin publication date": "Bülten yayın tarihi",
-  "Last received by this app": "Uygulamanın son başarılı veri alımı",
+  "Last exchange rate update": "Son kur güncellemesi",
+  "No successful update yet.": "Henüz başarılı bir güncelleme yok.",
   "Source last fetched by SpendSense": "SpendSense'in kaynaktan son veri alımı",
   "Exchange rate status": "Döviz kuru durumu",
   "Rates are up to date.": "Kurlar güncel.",
@@ -93,8 +93,8 @@ const TR: Record<string, string> = {
   "Saving USD or EUR amounts is not available yet. Your data was not changed.":
     "USD veya EUR tutarlarını kaydetmek henüz mümkün değil. Verilerin değiştirilmedi.",
   "Display currency": "Görüntüleme para birimi",
-  "Income minus spending in this calendar month, in your display currency. Amounts in other currencies are converted with the latest TCMB rates.":
-    "Bu takvim ayındaki gelirden harcamaların çıkarılmasıyla bulunur; görüntüleme para biriminde gösterilir. Diğer para birimlerindeki tutarlar en güncel TCMB kurlarıyla çevrilir.",
+  "Income minus spending in this calendar month, in your display currency.":
+    "Bu takvim ayındaki gelirden harcamaların çıkarılmasıyla bulunur; görüntüleme para biriminde gösterilir.",
   "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.":
     "İlerleme, biriken tutarın hedefe oranıdır ve hedefin kendi para biriminde hesaplanır. Kenara para ayırdıkça ekleyebilirsin.",
   "Purchases you decided to wait on. On their review date you can buy, keep waiting or skip.":
@@ -109,8 +109,6 @@ const TR: Record<string, string> = {
     "Kararlarında ve bekleyen alımlarında her duygu ve nedenin ne sıklıkla geçtiği.",
   "Your average later rating (1–5), grouped by how you felt when you decided.":
     "Kararlarına sonradan verdiğin ortalama puan (1–5), karar anındaki duygularına göre gruplanmış.",
-  "Income, spending and what is left for the month you are viewing, in your display currency.":
-    "Görüntülediğin aydaki gelir, harcama ve kalan tutar; görüntüleme para biriminde.",
   Month: "Ay",
   "Previous month": "Önceki ay",
   "Next month": "Sonraki ay",
@@ -133,7 +131,6 @@ const TR: Record<string, string> = {
     "Toplamlar bu para biriminde gösterilir. Kayıtların orijinal tutarlarını korur.",
   "This month": "Bu ay",
   Left: "Kalan",
-  "Totals in {c}": "{c} cinsinden toplamlar",
   "By currency": "Para birimine göre",
   "Converted with TCMB rates from {date}.": "{date} tarihli TCMB kurlarıyla çevrildi.",
   "Exchange rates are unavailable right now, so amounts are shown in their own currency.":
@@ -242,7 +239,9 @@ const TR: Record<string, string> = {
   "You are offline. Reconnect before signing in.": "Çevrimdışısın. Giriş yapmadan önce bağlan.",
   "This deletes your saved entries, savings, goals, analyses and decisions. It cannot be undone.":
     "Kaydedilen kayıtların, birikimlerin, hedeflerin, analizlerin ve kararların silinir. Bu işlem geri alınamaz.",
-  Home: "Ana Sayfa",
+  // The Home tab; "Home" itself is the expense category (Ev).
+  "Home tab": "Ana Sayfa",
+  Home: "Ev",
   Money: "Para",
   Decide: "Karar",
   Goals: "Hedefler",
@@ -590,7 +589,6 @@ const TR: Record<string, string> = {
   "Pick at least one reason to continue.": "Devam etmek için en az bir neden seç.",
   "Enter an amount and pick a category.": "Bir tutar gir ve kategori seç.",
   Clear: "Temizle",
-  "How was this calculated?": "Bu nasıl hesaplandı?",
   "You decide.": "Sen karar ver.",
   Buy: "Al",
   "Wait for how long?": "Ne kadar bekleyelim?",
@@ -619,8 +617,6 @@ const TR: Record<string, string> = {
     "{p} ürününü {n} gün önce aldın. Şimdi bu konuda ne hissediyorsun?",
   Status: "Durum",
   "No expenses this month yet.": "Bu ay henüz harcama yok.",
-  "Counts of feelings and reasons across {n} decisions and waiting items. Observations only — not a judgment.":
-    "{n} karar ve bekleyen öğedeki duygu ve gerekçelerin sayımı. Sadece gözlem, yargı değil.",
   "How decisions felt later": "Kararlar sonradan nasıl hissettirdi",
   "Rate a few past decisions in History and patterns will appear here.":
     "Geçmiş'te birkaç kararını puanlarsan örüntüler burada görünecek.",
@@ -876,6 +872,7 @@ const TR: Record<string, string> = {
 };
 // English display text for values stored as short keys.
 const EN: Record<string, string> = {
+  "Home tab": "Home",
   need: "I need it",
   wanted: "Wanted it for a while",
   sale: "It's on sale",

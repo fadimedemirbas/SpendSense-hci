@@ -207,6 +207,11 @@ export function Money() {
           : [...EXP_CATS, ...INC_CATS, ...HOLD_KINDS].filter(
               (c, i, all) => all.findIndex((x) => x[0] === c[0]) === i,
             );
+  // The filter offers the "Home" expense category only while an entry still uses it,
+  // so it is not mistaken for the Home tab. Records are never changed.
+  const filterCats = cats.filter(
+    ([c]) => c !== "Home" || entries.some((e) => e.type === "expense" && e.cat === "Home"),
+  );
   // Savings are listed with the entries; their kind is their category.
   const list = [
     ...(type === "saving" ? [] : monthEntries),
@@ -268,7 +273,7 @@ export function Money() {
           <span className="sr-only">{t("Category")}</span>
           <Select value={cat} onChange={(e) => setCat(e.target.value)}>
             <option value="all">{t("All categories")}</option>
-            {cats.map(([c]) => (
+            {filterCats.map(([c]) => (
               <option key={c} value={c}>
                 {t(c)}
               </option>

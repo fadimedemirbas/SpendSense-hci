@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
-  checkRateDisclosure,
+  expectNoRateDetails,
   fitsAndIsAccessible,
   go,
   legacyWorkspace,
@@ -22,13 +22,12 @@ test("Money: mixed month is converted with fresh rates and dated", async ({ page
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await go(page, "Money");
-  await expect(page.getByText("Totals in Turkish lira")).toBeVisible();
+  await expect(page.getByText(/^Totals in /)).toHaveCount(0);
   await expect(summary(page)).toContainText("Income₺50.000");
   await expect(summary(page)).toContainText("Spent₺6.150");
   await expect(summary(page)).toContainText("Left₺43.850");
-  await checkRateDisclosure(page);
+  await expectNoRateDetails(page);
   await expect(page.getByText("These rates may be out of date.")).toHaveCount(0);
-  await expect(page.getByText("Approximate conversion", { exact: true })).toHaveCount(1);
   // Every entry is shown in the display currency, the original amount underneath.
   await expect(page.getByText("+₺20.000", { exact: true })).toBeVisible();
   await expect(page.getByText("+$500", { exact: true })).toBeVisible();
@@ -236,8 +235,9 @@ test("Money and Goals currency controls are translated, accessible and fit 320px
   await login(page, "tr");
   await go(page, "Para");
   await expect(page.getByRole("heading", { name: "Bu ay" })).toBeVisible();
-  await expect(page.getByText("Türk lirası cinsinden toplamlar")).toBeVisible();
-  await checkRateDisclosure(page, "tr");
+  await expect(page.getByText(/cinsinden toplamlar/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Bu ay hakkında bilgi" })).toHaveCount(0);
+  await expectNoRateDetails(page, "tr");
   await fitsAndIsAccessible(page);
   await page.getByRole("button", { name: "Gider ekle", exact: true }).click();
   await expect(

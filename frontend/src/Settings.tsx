@@ -27,7 +27,7 @@ import { useDeleteConfirm } from "./useDeleteConfirm";
 import { categoryKey, parseCategoryKey } from "./lib/deleteConfirm";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
 import { displayCurrencyNote } from "./lib/displayCurrency";
-import { ExchangeRateInfo } from "./ExchangeRateInfo";
+import { ExchangeRateInfo, RatesLastUpdate } from "./ExchangeRateInfo";
 import { useRates } from "./lib/useRates";
 import { useApp } from "./context";
 import {
@@ -77,7 +77,7 @@ function Row({
 }: {
   icon: ReactNode;
   title: ReactNode;
-  desc?: string;
+  desc?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -426,7 +426,12 @@ export function SettingsPage({
               )}
             </span>
           }
-          desc={t(displayCurrencyNote())}
+          desc={
+            <>
+              {t(displayCurrencyNote())}
+              <RatesLastUpdate />
+            </>
+          }
         >
           {/* Shows the saved value only: it changes after the database confirms the save. */}
           <DisplayCurrencyPicker

@@ -18,7 +18,7 @@ import { today } from "./store";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 
 const MAIN: [Tab, string, typeof Home][] = [
-  ["home", "Home", Home],
+  ["home", "Home tab", Home],
   ["money", "Money", Wallet],
   ["decide", "Decide", MessageCircleQuestionMark],
   ["goals", "Goals", Target],

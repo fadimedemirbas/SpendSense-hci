@@ -212,7 +212,8 @@ for (const [theme, width] of [
     await check("Left this month");
     await check("Bike");
     await go(page, "Money");
-    await check("This month");
+    await expect(page.getByRole("heading", { name: "This month" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Info about This month" })).toHaveCount(0);
     await go(page, "Goals");
     await check("Rome");
     await go(page, "Insights");

@@ -1,6 +1,5 @@
-import { useContext } from "react";
 import { RefreshCw } from "lucide-react";
-import { CURRENCIES, currencyName, type Currency, type Subtotals } from "./lib/currency";
+import { CURRENCIES, type Currency, type Subtotals } from "./lib/currency";
 import { useApp } from "./context";
 import {
   NO_RATES,
@@ -14,8 +13,7 @@ import {
 } from "./lib/moneyTotals";
 import { ratesClient, useRates } from "./lib/useRates";
 import type { Entry } from "./store";
-import { Card, InfoTip, LangCtx, fmtIn, useT } from "./ui";
-import { ExchangeRateInfo } from "./ExchangeRateInfo";
+import { Card, fmtIn, useT } from "./ui";
 
 // Every amount is shown in the display currency (Profile.displayCurrency). Records
 // keep their original amount and currency in storage; conversion happens only on
@@ -80,8 +78,9 @@ export function DisplayAmount({
 }
 
 /**
- * One note per screen for its records in other currencies: the TCMB bulletin used,
- * or why the original currencies are shown.
+ * One note per screen for its records in other currencies: a warning when the
+ * rates used may be out of date, or why the original currencies are shown.
+ * Rate details and the last update are shown only in Settings.
  */
 export function ConversionNote({
   money,
@@ -118,17 +117,14 @@ export function sumText(sum: ConvertedSum) {
   return "—";
 }
 
-/** Bulletin date and freshness for a converted value. */
+/** Warns when a converted value used rates that may be out of date. */
 export function RateNote({ rate }: { rate: RateInfo }) {
   const t = useT();
+  if (rate.status !== "stale") return null;
   return (
-    <div className="flex flex-wrap items-center gap-1 text-sm text-soft">
-      <span>{t("Approximate conversion")}</span>
-      <ExchangeRateInfo rate={rate} />
-      {rate.status === "stale" && (
-        <b className="text-attn font-medium">{t("These rates may be out of date.")}</b>
-      )}
-    </div>
+    <p role="status" className="m-0 text-sm text-attn font-medium">
+      {t("These rates may be out of date.")}
+    </p>
   );
 }
 
@@ -163,7 +159,6 @@ export function RatesUnavailable({
           {t("Try again")}
         </button>
       )}
-      <ExchangeRateInfo />
     </div>
   );
 }
@@ -182,10 +177,8 @@ function SummaryCard({
   loading?: boolean;
 }) {
   const t = useT();
-  const { lang } = useContext(LangCtx);
   const summary = summarizeEntries(entries, currency, view);
   const sums = [summary.income, summary.spent, summary.left];
-  const approximate = sums.find((s) => s.kind === "approximate");
   const unavailable = sums.some((s) => s.kind === "unavailable");
   const invalid = sums.some((s) => s.kind === "invalid");
   const stat = (label: string, sum: ConvertedSum, tone = "") => (
@@ -197,22 +190,8 @@ function SummaryCard({
   return (
     <Card className="grid gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <div className="flex items-center gap-1">
-          <h2 className="f-ui text-soft text-base m-0">{title}</h2>
-          <InfoTip
-            label={title}
-            text={t(
-              "Income, spending and what is left for the month you are viewing, in your display currency.",
-            )}
-          />
-        </div>
-        {(approximate || unavailable) && (
-          <p className="m-0 text-sm text-soft">
-            {unavailable
-              ? t("By currency")
-              : t("Totals in {c}", { c: currencyName(currency, lang) })}
-          </p>
-        )}
+        <h2 className="f-ui text-soft text-base m-0">{title}</h2>
+        {unavailable && <p className="m-0 text-sm text-soft">{t("By currency")}</p>}
       </div>
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-3">
         {stat(t("Income"), summary.income, "text-leaf")}
@@ -224,7 +203,6 @@ function SummaryCard({
           {t("Totals could not be calculated.")}
         </p>
       ) : (
-        // The bulletin used for a conversion is named once per screen (ConversionNote).
         // Money's ConversionNote below offers "Try again" for the whole screen.
         unavailable && <RatesUnavailable loading={loading} retry={false} />
       )}

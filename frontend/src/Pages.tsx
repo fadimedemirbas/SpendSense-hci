@@ -104,7 +104,7 @@ export function HomePage({ firstName }: { firstName?: string }) {
   const due = [...waiting].sort((a, b) => a.review.localeCompare(b.review)).slice(0, 2);
   return (
     <>
-      <h1 className="sr-only">{t("Home")}</h1>
+      <h1 className="sr-only">{t("Home tab")}</h1>
       <Say expr="happy" size={64}>
         {firstName
           ? t("Hi {n}! Let's look at your month together.", { n: firstName })
@@ -115,9 +115,7 @@ export function HomePage({ firstName }: { firstName?: string }) {
           <h2 className="f-ui text-soft text-base m-0">{t("Left this month")}</h2>
           <InfoTip
             label={t("Left this month")}
-            text={t(
-              "Income minus spending in this calendar month, in your display currency. Amounts in other currencies are converted with the latest TCMB rates.",
-            )}
+            text={t("Income minus spending in this calendar month, in your display currency.")}
           />
         </div>
         {month.kind === "exact" || month.kind === "approximate" ? (
@@ -143,7 +141,7 @@ export function HomePage({ firstName }: { firstName?: string }) {
                 value={month.income ? (month.spent / month.income) * 100 : 0}
               />
             </div>
-            {month.kind === "approximate" && (
+            {month.kind === "approximate" && month.rate.status === "stale" && (
               <div className="mt-3">
                 <RateNote rate={month.rate} />
               </div>
@@ -1195,12 +1193,6 @@ export function Insights() {
                 );
               })}
             </div>
-            <Expand title={t("How was this calculated?")}>
-              {t(
-                "Counts of feelings and reasons across {n} decisions and waiting items. Observations only — not a judgment.",
-                { n: all.length },
-              )}
-            </Expand>
           </>
         )}
       </Card>

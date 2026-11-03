@@ -178,24 +178,20 @@ export const go = (page: Page, name: string) =>
 export const goDecide = (page: Page) =>
   page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
 
-export async function checkRateDisclosure(page: Page, lang: "en" | "tr" = "en") {
+/** Financial screens carry no rate label or rate popover; rate details live in Settings. */
+export async function expectNoRateDetails(page: Page, lang: "en" | "tr" = "en") {
   const label = lang === "tr" ? "Döviz kuru bilgisi" : "Exchange rate information";
-  const button = page
-    .getByRole("button", {
+  await expect(
+    page.getByRole("button", {
       name: lang === "tr" ? `${label} hakkında bilgi` : `Info about ${label}`,
-      exact: true,
-    })
-    .first();
-  await expect(page.getByRole("dialog", { name: label })).not.toBeVisible();
-  await button.click();
-  const dialog = page.getByRole("dialog", { name: label });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("TCMB");
-  await expect(dialog).toContainText(
-    lang === "tr" ? "Çevrim nasıl hesaplanır?" : "How conversion works",
-  );
-  await page.keyboard.press("Escape");
-  await expect(dialog).not.toBeVisible();
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(lang === "tr" ? "Yaklaşık çevrim" : "Approximate conversion"),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(lang === "tr" ? "Son kur güncellemesi" : "Last exchange rate update"),
+  ).toHaveCount(0);
 }
 
 export async function fitsAndIsAccessible(page: Page) {
