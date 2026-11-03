@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
-  FRESH_DATE,
-  bulletinText,
+  checkRateDisclosure,
   fitsAndIsAccessible,
   go,
   legacyWorkspace,
@@ -27,11 +26,9 @@ test("Money: mixed month is converted with fresh rates and dated", async ({ page
   await expect(summary(page)).toContainText("Income₺50.000");
   await expect(summary(page)).toContainText("Spent₺6.150");
   await expect(summary(page)).toContainText("Left₺43.850");
-  await expect(
-    page.getByText(`Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
-  ).toHaveCount(1);
+  await checkRateDisclosure(page);
   await expect(page.getByText("These rates may be out of date.")).toHaveCount(0);
-  await expect(page.getByText(/≈|Approximate/)).toHaveCount(0);
+  await expect(page.getByText("Approximate conversion", { exact: true })).toHaveCount(1);
   // Every entry is shown in the display currency, the original amount underneath.
   await expect(page.getByText("+₺20.000", { exact: true })).toBeVisible();
   await expect(page.getByText("+$500", { exact: true })).toBeVisible();
@@ -240,7 +237,7 @@ test("Money and Goals currency controls are translated, accessible and fit 320px
   await go(page, "Para");
   await expect(page.getByRole("heading", { name: "Bu ay" })).toBeVisible();
   await expect(page.getByText("Türk lirası cinsinden toplamlar")).toBeVisible();
-  await expect(page.getByText(/^.+ tarihli TCMB kurlarıyla çevrildi\.$/)).toBeVisible();
+  await checkRateDisclosure(page, "tr");
   await fitsAndIsAccessible(page);
   await page.getByRole("button", { name: "Gider ekle", exact: true }).click();
   await expect(

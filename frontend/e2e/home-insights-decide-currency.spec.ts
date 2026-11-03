@@ -1,9 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { analyze, type Entry, type Goal, type Profile, type Purchase } from "../src/store";
 import {
-  FRESH_DATE,
   PROFILE,
-  bulletinText,
+  checkRateDisclosure,
   fitsAndIsAccessible,
   go,
   goDecide,
@@ -49,8 +48,7 @@ test("Home and Insights: a mixed month is converted with dated, approximate tota
   await expect(page.getByText("₺43.850", { exact: true })).toBeVisible();
   await expect(page.getByText("₺50.000", { exact: true })).toBeVisible();
   await expect(page.getByText("₺6.150", { exact: true })).toBeVisible();
-  const note = `Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`;
-  await expect(page.getByText(note)).toBeVisible();
+  await checkRateDisclosure(page);
   await expect(page.getByText(/≈/)).toHaveCount(0);
   await expect(page.getByText("₺2.500 / ₺10.000", { exact: true })).toBeVisible();
   // Recent entries in lira, with the dollar/euro original underneath.
@@ -67,7 +65,10 @@ test("Home and Insights: a mixed month is converted with dated, approximate tota
     "Income · ₺50.000",
     "Expenses · ₺6.150",
   ]);
-  await expect(page.getByText(note)).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "Info about Exchange rate information" }),
+  ).toHaveCount(2);
+  await checkRateDisclosure(page);
 });
 
 test("Home and Insights: missing rates show amounts by currency", async ({ page, request }) => {
@@ -161,9 +162,7 @@ test("Decide: a USD purchase is scored on lira values and saved in dollars", asy
   await expect(page.locator("main p.f-num").nth(1)).toHaveText("$60");
   const expected = expectedAnalysis();
   await expect(page.getByText(`${expected.fit}/100`, { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(`Converted with TCMB rates from ${bulletinText(FRESH_DATE)}.`),
-  ).toBeVisible();
+  await checkRateDisclosure(page);
   await expect.poll(() => saves.length).toBe(1);
   expect(saves[0].schemaVersion).toBe(4);
   expect(saves[0].analyses[0].purchase).toMatchObject({ price: 60, currency: "USD" });
@@ -298,7 +297,7 @@ test("Home, Insights and Decide are translated, accessible and fit 320px", async
   await login(page, "tr");
   await expect(page.getByRole("heading", { name: "Bu ay kalan" })).toBeVisible();
   await expect(page.getByText("₺43.850", { exact: true })).toBeVisible();
-  await expect(page.getByText(/tarihli TCMB kurlarıyla çevrildi/)).toBeVisible();
+  await checkRateDisclosure(page, "tr");
   await fitsAndIsAccessible(page);
   await go(page, "İçgörüler");
   await expect(page.getByText("Gelir · ₺50.000", { exact: true })).toBeVisible();

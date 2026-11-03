@@ -178,6 +178,26 @@ export const go = (page: Page, name: string) =>
 export const goDecide = (page: Page) =>
   page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
 
+export async function checkRateDisclosure(page: Page, lang: "en" | "tr" = "en") {
+  const label = lang === "tr" ? "Döviz kuru bilgisi" : "Exchange rate information";
+  const button = page
+    .getByRole("button", {
+      name: lang === "tr" ? `${label} hakkında bilgi` : `Info about ${label}`,
+      exact: true,
+    })
+    .first();
+  await expect(page.getByRole("dialog", { name: label })).not.toBeVisible();
+  await button.click();
+  const dialog = page.getByRole("dialog", { name: label });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("TCMB");
+  await expect(dialog).toContainText(
+    lang === "tr" ? "Çevrim nasıl hesaplanır?" : "How conversion works",
+  );
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+}
+
 export async function fitsAndIsAccessible(page: Page) {
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth))

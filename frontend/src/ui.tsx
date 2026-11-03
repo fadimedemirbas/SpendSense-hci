@@ -10,6 +10,7 @@ import {
   type ButtonHTMLAttributes,
   type SelectHTMLAttributes,
 } from "react";
+import { createPortal } from "react-dom";
 import { X, ChevronDown, Info, Check, Undo2 } from "lucide-react";
 import { nextSegmentIndex } from "./lib/segmented";
 import type { Currency } from "./lib/currency";
@@ -22,6 +23,27 @@ export const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void }>
   setLang: () => {},
 });
 const TR: Record<string, string> = {
+  "Exchange rate information": "Döviz kuru bilgisi",
+  "Approximate conversion": "Yaklaşık çevrim",
+  "Exchange rate source": "Döviz kuru kaynağı",
+  "No validated rate data is available.": "Doğrulanmış kur verisi bulunmuyor.",
+  "Bulletin publication date": "Bülten yayın tarihi",
+  "Last received by this app": "Uygulamanın son başarılı veri alımı",
+  "Source last fetched by SpendSense": "SpendSense'in kaynaktan son veri alımı",
+  "Exchange rate status": "Döviz kuru durumu",
+  "Rates are up to date.": "Kurlar güncel.",
+  "Exchange rates are unavailable.": "Döviz kurlarına ulaşılamıyor.",
+  "The bulletin provides a date, not a publication time.":
+    "Bülten verisinde tarih bulunuyor; yayın saati bulunmuyor.",
+  "How conversion works": "Çevrim nasıl hesaplanır?",
+  "SpendSense uses the midpoint of TCMB forex buying and selling rates: (buying + selling) / 2. This midpoint is calculated by SpendSense, not published by TCMB.":
+    "SpendSense, TCMB döviz alış ve satış kurlarının ortalamasını kullanır: (alış + satış) / 2. Bu ortalamayı SpendSense hesaplar; TCMB bu değeri yayımlamaz.",
+  "TRY has a rate of 1. Converted amount = original amount × source currency's TRY rate / target currency's TRY rate. USD and EUR conversions use TRY as the common base.":
+    "TRY için kur 1'dir. Çevrilen tutar = orijinal tutar × kaynak para biriminin TRY kuru / hedef para biriminin TRY kuru. USD ve EUR çevrimlerinde ortak temel TRY'dir.",
+  "Amounts are rounded once to the nearest kuruş or cent, with halves rounded away from zero. Converted totals are approximate because exchange rates change; original records stay unchanged.":
+    "Tutarlar en yakın kuruş veya sente tek seferde yuvarlanır; tam yarımlar sıfırdan uzağa yuvarlanır. Kurlar değiştiği için çevrilen toplamlar yaklaşıktır; orijinal kayıtlar değişmez.",
+  "Without validated rates, foreign amounts stay in their original currency and mixed-currency totals are not calculated.":
+    "Doğrulanmış kur olmadığında tutarlar kendi para biriminde kalır ve farklı para birimlerini birleştiren toplamlar hesaplanmaz.",
   "Skip to content": "İçeriğe geç",
   "Main navigation": "Ana gezinme",
   "Keyboard shortcuts": "Klavye kısayolları",
@@ -1312,13 +1334,114 @@ export const Tube = ({
 );
 
 /* ---------- help & layout ---------- */
+/** A click/tap disclosure using the existing info style and native light dismissal. */
+function InfoPopover({ label, children }: { label: string; children: ReactNode }) {
+  const t = useT();
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const position = () => {
+    if (!trigger.current || !panel.current) return;
+    const anchor = trigger.current.getBoundingClientRect();
+    const box = panel.current.getBoundingClientRect();
+    const margin = 12;
+    const rightFits = anchor.right + box.width + margin * 2 <= innerWidth;
+    const top = rightFits
+      ? anchor.top
+      : anchor.bottom + box.height + margin * 2 <= innerHeight
+        ? anchor.bottom + margin
+        : anchor.top - box.height - margin;
+    panel.current.style.left = `${Math.max(
+      margin,
+      Math.min(rightFits ? anchor.right + margin : anchor.left, innerWidth - box.width - margin),
+    )}px`;
+    panel.current.style.top = `${Math.max(margin, Math.min(top, innerHeight - box.height - margin))}px`;
+  };
+  useLayoutEffect(() => {
+    if (!open) return;
+    position();
+    const reposition = () => position();
+    const observer = new ResizeObserver(reposition);
+    if (panel.current) observer.observe(panel.current);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open]);
+  return (
+    <span className="inline-flex shrink-0">
+      <button
+        ref={trigger}
+        type="button"
+        popoverTarget={id}
+        aria-label={t("Info about {x}", { x: label })}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={id}
+        className="w-9 h-9 -my-1.5 rounded-full inline-flex items-center justify-center text-soft hover:bg-track hover:text-ink"
+      >
+        <Info size={18} aria-hidden />
+      </button>
+      {createPortal(
+        <div
+          ref={panel}
+          id={id}
+          popover="auto"
+          role="dialog"
+          aria-label={label}
+          onToggle={(event) => setOpen(event.newState === "open")}
+          style={{
+            position: "fixed",
+            inset: "auto",
+            margin: 0,
+            maxHeight: "min(28rem, calc(100dvh - 24px))",
+          }}
+          className="clay rounded-inner! w-90 max-w-[calc(100vw-24px)] overflow-y-auto p-4 text-sm f-ui font-normal text-left text-ink normal-case tracking-normal"
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="m-0 text-base font-bold">{label}</h2>
+            <button
+              type="button"
+              popoverTarget={id}
+              popoverTargetAction="hide"
+              aria-label={t("Close")}
+              className="w-9 h-9 rounded-full inline-flex items-center justify-center hover:bg-track shrink-0"
+            >
+              <X size={18} aria-hidden />
+            </button>
+          </div>
+          {open && children}
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
+
 /**
  * A small "i" button that explains a card. The bubble is SpendSense's own (not the
  * browser's title tooltip): it opens on hover, keyboard focus or tap, stays while
  * the pointer moves onto it, closes with Escape, a second tap or a tap elsewhere,
  * and is kept inside the screen on 320px phones. Screen readers hear the text.
  */
-export function InfoTip({ label, text }: { label: string; text: string }) {
+export function InfoTip(
+  props: { label: string } & (
+    | { text: string; children?: never }
+    | { text?: never; children: ReactNode }
+  ),
+) {
+  return props.text !== undefined ? (
+    <TextInfoTip label={props.label} text={props.text} />
+  ) : (
+    <InfoPopover label={props.label}>{props.children}</InfoPopover>
+  );
+}
+
+function TextInfoTip({ label, text }: { label: string; text: string }) {
   const t = useT();
   const id = useId();
   const [hovered, setHovered] = useState(false);

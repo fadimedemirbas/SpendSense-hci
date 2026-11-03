@@ -27,7 +27,7 @@ import { useDeleteConfirm } from "./useDeleteConfirm";
 import { categoryKey, parseCategoryKey } from "./lib/deleteConfirm";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
 import { displayCurrencyNote } from "./lib/displayCurrency";
-import { formatBulletinDate, usableRates } from "./lib/moneyTotals";
+import { ExchangeRateInfo } from "./ExchangeRateInfo";
 import { useRates } from "./lib/useRates";
 import { useApp } from "./context";
 import {
@@ -300,16 +300,6 @@ export function SettingsPage({
   const { lang, setLang } = useContext(LangCtx);
   const theme = useTheme();
   const rates = useRates();
-  const rate = usableRates(rates)?.rate;
-  const rateInfo = rate
-    ? t("Converted with TCMB rates from {date}.", {
-        date: formatBulletinDate(rate.bulletinDate, lang),
-      }) + (rate.status === "stale" ? ` ${t("These rates may be out of date.")}` : "")
-    : t(
-        rates.loading
-          ? "Checking exchange rates…"
-          : "Exchange rates are unavailable right now, so amounts are shown in their own currency.",
-      );
   const [confirm, setConfirm] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [password, setPassword] = useState(false);
@@ -424,7 +414,16 @@ export function SettingsPage({
           title={
             <span className="inline-flex items-center gap-1">
               {t("Display currency")}
-              <InfoTip label={t("Display currency")} text={rateInfo} />
+              <ExchangeRateInfo />
+              {rates.status !== "fresh" && !rates.loading && (
+                <span className="text-sm text-attn font-normal">
+                  {t(
+                    rates.status === "stale"
+                      ? "These rates may be out of date."
+                      : "Exchange rates are unavailable.",
+                  )}
+                </span>
+              )}
             </span>
           }
           desc={t(displayCurrencyNote())}

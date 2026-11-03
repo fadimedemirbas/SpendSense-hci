@@ -5,7 +5,6 @@ import { useApp } from "./context";
 import {
   NO_RATES,
   displayValue,
-  formatBulletinDate,
   needsConversion,
   summarizeEntries,
   usableRates,
@@ -16,6 +15,7 @@ import {
 import { ratesClient, useRates } from "./lib/useRates";
 import type { Entry } from "./store";
 import { Card, InfoTip, LangCtx, fmtIn, useT } from "./ui";
+import { ExchangeRateInfo } from "./ExchangeRateInfo";
 
 // Every amount is shown in the display currency (Profile.displayCurrency). Records
 // keep their original amount and currency in storage; conversion happens only on
@@ -121,19 +121,14 @@ export function sumText(sum: ConvertedSum) {
 /** Bulletin date and freshness for a converted value. */
 export function RateNote({ rate }: { rate: RateInfo }) {
   const t = useT();
-  const { lang } = useContext(LangCtx);
   return (
-    <p className="m-0 text-sm text-soft">
-      {t("Converted with TCMB rates from {date}.", {
-        date: formatBulletinDate(rate.bulletinDate, lang),
-      })}
+    <div className="flex flex-wrap items-center gap-1 text-sm text-soft">
+      <span>{t("Approximate conversion")}</span>
+      <ExchangeRateInfo rate={rate} />
       {rate.status === "stale" && (
-        <>
-          {" "}
-          <b className="text-attn font-medium">{t("These rates may be out of date.")}</b>
-        </>
+        <b className="text-attn font-medium">{t("These rates may be out of date.")}</b>
       )}
-    </p>
+    </div>
   );
 }
 
@@ -168,6 +163,7 @@ export function RatesUnavailable({
           {t("Try again")}
         </button>
       )}
+      <ExchangeRateInfo />
     </div>
   );
 }
