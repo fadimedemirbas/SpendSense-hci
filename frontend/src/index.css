@@ -539,6 +539,85 @@
 .wave {
   animation: wave 1.6s ease-in-out 2;
 }
+/* Landing hero scene. */
+.hero-swap {
+  grid-area: 1 / 1;
+  transition:
+    opacity 0.35s ease,
+    transform 0.45s var(--ease-clay);
+}
+.hero-swap-off {
+  opacity: 0;
+  transform: translateY(6px);
+  visibility: hidden;
+}
+/* The scene moves the mascot itself; Blob's own idle animation would fight it. */
+.hero-blob {
+  animation: none;
+  display: block;
+}
+@keyframes hero-float {
+  50% {
+    transform: translateY(-4px) rotate(-2deg);
+  }
+}
+.hero-float {
+  animation: hero-float 2.8s ease-in-out infinite;
+}
+@keyframes hero-hop {
+  18% {
+    transform: scale(1.1, 0.88);
+  }
+  45% {
+    transform: translateY(-13px) scale(0.94, 1.07);
+  }
+  70% {
+    transform: scale(1.07, 0.93);
+  }
+  85% {
+    transform: translateY(-3px);
+  }
+}
+.hero-hop {
+  animation: hero-hop 0.8s var(--ease-clay) both;
+  transform-origin: bottom;
+}
+@keyframes hero-pop {
+  from {
+    transform: translateX(-50%) scale(0);
+  }
+  65% {
+    transform: translateX(-50%) scale(1.15);
+  }
+}
+.hero-pop {
+  animation: hero-pop 0.45s var(--ease-clay) both;
+  transform: translateX(-50%);
+}
+@keyframes hero-spark {
+  from {
+    opacity: 1;
+    transform: rotate(var(--a)) translateY(-52px) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(-84px) scale(0.3);
+  }
+}
+.hero-spark {
+  position: absolute;
+  left: calc(50% - 4px);
+  top: calc(50% - 4px);
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-sun);
+  opacity: 0;
+  animation: hero-spark 0.8s 0.25s ease-out both;
+}
+[data-frozen] * {
+  animation-play-state: paused !important;
+}
 body[data-tour="quick"] [data-tour-id="quick"],
 body[data-tour="decide"] [data-tour-id="decide"],
 body[data-tour="goals"] [data-tour-id="goals"] {

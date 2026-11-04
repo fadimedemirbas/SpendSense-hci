@@ -12,6 +12,18 @@ export const TABS = [
   "settings",
 ] as const;
 export type Tab = (typeof TABS)[number];
+/** Settings categories, each with its own path (/settings/account…). */
+export const SETTINGS_SECTIONS = [
+  "account",
+  "preferences",
+  "currency",
+  "budget",
+  "style",
+  "delete",
+  "data",
+  "help",
+] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 type S<T> = (value: SetStateAction<T>) => Promise<boolean>;
 export type Prefill = Partial<Purchase> & {
   waitId?: string;
@@ -27,6 +39,9 @@ export interface AppState {
   ) => Promise<string | null>;
   tab: Tab;
   setTab: (t: Tab) => void;
+  /** The open Settings category; null is the category list on narrow screens. */
+  settingsSection: SettingsSection | null;
+  openSettings: (section: SettingsSection | null) => void;
   goBack: () => void;
   canGoBack: boolean;
   entries: Entry[];

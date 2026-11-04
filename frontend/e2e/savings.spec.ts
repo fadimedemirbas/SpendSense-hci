@@ -133,6 +133,7 @@ test("savings can ask before deleting and are translated", async ({ page, reques
   await fitsAndIsAccessible(page);
   await sheet.getByRole("button", { name: "Vazgeç" }).click();
   await go(page, "Ayarlar");
+  await go(page, "Silme onayı");
   await expect(page.getByRole("region", { name: "Silme onayı" })).toContainText(
     "Maaş fazlası (Birikim)",
   );

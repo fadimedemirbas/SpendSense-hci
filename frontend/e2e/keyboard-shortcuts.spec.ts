@@ -28,6 +28,7 @@ test("shortcuts are optional, persist on this device and never save records", as
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await go(page, "Settings");
+  await go(page, "Preferences");
   const setting = page.getByRole("radiogroup", { name: "Keyboard shortcuts", exact: true });
   await expect(setting.getByRole("radio", { name: "Off", exact: true })).toBeChecked();
   await setting.getByRole("radio", { name: "On", exact: true }).click();
@@ -45,6 +46,7 @@ test("shortcuts are optional, persist on this device and never save records", as
   await expect(quick).toHaveCount(0);
 
   await go(page, "Settings");
+  await go(page, "Preferences");
   await setting.getByRole("radio", { name: "Off", exact: true }).click();
   expect(await page.evaluate(() => localStorage.getItem("ss.keyboardShortcuts"))).toBe("false");
   await go(page, "Home");
@@ -201,6 +203,7 @@ test("help is discoverable while shortcuts are off, translated and accessible at
   await expect(help).toHaveCount(0);
   await expect(more).toBeFocused();
   await go(page, "Ayarlar");
+  await go(page, "Tercihler");
   await expect(
     page
       .getByRole("radiogroup", { name: "Klavye kısayolları", exact: true })

@@ -23,6 +23,7 @@ test("chosen categories ask before deleting; others delete right away", async ({
 
   // Settings: nothing chosen yet, then add Food (expense) and Salary (income).
   await go(page, "Settings");
+  await go(page, "Delete confirmation");
   const section = page.getByRole("region", { name: "Delete confirmation" });
   await expect(section.getByText("No categories yet.", { exact: false })).toBeVisible();
   const pick = section.getByRole("combobox", { name: "Category" });
@@ -79,6 +80,7 @@ test("the setting and dialog are translated", async ({ page, request }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await login(page, "tr");
   await go(page, "Ayarlar");
+  await go(page, "Silme onayı");
   const section = page.getByRole("region", { name: "Silme onayı" });
   await expect(section.getByRole("listitem")).toHaveText(["Yemek (Gider)"]);
   await fitsAndIsAccessible(page);

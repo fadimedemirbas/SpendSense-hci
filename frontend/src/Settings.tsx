@@ -1,4 +1,4 @@
-import { useContext, useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 import {
   Globe,
   Coins,
@@ -22,14 +22,21 @@ import {
   ShieldAlert,
   Plus,
   X,
+  ArrowLeft,
+  ChevronRight,
+  CircleHelp,
+  Database,
+  HandCoins,
+  SlidersHorizontal,
+  type LucideIcon,
 } from "lucide-react";
 import { useDeleteConfirm } from "./useDeleteConfirm";
 import { categoryKey, parseCategoryKey } from "./lib/deleteConfirm";
 import { DisplayCurrencyPicker } from "./DisplayCurrencyPicker";
-import { displayCurrencyNote } from "./lib/displayCurrency";
+import { recordCurrencyNote } from "./lib/displayCurrency";
 import { ExchangeRateInfo, RatesLastUpdate } from "./ExchangeRateInfo";
 import { useRates } from "./lib/useRates";
-import { useApp } from "./context";
+import { useApp, type SettingsSection } from "./context";
 import {
   Button,
   Card,
@@ -60,14 +67,42 @@ import { usePwa } from "./pwa/Pwa";
 import { useTheme } from "./useTheme";
 import { version } from "../package.json";
 
+const SECTIONS: [SettingsSection, string, LucideIcon][] = [
+  ["account", "Account", User],
+  ["preferences", "Preferences", SlidersHorizontal],
+  ["currency", "Currency", Banknote],
+  ["budget", "Budget basics", Wallet],
+  ["style", "Your spending style", HandCoins],
+  ["delete", "Delete confirmation", ShieldAlert],
+  ["data", "Your data", Database],
+  ["help", "Help", CircleHelp],
+];
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  const t = useT();
+  const { canGoBack, goBack, openSettings } = useApp();
   return (
-    <section className="grid gap-2" aria-label={title}>
-      <h2 className="f-ui text-sm text-soft uppercase tracking-wider m-0 px-1">{title}</h2>
+    <section className="grid gap-3" aria-label={title}>
+      <div className="flex items-center gap-2">
+        <button
+          className="btn clay-cream w-11 px-0! lg:hidden!"
+          aria-label={t("Back to settings")}
+          // A shared /settings/account link has no list behind it in the history.
+          onClick={() => (canGoBack ? goBack() : openSettings(null))}
+        >
+          <ArrowLeft size={20} aria-hidden />
+        </button>
+        <h2 className="text-2xl font-bold m-0">{title}</h2>
+      </div>
       <Card className="py-1! md:py-1!">{children}</Card>
     </section>
   );
 }
+
+/** One width for every control, so a category's right edge lines up. */
+const Control = ({ children }: { children: ReactNode }) => (
+  <div className="grid w-full sm:w-72">{children}</div>
+);
 
 function Row({
   icon,
@@ -88,7 +123,7 @@ function Row({
       >
         {icon}
       </span>
-      <div className="grow basis-48">
+      <div className="grow basis-40">
         <p className="m-0 font-medium">{title}</p>
         {desc && <p className="m-0 text-sm text-soft">{desc}</p>}
       </div>
@@ -211,7 +246,7 @@ function DeleteConfirmRow() {
     >
       <form
         data-shortcuts-block={pick ? "" : undefined}
-        className="flex flex-wrap gap-2"
+        className="basis-full flex flex-wrap gap-2 [&>.select-wrap]:grow"
         onSubmit={(e) => {
           e.preventDefault();
           if (!pick) return;
@@ -287,6 +322,8 @@ export function SettingsPage({
     setProfile,
     setTour,
     setTab,
+    settingsSection,
+    openSettings,
     entries,
     holdings,
     goals,
@@ -304,6 +341,15 @@ export function SettingsPage({
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [password, setPassword] = useState(false);
   const [installHelp, setInstallHelp] = useState(false);
+  // Wide screens show the first category beside the list; narrow ones show only the list.
+  const active = settingsSection ?? "account";
+  const currencyNote = recordCurrencyNote();
+  // The pressed row or back arrow is hidden after a switch, so focus moves with the view.
+  useEffect(() => {
+    document
+      .getElementById(settingsSection ? "settings-detail" : "main-content")
+      ?.focus({ preventScroll: true });
+  }, [settingsSection]);
   const exportCsv = () =>
     download(
       `spendsense-entries-${today()}.csv`,
@@ -341,259 +387,355 @@ export function SettingsPage({
     );
   return (
     <>
-      <PageHead title={t("Settings")} />
-      <Section title={t("Account")}>
-        {name && <Row icon={<User size={18} />} title={t("Name")} desc={name} />}
-        <Row icon={<Mail size={18} />} title={t("Email")} desc={profile.email} />
-        <Row
-          icon={<KeyRound size={18} />}
-          title={t("Password")}
-          desc={t("Use at least 8 characters.")}
+      <div className={settingsSection ? "hidden lg:block" : ""}>
+        <PageHead title={t("Settings")} />
+      </div>
+      <div className="grid gap-5 items-start lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <nav aria-label={t("Settings")} className={settingsSection ? "hidden lg:block" : ""}>
+          <Card className="p-2! md:p-2!">
+            <ul className="m-0 p-0 list-none grid gap-1">
+              {SECTIONS.map(([key, title, Icon]) => (
+                <li key={key}>
+                  <button
+                    aria-current={settingsSection === key ? "page" : undefined}
+                    onClick={() => openSettings(key)}
+                    className={`w-full flex items-center gap-3 p-2 rounded-inner text-left font-medium transition hover:bg-peach ${active === key ? "lg:bg-sun! lg:text-onbright lg:shadow-[inset_0_2px_0_#ffffff80,inset_0_-3px_0_#d9a21a,0_6px_14px_-6px_var(--glow-sun)]" : ""}`}
+                  >
+                    <span
+                      className="w-10 h-10 rounded-inner bg-peach text-ink flex items-center justify-center shrink-0"
+                      aria-hidden
+                    >
+                      <Icon size={18} />
+                    </span>
+                    <span className="grow">{t(title)}</span>
+                    <ChevronRight size={18} className="shrink-0" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </nav>
+        <div
+          id="settings-detail"
+          tabIndex={-1}
+          className={`min-w-0 outline-none ${settingsSection ? "" : "hidden lg:block"}`}
         >
-          {!password && <Button onClick={() => setPassword(true)}>{t("Change password")}</Button>}
-          {password && <PasswordForm onDone={() => setPassword(false)} />}
-        </Row>
-        <Row
-          icon={<LogOut size={18} className="text-danger" />}
-          title={t("Log out")}
-          desc={t("Your data stays in your account.")}
-        >
-          <Button onClick={() => setConfirmLogout(true)} className="text-danger!">
-            {t("Log out")}
-          </Button>
-        </Row>
-      </Section>
-
-      <Section title={t("Preferences")}>
-        <Row icon={<Globe size={18} />} title={t("Language")}>
-          <Segmented
-            label={t("Language")}
-            value={lang}
-            onChange={setLang}
-            options={[
-              ["en", "English"],
-              ["tr", "Türkçe"],
-            ]}
-          />
-        </Row>
-        <Row
-          icon={<SunMoon size={18} />}
-          title={t("Theme")}
-          desc={t("System follows your device's light or dark setting.")}
-        >
-          <Segmented
-            label={t("Theme")}
-            value={theme.preference}
-            onChange={theme.setPreference}
-            options={[
-              ["light", t("Light")],
-              ["dark", t("Dark")],
-              ["system", t("System")],
-            ]}
-          />
-        </Row>
-        <Row
-          icon={<Keyboard size={18} />}
-          title={t("Keyboard shortcuts")}
-          desc={t(
-            "Use N to add an expense, D to open Decide and ? for help. Saved on this device.",
+          {active === "account" && (
+            <Section title={t("Account")}>
+              {name && <Row icon={<User size={18} />} title={t("Name")} desc={name} />}
+              <Row icon={<Mail size={18} />} title={t("Email")} desc={profile.email} />
+              <Row
+                icon={<KeyRound size={18} />}
+                title={t("Password")}
+                desc={t("Use at least 8 characters.")}
+              >
+                {!password && (
+                  <Control>
+                    <Button onClick={() => setPassword(true)}>{t("Change password")}</Button>
+                  </Control>
+                )}
+                {password && <PasswordForm onDone={() => setPassword(false)} />}
+              </Row>
+              <Row
+                icon={<LogOut size={18} className="text-danger" />}
+                title={t("Log out")}
+                desc={t("Your data stays in your account.")}
+              >
+                <Control>
+                  <Button onClick={() => setConfirmLogout(true)} className="text-danger!">
+                    {t("Log out")}
+                  </Button>
+                </Control>
+              </Row>
+            </Section>
           )}
-        >
-          <Segmented
-            label={t("Keyboard shortcuts")}
-            value={shortcutsEnabled ? "on" : "off"}
-            onChange={(value) => setShortcutsEnabled(value === "on")}
-            options={[
-              ["off", t("Off")],
-              ["on", t("On")],
-            ]}
-          />
-        </Row>
-        <Row
-          icon={<Banknote size={18} />}
-          title={
-            <span className="inline-flex items-center gap-1">
-              {t("Display currency")}
-              <ExchangeRateInfo />
-              {rates.status !== "fresh" && !rates.loading && (
-                <span className="text-sm text-attn font-normal">
-                  {t(
-                    rates.status === "stale"
-                      ? "These rates may be out of date."
-                      : "Exchange rates are unavailable.",
-                  )}
-                </span>
+
+          {active === "preferences" && (
+            <Section title={t("Preferences")}>
+              <Row icon={<Globe size={18} />} title={t("Language")}>
+                <Control>
+                  <Segmented
+                    full
+                    label={t("Language")}
+                    value={lang}
+                    onChange={setLang}
+                    options={[
+                      ["en", "English"],
+                      ["tr", "Türkçe"],
+                    ]}
+                  />
+                </Control>
+              </Row>
+              <Row
+                icon={<SunMoon size={18} />}
+                title={t("Theme")}
+                desc={t("System follows your device's light or dark setting.")}
+              >
+                <Control>
+                  <Segmented
+                    full
+                    label={t("Theme")}
+                    value={theme.preference}
+                    onChange={theme.setPreference}
+                    options={[
+                      ["light", t("Light")],
+                      ["dark", t("Dark")],
+                      ["system", t("System")],
+                    ]}
+                  />
+                </Control>
+              </Row>
+              <Row
+                icon={<Keyboard size={18} />}
+                title={t("Keyboard shortcuts")}
+                desc={t(
+                  "Use N to add an expense, D to open Decide and ? for help. Saved on this device.",
+                )}
+              >
+                <Control>
+                  <Segmented
+                    full
+                    label={t("Keyboard shortcuts")}
+                    value={shortcutsEnabled ? "on" : "off"}
+                    onChange={(value) => setShortcutsEnabled(value === "on")}
+                    options={[
+                      ["off", t("Off")],
+                      ["on", t("On")],
+                    ]}
+                  />
+                </Control>
+              </Row>
+            </Section>
+          )}
+
+          {active === "currency" && (
+            <Section title={t("Currency")}>
+              <Row
+                icon={<Banknote size={18} />}
+                title={
+                  <>
+                    {t("Display currency")} <ExchangeRateInfo />
+                  </>
+                }
+                desc={
+                  <>
+                    {/* Only while USD/EUR are disabled, to say why. */}
+                    {currencyNote && t(currencyNote)}
+                    <RatesLastUpdate />
+                    {rates.status !== "fresh" && !rates.loading && (
+                      <span className="block text-attn">
+                        {t(
+                          rates.status === "stale"
+                            ? "These rates may be out of date."
+                            : "Exchange rates are unavailable.",
+                        )}
+                      </span>
+                    )}
+                  </>
+                }
+              >
+                {/* Shows the saved value only: it changes after the database confirms the save. */}
+                <Control>
+                  <DisplayCurrencyPicker
+                    full
+                    label={t("Display currency")}
+                    value={profile.displayCurrency}
+                    onChange={(displayCurrency) => void setProfile({ ...profile, displayCurrency })}
+                  />
+                </Control>
+              </Row>
+              <Row
+                icon={<Coins size={18} />}
+                title={t("Amount format")}
+                desc={t("Display only — amounts are not converted.")}
+              >
+                <Control>
+                  <Segmented
+                    full
+                    label={t("Amount format")}
+                    value={profile.currency}
+                    onChange={(c) => setProfile({ ...profile, currency: c })}
+                    options={[
+                      ["symbol", "₺ 1.000"],
+                      ["code", "1.000 TRY"],
+                    ]}
+                  />
+                </Control>
+              </Row>
+            </Section>
+          )}
+
+          {active === "budget" && (
+            <Section title={t("Budget basics")}>
+              <Row
+                icon={<Wallet size={18} />}
+                title={t("Monthly income")}
+                desc={t("Used until you add this month's income.")}
+              >
+                <Control>
+                  <Select
+                    aria-label={t("Monthly income")}
+                    value={profile.income}
+                    onChange={(e) => setProfile({ ...profile, income: +e.target.value })}
+                  >
+                    {INCOME_RANGES.map((r, i) => (
+                      <option key={r} value={i}>
+                        {rangeLabel(t(r))}
+                      </option>
+                    ))}
+                  </Select>
+                </Control>
+              </Row>
+              <Row
+                icon={<PiggyBank size={18} />}
+                title={t("Monthly savings")}
+                desc={t("Used to estimate how purchases delay your goals.")}
+              >
+                <Control>
+                  <Select
+                    aria-label={t("Monthly savings")}
+                    value={profile.savings}
+                    onChange={(e) => setProfile({ ...profile, savings: +e.target.value })}
+                  >
+                    {SAVINGS_RANGES.map((r, i) => (
+                      <option key={r} value={i}>
+                        {rangeLabel(t(r))}
+                      </option>
+                    ))}
+                  </Select>
+                </Control>
+              </Row>
+            </Section>
+          )}
+
+          {active === "style" && (
+            <Section title={t("Your spending style")}>
+              {profile.habits.length === 4 && (
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 pt-4 pb-2">
+                  {profileTubes(profile.habits).map(([l, v]) => (
+                    <Tube key={l} label={t(TENDENCY[l])} value={v} color="bg-violet" />
+                  ))}
+                </div>
               )}
-            </span>
-          }
-          desc={
-            <>
-              {t(displayCurrencyNote())}
-              <RatesLastUpdate />
-            </>
-          }
-        >
-          {/* Shows the saved value only: it changes after the database confirms the save. */}
-          <DisplayCurrencyPicker
-            label={t("Display currency")}
-            value={profile.displayCurrency}
-            onChange={(displayCurrency) => void setProfile({ ...profile, displayCurrency })}
-          />
-        </Row>
-        <Row
-          icon={<Coins size={18} />}
-          title={t("Amount format")}
-          desc={t("Display only — amounts are not converted.")}
-        >
-          <Segmented
-            label={t("Amount format")}
-            value={profile.currency}
-            onChange={(c) => setProfile({ ...profile, currency: c })}
-            options={[
-              ["symbol", "₺ 1.000"],
-              ["code", "1.000 TRY"],
-            ]}
-          />
-        </Row>
-      </Section>
-
-      <Section title={t("Budget basics")}>
-        <Row
-          icon={<Wallet size={18} />}
-          title={t("Monthly income")}
-          desc={t("Used until you add this month's income.")}
-        >
-          <Select
-            aria-label={t("Monthly income")}
-            value={profile.income}
-            onChange={(e) => setProfile({ ...profile, income: +e.target.value })}
-          >
-            {INCOME_RANGES.map((r, i) => (
-              <option key={r} value={i}>
-                {rangeLabel(t(r))}
-              </option>
-            ))}
-          </Select>
-        </Row>
-        <Row
-          icon={<PiggyBank size={18} />}
-          title={t("Monthly savings")}
-          desc={t("Used to estimate how purchases delay your goals.")}
-        >
-          <Select
-            aria-label={t("Monthly savings")}
-            value={profile.savings}
-            onChange={(e) => setProfile({ ...profile, savings: +e.target.value })}
-          >
-            {SAVINGS_RANGES.map((r, i) => (
-              <option key={r} value={i}>
-                {rangeLabel(t(r))}
-              </option>
-            ))}
-          </Select>
-        </Row>
-      </Section>
-
-      <Section title={t("Your spending style")}>
-        {profile.habits.length === 4 && (
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 pt-4 pb-2">
-            {profileTubes(profile.habits).map(([l, v]) => (
-              <Tube key={l} label={t(TENDENCY[l])} value={v} color="bg-violet" />
-            ))}
-          </div>
-        )}
-        <Row
-          icon={<Repeat size={18} />}
-          title={t("Retake the questions")}
-          desc={t("A reflection of your answers, not a label. It can change anytime.")}
-        >
-          <Button onClick={retake}>{t("Retake spending style questions")}</Button>
-        </Row>
-      </Section>
-
-      <Section title={t("Delete confirmation")}>
-        <DeleteConfirmRow />
-      </Section>
-
-      <Section title={t("Your data")}>
-        <Row
-          icon={<FileSpreadsheet size={18} />}
-          title={t("Export entries")}
-          desc={t("Income and expenses as a spreadsheet (CSV).")}
-        >
-          <Button icon={<Download size={16} />} onClick={exportCsv} disabled={!entries.length}>
-            {t("Download CSV")}
-          </Button>
-        </Row>
-        <Row
-          icon={<FileJson size={18} />}
-          title={t("Full backup")}
-          desc={t("Everything you saved, including savings, goals and decisions (JSON).")}
-        >
-          <Button icon={<Download size={16} />} onClick={exportJson}>
-            {t("Download JSON")}
-          </Button>
-        </Row>
-        <Row
-          icon={<Trash2 size={18} className="text-danger" />}
-          title={t("Reset data")}
-          desc={t("Deletes entries, savings, goals, analyses and decisions. Your account stays.")}
-        >
-          <Button onClick={() => setConfirm(true)} className="text-danger!">
-            {t("Reset data")}
-          </Button>
-        </Row>
-      </Section>
-
-      <Section title={t("Help")}>
-        <Row
-          icon={<Map size={18} />}
-          title={t("Restart tour")}
-          desc={t("A short walkthrough of the main features.")}
-        >
-          <Button
-            onClick={() => {
-              setTab("home");
-              setTour(0);
-            }}
-          >
-            {t("Start")}
-          </Button>
-        </Row>
-        {pwa.mode !== "installed" && (
-          // iOS never fires beforeinstallprompt and Android may not have offered
-          // it yet, so fall back to step-by-step guidance instead of hiding it.
-          <Row
-            icon={<Download size={18} />}
-            title={t("Install app")}
-            desc={t("Add SpendSense to your device for quick access from your home screen.")}
-          >
-            <Button
-              onClick={async () => {
-                if (!(await pwa.install())) setInstallHelp(true);
-              }}
-            >
-              {t(pwa.mode === "prompt" ? "Install" : "How to install")}
-            </Button>
-          </Row>
-        )}
-        <Row
-          icon={<ShieldCheck size={18} />}
-          title={t("Privacy")}
-          desc={t("Your financial data is saved to your account and visible only to you.")}
-        />
-        <Row
-          icon={<Info size={18} />}
-          title={t("About")}
-          desc={t(
-            "SpendSense is an HCI course prototype. Scores are simple heuristics, not financial advice.",
+              <Row
+                icon={<Repeat size={18} />}
+                title={t("Retake the questions")}
+                desc={t("A reflection of your answers, not a label. It can change anytime.")}
+              >
+                <Control>
+                  <Button onClick={retake}>{t("Retake spending style questions")}</Button>
+                </Control>
+              </Row>
+            </Section>
           )}
-        >
-          <span className="f-num text-sm text-soft">
-            {t("Version")} {version}
-          </span>
-        </Row>
-      </Section>
+
+          {active === "delete" && (
+            <Section title={t("Delete confirmation")}>
+              <DeleteConfirmRow />
+            </Section>
+          )}
+
+          {active === "data" && (
+            <Section title={t("Your data")}>
+              <Row
+                icon={<FileSpreadsheet size={18} />}
+                title={t("Export entries")}
+                desc={t("Income and expenses as a spreadsheet (CSV).")}
+              >
+                <Control>
+                  <Button
+                    icon={<Download size={16} />}
+                    onClick={exportCsv}
+                    disabled={!entries.length}
+                  >
+                    {t("Download CSV")}
+                  </Button>
+                </Control>
+              </Row>
+              <Row
+                icon={<FileJson size={18} />}
+                title={t("Full backup")}
+                desc={t("Everything you saved, including savings, goals and decisions (JSON).")}
+              >
+                <Control>
+                  <Button icon={<Download size={16} />} onClick={exportJson}>
+                    {t("Download JSON")}
+                  </Button>
+                </Control>
+              </Row>
+              <Row
+                icon={<Trash2 size={18} className="text-danger" />}
+                title={t("Reset data")}
+                desc={t(
+                  "Deletes entries, savings, goals, analyses and decisions. Your account stays.",
+                )}
+              >
+                <Control>
+                  <Button onClick={() => setConfirm(true)} className="text-danger!">
+                    {t("Reset data")}
+                  </Button>
+                </Control>
+              </Row>
+            </Section>
+          )}
+
+          {active === "help" && (
+            <Section title={t("Help")}>
+              <Row
+                icon={<Map size={18} />}
+                title={t("Restart tour")}
+                desc={t("A short walkthrough of the main features.")}
+              >
+                <Control>
+                  <Button
+                    onClick={() => {
+                      setTab("home");
+                      setTour(0);
+                    }}
+                  >
+                    {t("Start")}
+                  </Button>
+                </Control>
+              </Row>
+              {pwa.mode !== "installed" && (
+                // iOS never fires beforeinstallprompt and Android may not have offered
+                // it yet, so fall back to step-by-step guidance instead of hiding it.
+                <Row
+                  icon={<Download size={18} />}
+                  title={t("Install app")}
+                  desc={t("Add SpendSense to your device for quick access from your home screen.")}
+                >
+                  <Control>
+                    <Button
+                      onClick={async () => {
+                        if (!(await pwa.install())) setInstallHelp(true);
+                      }}
+                    >
+                      {t(pwa.mode === "prompt" ? "Install" : "How to install")}
+                    </Button>
+                  </Control>
+                </Row>
+              )}
+              <Row
+                icon={<ShieldCheck size={18} />}
+                title={t("Privacy")}
+                desc={t("Your financial data is saved to your account and visible only to you.")}
+              />
+              <Row
+                icon={<Info size={18} />}
+                title={t("About")}
+                desc={t(
+                  "SpendSense is an HCI course prototype. Scores are simple heuristics, not financial advice.",
+                )}
+              >
+                <span className="f-num text-sm text-soft">
+                  {t("Version")} {version}
+                </span>
+              </Row>
+            </Section>
+          )}
+        </div>
+      </div>
 
       {confirm && (
         <Dialog

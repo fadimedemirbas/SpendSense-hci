@@ -68,6 +68,7 @@ for (const lang of ["en", "tr"] as const)
         await expectNoRateDetails(page, lang);
       }
       await go(page, lang === "tr" ? "Ayarlar" : "Settings");
+      await go(page, lang === "tr" ? "Para birimi" : "Currency");
       const row = settingsRow(page, lang);
       await expect(row).toHaveCount(1);
       await expect(row).toContainText(lastUpdate(receivedAt, lang));
@@ -115,6 +116,7 @@ test("stale rates stay flagged on screens and in Settings", async ({ page, reque
   await go(page, "Money");
   await expect(page.getByText("These rates may be out of date.", { exact: true })).toBeVisible();
   await go(page, "Settings");
+  await go(page, "Currency");
   await expect(settingsRow(page)).toHaveCount(1);
   await expect(page.getByText("These rates may be out of date.", { exact: true })).toBeVisible();
   const { trigger, dialog } = disclosure(page);
@@ -135,6 +137,7 @@ test("unavailable rates show no invented update time and keep their warnings", a
   await expect(page.getByRole("button", { name: "Try again" }).first()).toBeVisible();
   await expectNoRateDetails(page);
   await go(page, "Settings");
+  await go(page, "Currency");
   await expect(settingsRow(page)).toContainText("No successful update yet.");
   await expect(settingsRow(page).locator("time")).toHaveCount(0);
   await expect(page.getByText("Exchange rates are unavailable.", { exact: true })).toBeVisible();
@@ -158,6 +161,7 @@ test("touch opens the Settings disclosure and outside tap closes it", async ({
   await mockRates(page, "fresh");
   await login(page);
   await go(page, "Settings");
+  await go(page, "Currency");
   const { trigger, dialog } = disclosure(page);
   await trigger.tap();
   await expect(dialog).toBeVisible();
@@ -194,6 +198,7 @@ test("Settings keeps the browser receipt apart from the upstream fetch time", as
   );
   await login(page);
   await go(page, "Settings");
+  await go(page, "Currency");
   await expect(settingsRow(page)).toContainText(lastUpdate(receivedAt));
   const { trigger, dialog } = disclosure(page);
   await trigger.click();

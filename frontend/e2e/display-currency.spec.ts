@@ -24,13 +24,14 @@ test("Settings saves USD as the display currency and Home switches to dollars", 
   const { saves } = watch(page);
   await login(page);
   await go(page, "Settings");
+  await go(page, "Currency");
   const group = page.getByRole("radiogroup", { name: "Display currency" });
   await expect(group.getByRole("radio", { name: "₺ TRY" })).toBeChecked();
   for (const name of ["₺ TRY", "$ USD", "€ EUR"])
     await expect(group.getByRole("radio", { name })).not.toHaveAttribute("aria-disabled");
   await expect(
     page.getByText("Totals are shown in this currency. Your records keep their original amounts."),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await group.getByRole("radio", { name: "$ USD" }).click();
   await expect(group.getByRole("radio", { name: "$ USD" })).toBeChecked();
   await expect.poll(() => saves.length).toBe(1);
@@ -63,6 +64,7 @@ test("Settings saves USD as the display currency and Home switches to dollars", 
   await expect(page.getByText(/≈/)).toHaveCount(0);
   await page.reload();
   await go(page, "Settings");
+  await go(page, "Currency");
   await expect(
     page
       .getByRole("radiogroup", { name: "Display currency" })
@@ -76,14 +78,20 @@ test("Settings selectors are translated, accessible and fit 320px", async ({ pag
   await login(page);
   await go(page, "Settings");
   await fitsAndIsAccessible(page);
+  await go(page, "Currency");
+  await fitsAndIsAccessible(page);
+  await page.getByRole("button", { name: "Back to settings", exact: true }).click();
+  await go(page, "Preferences");
   await page.getByRole("radio", { name: "Türkçe", exact: true }).click();
+  await page.getByRole("button", { name: "Ayarlara dön", exact: true }).click();
+  await go(page, "Para birimi");
   await expect(page.getByRole("radiogroup", { name: "Görüntüleme para birimi" })).toBeVisible();
   await expect(page.getByRole("radiogroup", { name: "Tutar biçimi" })).toBeVisible();
   await expect(
     page.getByText(
       "Toplamlar bu para biriminde gösterilir. Kayıtların orijinal tutarlarını korur.",
     ),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await fitsAndIsAccessible(page);
 });
 

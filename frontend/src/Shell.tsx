@@ -41,6 +41,7 @@ export function Shell({ children }: { children: ReactNode }) {
     setTab,
     goBack,
     canGoBack,
+    settingsSection,
     waiting,
     tour,
     setTour,
@@ -152,7 +153,12 @@ export function Shell({ children }: { children: ReactNode }) {
       </a>
       <header className="max-w-[880px] mx-auto px-4 pt-4 flex flex-wrap items-center gap-2">
         {canGoBack && (
-          <button className="btn clay-cream w-11 px-0!" aria-label={t("Back")} onClick={goBack}>
+          <button
+            // A Settings category has its own back arrow on narrow screens.
+            className={`btn clay-cream w-11 px-0! ${settingsSection ? "max-lg:hidden!" : ""}`}
+            aria-label={t("Back")}
+            onClick={goBack}
+          >
             <ArrowLeft size={20} aria-hidden />
           </button>
         )}

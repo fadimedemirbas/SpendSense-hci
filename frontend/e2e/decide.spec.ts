@@ -525,6 +525,7 @@ test("the price hint is a translated tooltip and remains announced with the fiel
   expect(described).toHaveLength(2);
   // Turkish
   await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.getByRole("button", { name: "Preferences", exact: true }).click();
   await page.getByRole("radio", { name: "Türkçe", exact: true }).click();
   await page.locator("nav[aria-label] button").filter({ visible: true }).nth(2).click();
   await page.getByRole("button", { name: "Fiyat hakkında bilgi", exact: true }).click();

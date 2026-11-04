@@ -3,7 +3,6 @@ import {
   MessageCircleQuestionMark,
   Hand,
   Download,
-  HelpCircle,
   Smartphone,
   Heart,
   ShieldCheck,
@@ -20,10 +19,11 @@ import {
   ArrowRight,
   Route,
 } from "lucide-react";
-import { Button, Card, Chip, Logo, Ring, Say, Tube, fmt, useT } from "./ui";
+import { Button, Card, Chip, Logo, Ring, Tube, fmt, useT } from "./ui";
 import { analyze, type Profile, type Purchase } from "./store";
 import { usePwa } from "./pwa/Pwa";
 import { InstallHelp, LangToggle } from "./Onboarding";
+import { HeroScene } from "./HeroScene";
 import { HowItWorks } from "./HowItWorks";
 
 // Fixed sample context for the demo: mid income range, no goal, no entries.
@@ -109,36 +109,6 @@ function Demo() {
   );
 }
 
-const randomScores = () => [0, 0, 0, 0].map(() => 15 + Math.round(Math.random() * 75));
-
-// Hero sample: shuffles for a few seconds on load, then settles on random values.
-function HeroScores() {
-  const t = useT();
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const [v, setV] = useState(() => (still ? randomScores() : [0, 0, 0, 0]));
-  useEffect(() => {
-    if (still) return;
-    let n = 0;
-    const id = setInterval(() => {
-      setV(randomScores());
-      if (++n === 5) clearInterval(id);
-    }, 600);
-    return () => clearInterval(id);
-  }, [still]);
-  const [budget, need, goal, impulse] = v;
-  const fit = Math.round((budget + need + (100 - goal) + (100 - impulse)) / 4);
-  return (
-    <div className="flex gap-4 items-center">
-      <Ring value={fit} size={110} label={t("Example fit {n}", { n: fit })} />
-      <div className="flex-1 grid gap-2">
-        {["Budget fit", "Need level", "Goal impact", "Impulse signals"].map((c, i) => (
-          <Tube key={c} label={t(c)} value={v[i]} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function Section({
   id,
   title,
@@ -207,12 +177,6 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
   };
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   const installLabel = t(pwa.mode === "prompt" ? "Install app" : "How to install");
-  const installIcon =
-    pwa.mode === "prompt" ? (
-      <Download size={18} aria-hidden />
-    ) : (
-      <HelpCircle size={18} aria-hidden />
-    );
   return (
     <div className="max-w-5xl mx-auto px-5 py-6 pt-[max(24px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))]">
       <header className="flex items-center gap-2 flex-wrap">
@@ -221,21 +185,12 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
           <b className="text-xl">SpendSense</b>
         </a>
         <span className="flex-1" />
-        <a
-          {...link("how")}
-          aria-current={page === "how" ? "page" : undefined}
-          aria-label={t("How it works")}
-          className={`btn clay-${page === "how" ? "sun" : "cream"} px-3! sm:px-5!`}
-        >
-          <Route size={18} aria-hidden />
-          <span className="hidden sm:inline">{t("How it works")}</span>
-        </a>
         {pwa.mode !== "installed" && (
           <Button
             className="px-3! sm:px-5!"
             aria-label={installLabel}
             onClick={openInstall}
-            icon={installIcon}
+            icon={<Download size={18} aria-hidden />}
           >
             <span className="hidden sm:inline">{installLabel}</span>
           </Button>
@@ -243,6 +198,9 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
         <LangToggle />
         <Button variant="butter" onClick={() => start(true)}>
           {t("Log in")}
+        </Button>
+        <Button variant="coral" onClick={() => start(false)}>
+          {t("Sign up")}
         </Button>
       </header>
       {help && <InstallHelp onClose={() => setHelp(false)} />}
@@ -308,18 +266,15 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
                   <Button
                     className="w-full justify-center"
                     onClick={openInstall}
-                    icon={installIcon}
+                    icon={<Download size={18} aria-hidden />}
                   >
                     {installLabel}
                   </Button>
                 </section>
               )}
             </div>
-            <Card className="flex flex-col gap-4">
-              <Say expr="wave" size={96}>
-                {t("Here's the context. It's your call.")}
-              </Say>
-              <HeroScores />
+            <Card>
+              <HeroScene />
             </Card>
           </section>
 

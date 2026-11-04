@@ -17,15 +17,18 @@ export function DisplayCurrencyPicker({
   onChange,
   label,
   describedBy,
+  full,
 }: {
   value: Currency;
   onChange: (currency: Currency) => void;
   label: string;
   describedBy?: string;
+  full?: boolean;
 }) {
   const options = displayCurrencyOptions();
   return (
     <Segmented
+      full={full}
       label={label}
       value={value}
       describedBy={describedBy}

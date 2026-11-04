@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { AppCtx, TABS, type Tab, type Prefill } from "./context";
+import {
+  AppCtx,
+  SETTINGS_SECTIONS,
+  TABS,
+  type Prefill,
+  type SettingsSection,
+  type Tab,
+} from "./context";
 import { setCurrencyMode, Button, Card, Dialog, Loading, useT } from "./ui";
 import { uid, type Entry, type Holding, type Profile, type Purchase } from "./store";
 import { Onboarding } from "./Onboarding";
@@ -25,8 +32,12 @@ export default function SignedIn({
   const meta = (session.user.user_metadata ?? {}) as { first_name?: string; full_name?: string };
   const data = useWorkspace(session.user.id, session.user.email ?? "");
   // Tabs live in the URL path (/home, /money…) so browser/OS back gestures move between screens.
-  const fromPath = (): Tab => TABS.find((x) => `/${x}` === location.pathname) ?? "home";
+  const sectionFromPath = () =>
+    SETTINGS_SECTIONS.find((x) => `/settings/${x}` === location.pathname) ?? null;
+  const fromPath = (): Tab =>
+    sectionFromPath() ? "settings" : (TABS.find((x) => `/${x}` === location.pathname) ?? "home");
   const [tab, setTabRaw] = useState<Tab>(fromPath);
+  const [settingsSection, setSettingsSection] = useState(sectionFromPath);
   const depth = useRef(0);
   const [prefill, setPrefill] = useState<Prefill | null>(null);
   const [quickAdd, setQuickAdd] = useState<Entry | "new" | "new-income" | null>(null);
@@ -53,27 +64,34 @@ export default function SignedIn({
   setCurrencyMode(data.profile.currency);
   useEffect(() => {
     // "/" or a signed-out page like /how-it-works becomes the current tab's path.
-    if (location.pathname !== `/${tab}`) history.replaceState(null, "", `/${tab}`);
+    if (!settingsSection && location.pathname !== `/${tab}`)
+      history.replaceState(null, "", `/${tab}`);
     const pop = () => {
       depth.current = Math.max(0, depth.current - 1);
       setTabRaw(fromPath());
+      setSettingsSection(sectionFromPath());
       scrollTo({ top: 0 });
     };
     addEventListener("popstate", pop);
     return () => removeEventListener("popstate", pop);
   }, []);
-  const setTab = (next: Tab) => {
-    if (next !== tab) {
-      history.pushState(null, "", `/${next}`);
+  const navigate = (next: Tab, section: SettingsSection | null = null) => {
+    const path = section ? `/${next}/${section}` : `/${next}`;
+    if (path !== location.pathname) {
+      history.pushState(null, "", path);
       depth.current++;
     }
     setTabRaw(next);
+    setSettingsSection(section);
     scrollTo({ top: 0 });
   };
+  const setTab = (next: Tab) => navigate(next);
   const ctx = {
     ...data,
     tab,
     setTab,
+    settingsSection,
+    openSettings: (section: SettingsSection | null) => navigate("settings", section),
     canGoBack: depth.current > 0,
     goBack: () => history.back(),
     prefill,

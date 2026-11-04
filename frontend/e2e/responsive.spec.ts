@@ -161,6 +161,7 @@ for (const width of widths) {
     await wordsIntact(page);
     await visit(page, "History", width, true);
     await visit(page, "Settings", width);
+    await visit(page, "Preferences", width);
     await page.getByRole("radio", { name: "Türkçe", exact: true }).click();
     await layout(page);
     await visit(page, "Para", width);
@@ -285,6 +286,7 @@ for (const [width, height] of [
     await expect(page.getByRole("heading", { name: "Goals", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Mobile savings", exact: true })).toHaveCount(1);
     await visit(page, "Settings", width);
+    await visit(page, "Your spending style", width);
     await page.getByRole("button", { name: "Retake spending style questions" }).click();
     await layout(page);
     for (let question = 0; question < 4; question++) {

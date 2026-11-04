@@ -250,7 +250,16 @@ const TR: Record<string, string> = {
   "Waiting List": "Bekleme Listesi",
   History: "Geçmiş",
   Settings: "Ayarlar",
+  "Back to settings": "Ayarlara dön",
   "Get started": "Başlayalım",
+  "Sign up": "Kaydol",
+  "Let's take a look.": "Bir bakalım.",
+  "Checking your budget and goals…": "Bütçene ve hedeflerine bakıyorum…",
+  "Wireless headphones": "Kablosuz kulaklık",
+  "New sneakers": "Yeni spor ayakkabı",
+  "Weekend trip": "Hafta sonu kaçamağı",
+  "Pause animation": "Animasyonu durdur",
+  "Play animation": "Animasyonu oynat",
   "Log in": "Giriş yap",
   Back: "Geri",
   Next: "İleri",
@@ -946,19 +955,26 @@ export function Blob({
   expr = "neutral",
   size = 64,
   className = "",
+  look,
+  frozen,
 }: {
   expr?: Expr;
   size?: number;
   className?: string;
+  /** Moves the eyes by this [x, y] offset. */
+  look?: readonly [number, number];
+  /** No blinking, for paused or reduced motion scenes. */
+  frozen?: boolean;
 }) {
   const [blink, setBlink] = useState(false);
   useEffect(() => {
+    if (frozen) return;
     const id = setInterval(() => {
       setBlink(true);
       setTimeout(() => setBlink(false), 140);
     }, 4200);
     return () => clearInterval(id);
-  }, []);
+  }, [frozen]);
   const closed = expr === "calm" || expr === "sleepy" || blink;
   const mouth = {
     neutral: "M40 63 Q50 70 60 63",
@@ -984,26 +1000,42 @@ export function Blob({
         strokeWidth="2.5"
       />
       <ellipse cx="38" cy="22" rx="14" ry="5" fill="#fff" opacity=".55" />
-      {closed ? (
-        <path
-          d="M30 47q6 4 12 0M58 47q6 4 12 0"
-          stroke="#2a1a2c"
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-      ) : (
-        <>
-          <ellipse cx="36" cy={expr === "thinking" ? 43 : 46} rx="4" ry="6" fill="#2a1a2c" />
-          <ellipse cx="64" cy={expr === "thinking" ? 43 : 46} rx="4" ry="6" fill="#2a1a2c" />
-        </>
-      )}
-      {expr === "curious" && (
-        <path d="M58 34l12-3" stroke="#2a1a2c" strokeWidth="2.5" strokeLinecap="round" />
-      )}
+      <g
+        style={
+          look && {
+            transform: `translate(${look[0]}px, ${look[1]}px)`,
+            transition: "transform .35s var(--ease-clay)",
+          }
+        }
+      >
+        {closed ? (
+          <path
+            d="M30 47q6 4 12 0M58 47q6 4 12 0"
+            stroke="#2a1a2c"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+          />
+        ) : (
+          <>
+            <ellipse cx="36" cy={expr === "thinking" ? 43 : 46} rx="4" ry="6" fill="#2a1a2c" />
+            <ellipse cx="64" cy={expr === "thinking" ? 43 : 46} rx="4" ry="6" fill="#2a1a2c" />
+          </>
+        )}
+        {expr === "curious" && (
+          <path d="M58 34l12-3" stroke="#2a1a2c" strokeWidth="2.5" strokeLinecap="round" />
+        )}
+      </g>
       <circle cx="24" cy="59" r="6" fill="#ff6b4a" opacity=".45" />
       <circle cx="76" cy="59" r="6" fill="#ff6b4a" opacity=".45" />
-      <path d={mouth} stroke="#2a1a2c" strokeWidth="3" fill="none" strokeLinecap="round" />
+      <path
+        d={mouth}
+        style={{ d: `path("${mouth}")`, transition: "d .3s var(--ease-clay)" }}
+        stroke="#2a1a2c"
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
       {expr === "wave" && (
         <path
           d="M90 40q8-10 4-20"
@@ -1234,12 +1266,15 @@ export function Ring({
   label,
   color = "var(--color-leaf)",
   suffix = "",
+  bare,
 }: {
   value: number;
   size?: number;
   label?: string;
   color?: string;
   suffix?: string;
+  /** Leaves the centre empty for other content. */
+  bare?: boolean;
 }) {
   const r = 40,
     c = 2 * Math.PI * r,
@@ -1274,17 +1309,19 @@ export function Ring({
         strokeLinecap="round"
         transform="rotate(-90 50 50)"
       />
-      <text
-        x="50"
-        y="57"
-        textAnchor="middle"
-        className="f-num"
-        fontSize={suffix ? 20 : 22}
-        style={{ fill: "var(--color-ink)" }}
-      >
-        {Math.round(value)}
-        {suffix}
-      </text>
+      {!bare && (
+        <text
+          x="50"
+          y="57"
+          textAnchor="middle"
+          className="f-num"
+          fontSize={suffix ? 20 : 22}
+          style={{ fill: "var(--color-ink)" }}
+        >
+          {Math.round(value)}
+          {suffix}
+        </text>
+      )}
     </svg>
   );
 }

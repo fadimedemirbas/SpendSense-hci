@@ -81,6 +81,7 @@ test("Settings switches Light, Dark and System at once and remembers the choice"
   const { saves } = watch(page);
   await login(page);
   await go(page, "Settings");
+  await go(page, "Preferences");
   const group = picker(page);
   // Default: System, which follows the (light) device.
   await expect(group.getByRole("radio", { name: "System" })).toBeChecked();
@@ -114,6 +115,7 @@ test("Settings switches Light, Dark and System at once and remembers the choice"
   await page.reload();
   expect(await theme(page)).toMatchObject({ attribute: "dark", background: DARK_BG });
   await go(page, "Settings");
+  await go(page, "Preferences");
   await expect(picker(page).getByRole("radio", { name: "Dark" })).toBeChecked();
   // User data is untouched by theme changes.
   await go(page, "Money");
@@ -143,6 +145,7 @@ test("System follows the device theme live, and an explicit choice overrides it"
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button").last().click();
   await go(page, "Settings");
+  await go(page, "Preferences");
   await picker(page).getByRole("radio", { name: "Light" }).click();
   await page.emulateMedia({ colorScheme: "dark" });
   expect((await theme(page)).attribute).toBe("light");
@@ -196,6 +199,7 @@ test("the theme control is translated", async ({ page, request }) => {
   await mockRates(page, "fresh");
   await login(page, "tr");
   await go(page, "Ayarlar");
+  await go(page, "Tercihler");
   const group = picker(page, "Tema");
   for (const name of ["Açık", "Koyu", "Sistem"])
     await expect(group.getByRole("radio", { name })).toBeVisible();

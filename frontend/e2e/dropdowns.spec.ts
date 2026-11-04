@@ -48,7 +48,8 @@ test("dark dropdowns have roomy options and preserve profile, grouped choices an
   const savings = page.getByRole("combobox", { name: "Monthly savings", exact: true });
   const section = page.getByRole("region", { name: "Delete confirmation", exact: true });
   const category = section.getByRole("combobox", { name: "Category", exact: true });
-  for (const select of [income, savings, category]) await comfortableControl(select);
+  await go(page, "Budget basics");
+  for (const select of [income, savings]) await comfortableControl(select);
 
   if (await page.evaluate(() => CSS.supports("appearance", "base-select"))) {
     await income.click();
@@ -68,6 +69,8 @@ test("dark dropdowns have roomy options and preserve profile, grouped choices an
   await expect.poll(() => saves.length).toBe(2);
   expect(saves[1].profile).toMatchObject({ income: 2, savings: 2 });
 
+  await go(page, "Delete confirmation");
+  await comfortableControl(category);
   await expect(
     category.locator('optgroup[label="Expenses"] option[value="expense:Food"]'),
   ).toHaveCount(1);
@@ -97,21 +100,26 @@ test("Turkish dropdowns and open pickers fit a 320px light-theme screen", async 
   const category = page
     .getByRole("region", { name: "Silme onayı", exact: true })
     .getByRole("combobox", { name: "Kategori", exact: true });
-  for (const select of [income, savings, category]) await comfortableControl(select);
-
-  if (await page.evaluate(() => CSS.supports("appearance", "base-select"))) {
-    for (const select of [income, category]) {
-      await select.click();
-      const option = select.locator("option").nth(1);
-      await expect(option).toBeVisible();
-      const box = (await option.boundingBox())!;
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(320);
-      expect(box.y).toBeGreaterThanOrEqual(0);
-      expect(box.y + box.height).toBeLessThanOrEqual(740);
-      await page.keyboard.press("Escape");
-    }
-  }
+  const picker = async (select: Locator) => {
+    await comfortableControl(select);
+    if (!(await page.evaluate(() => CSS.supports("appearance", "base-select")))) return;
+    await select.click();
+    const option = select.locator("option").nth(1);
+    await expect(option).toBeVisible();
+    const box = (await option.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(320);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(740);
+    await page.keyboard.press("Escape");
+  };
+  await go(page, "Bütçe bilgileri");
+  await comfortableControl(savings);
+  await picker(income);
+  await fitsAndIsAccessible(page);
+  await page.getByRole("button", { name: "Ayarlara dön", exact: true }).click();
+  await go(page, "Silme onayı");
+  await picker(category);
   await fitsAndIsAccessible(page);
 });
