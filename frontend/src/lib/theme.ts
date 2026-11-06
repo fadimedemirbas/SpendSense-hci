@@ -45,10 +45,24 @@ export function writeThemePreference(storage: ThemeStorage | null, value: ThemeP
 export const resolveTheme = (preference: ThemePreference, systemDark: boolean): ResolvedTheme =>
   preference === "system" ? (systemDark ? "dark" : "light") : preference;
 
+let transitionTimer: ReturnType<typeof setTimeout> | undefined;
+
 /** Applies a resolved theme to the document: tokens, native controls, browser UI colour. */
 export function applyTheme(theme: ResolvedTheme, doc: Document) {
   const root = doc.documentElement;
-  if (root.dataset.theme !== theme) root.dataset.theme = theme;
+  if (root.dataset.theme !== theme) {
+    // Animate changes only, never the initial paint; quick switches restart cleanup.
+    clearTimeout(transitionTimer);
+    delete root.dataset.themeTransition;
+    if (
+      root.dataset.theme &&
+      doc.defaultView?.matchMedia("(prefers-reduced-motion: no-preference)").matches
+    ) {
+      root.dataset.themeTransition = theme;
+      transitionTimer = setTimeout(() => delete root.dataset.themeTransition, 950);
+    }
+    root.dataset.theme = theme;
+  }
   doc.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLORS[theme]);
 }
 

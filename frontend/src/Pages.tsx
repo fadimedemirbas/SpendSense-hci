@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Lightbulb,
   CheckCircle2,
@@ -18,6 +18,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useApp } from "./context";
+import { HomeGoalCarousel } from "./HomeGoalCarousel";
 import {
   Button,
   Card,
@@ -79,7 +80,6 @@ export function HomePage({ firstName }: { firstName?: string }) {
     shortcutsEnabled,
   } = useApp();
   const t = useT();
-  const money = useDisplayMoney();
   // Each record keeps its own currency; totals are shown in the display currency and
   // only converted with validated rates (requested only when something needs them).
   const currency = profile.displayCurrency;
@@ -88,7 +88,7 @@ export function HomePage({ firstName }: { firstName?: string }) {
       decisions.some((d) => d.currency !== "TRY"),
   );
   const month = monthView(entries, currency, rates, today());
-  const goal = goals.find((g) => g.status === "Active");
+  const activeGoals = useMemo(() => goals.filter((goal) => goal.status === "Active"), [goals]);
   // Compared in TRY; undefined (rates missing) hides the comparison.
   const avgPrice = (k: DecisionKind) =>
     averagePriceInTry(
@@ -196,40 +196,8 @@ export function HomePage({ firstName }: { firstName?: string }) {
       </div>
       <Checklist />
       {reflect && <ReflectCard d={reflect} />}
-      <div className={`grid gap-5 ${goal ? "md:grid-cols-2" : ""}`}>
-        {goal && (
-          <Card className="flex gap-4 items-center">
-            <Ring
-              value={(goal.saved / goal.target) * 100}
-              label={`${goal.name} ${Math.round((goal.saved / goal.target) * 100)}%`}
-              suffix="%"
-            />
-            <div>
-              <div className="flex items-center gap-1">
-                <h2 className="text-xl font-bold m-0">{goal.name}</h2>
-                <InfoTip
-                  label={goal.name}
-                  text={t(
-                    "Progress is what you have saved divided by the target, in the goal's own currency. Add money whenever you set some aside.",
-                  )}
-                />
-              </div>
-              <GoalAmounts
-                saved={goal.saved}
-                target={goal.target}
-                currency={goal.currency}
-                money={money}
-              />
-              <p className="f-voice m-0 mt-1">
-                {t(
-                  goal.saved > 0
-                    ? "You're getting closer to your goal."
-                    : "Add money to this goal whenever you're ready.",
-                )}
-              </p>
-            </div>
-          </Card>
-        )}
+      <div className={`grid gap-5 ${activeGoals.length ? "md:grid-cols-2" : ""}`}>
+        {activeGoals.length > 0 && <HomeGoalCarousel goals={activeGoals} />}
         <Card>
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1">

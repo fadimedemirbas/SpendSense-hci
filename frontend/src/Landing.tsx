@@ -25,6 +25,7 @@ import { usePwa } from "./pwa/Pwa";
 import { InstallHelp, LangToggle } from "./Onboarding";
 import { HeroScene } from "./HeroScene";
 import { HowItWorks } from "./HowItWorks";
+import { ThemePicker } from "./ThemePicker";
 
 // Fixed sample context for the demo: mid income range, no goal, no entries.
 const DEMO_PROFILE: Profile = {
@@ -195,6 +196,7 @@ export function Landing({ start }: { start: (login: boolean) => void }) {
             <span className="hidden sm:inline">{installLabel}</span>
           </Button>
         )}
+        <ThemePicker showSystem={false} />
         <LangToggle />
         <Button variant="butter" onClick={() => start(true)}>
           {t("Log in")}

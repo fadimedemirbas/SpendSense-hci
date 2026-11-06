@@ -205,6 +205,20 @@ for (const [theme, width] of [
       const box = (await tip.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width);
+      // Visibility alone misses bubbles painted behind neighbouring cards.
+      expect(
+        await tip.evaluate((element) => {
+          const panel = element.firstElementChild!;
+          const rect = panel.getBoundingClientRect();
+          return [0.2, 0.5, 0.8].every((x) =>
+            [0.2, 0.5, 0.8].every((y) =>
+              element.contains(
+                document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height * y),
+              ),
+            ),
+          );
+        }),
+      ).toBe(true);
       await fitsAndIsAccessible(page);
       await info.click(); // a second tap closes it
       await expect(tip).toHaveCount(0);

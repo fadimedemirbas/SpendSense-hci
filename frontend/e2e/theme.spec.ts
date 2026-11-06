@@ -31,6 +31,108 @@ const LIGHT_BG = "rgb(255, 246, 236)";
 const DARK_BG = "rgb(26, 18, 25)";
 const picker = (page: Page, label = "Theme") => page.getByRole("radiogroup", { name: label });
 
+test("icon theme picker appears in the public header and only Settings after login", async ({
+  page,
+  request,
+}) => {
+  await seed(request, mixedWorkspace());
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/");
+  const headerPicker = page.locator("header").getByRole("radiogroup", { name: "Theme" });
+  await expect(headerPicker).toBeVisible();
+  await expect(headerPicker.getByRole("radio")).toHaveCount(2);
+  await expect(headerPicker.getByRole("radio", { name: "Light", exact: true })).toBeChecked();
+  await expect(headerPicker.getByRole("radio", { name: "Light", exact: true })).toHaveAttribute(
+    "tabindex",
+    "0",
+  );
+  for (const name of ["Light", "Dark"]) {
+    const option = headerPicker.getByRole("radio", { name, exact: true });
+    await expect(option.locator("svg")).toBeVisible();
+    await expect(option).toHaveText("");
+    await expect(option).toHaveAttribute("title", name);
+  }
+  await headerPicker.getByRole("radio", { name: "Dark", exact: true }).click();
+  expect((await theme(page)).stored).toBe("dark");
+  await fitsAndIsAccessible(page);
+  await login(page);
+  await expect(picker(page)).toHaveCount(0);
+  await go(page, "Settings");
+  await go(page, "Preferences");
+  await expect(picker(page).getByRole("radio", { name: "Dark", exact: true })).toBeChecked();
+  await expect(picker(page).getByRole("radio", { name: "System", exact: true })).toBeVisible();
+  await expect(page.locator("header").getByRole("radiogroup", { name: "Theme" })).toHaveCount(0);
+});
+
+test("theme changes dissolve gently, survive rapid switches and clean up the glow", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference", colorScheme: "light" });
+  await page.goto("/");
+  await expect(picker(page)).toBeVisible();
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme-transition");
+  await picker(page).getByRole("radio", { name: "Dark", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme-transition", "dark");
+  const during = await page.evaluate(() => ({
+    duration: getComputedStyle(document.body).transitionDuration,
+    background: getComputedStyle(document.body).backgroundColor,
+    animation: getComputedStyle(document.documentElement, "::after").animationName,
+    pointerEvents: getComputedStyle(document.documentElement, "::after").pointerEvents,
+  }));
+  expect(during.duration).toBe("0.75s");
+  expect(during.background).not.toBe(DARK_BG);
+  expect(during.animation).toBe("theme-sunset");
+  expect(during.pointerEvents).toBe("none");
+  await picker(page).getByRole("radio", { name: "Light", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme-transition", "light");
+  await picker(page).getByRole("radio", { name: "Dark", exact: true }).click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme-transition");
+  expect(await theme(page)).toMatchObject({
+    attribute: "dark",
+    background: DARK_BG,
+    stored: "dark",
+  });
+  await picker(page).getByRole("radio", { name: "Light", exact: true }).click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme-transition");
+  expect((await theme(page)).background).toBe(LIGHT_BG);
+});
+
+test("inherited text colours stay settled when the theme glow finishes", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference", colorScheme: "light" });
+  await page.goto("/");
+  await expect(picker(page)).toBeVisible();
+  for (const name of ["Dark", "Light"]) {
+    const samples = await page.evaluate(async (label) => {
+      const button = document.querySelector<HTMLButtonElement>(`[role="radio"][title="${label}"]`)!;
+      const text = document.querySelector("header b")!;
+      const samples: string[] = [];
+      const start = performance.now();
+      button.click();
+      await new Promise<void>((resolve) => {
+        const frame = () => {
+          const elapsed = performance.now() - start;
+          if (elapsed >= 800) samples.push(getComputedStyle(text).color);
+          if (elapsed >= 1150) resolve();
+          else requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      });
+      return samples;
+    }, name);
+    expect(samples.length).toBeGreaterThan(2);
+    expect(new Set(samples).size).toBe(1);
+  }
+});
+
+test("reduced motion switches the public theme immediately without the glow", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "light" });
+  await page.goto("/");
+  await picker(page).getByRole("radio", { name: "Dark", exact: true }).click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme-transition");
+  expect((await theme(page)).background).toBe(DARK_BG);
+});
+
 /** A workspace with something on every screen: entries, goals, a waiting item, a decision. */
 const fullWorkspace = () => {
   const ws = mixedWorkspace();

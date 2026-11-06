@@ -20,6 +20,7 @@ import {
 } from "./lib/auth";
 import { ResetPassword } from "./AuthPanels";
 import { Pwa } from "./pwa/Pwa";
+import { AmbientBackdrop } from "./AmbientBackdrop";
 import { onlineOperation } from "./pwa/network";
 const SignedIn = lazy(() => import("./SignedIn"));
 class WorkspaceBoundary extends Component<
@@ -203,6 +204,7 @@ export default function App() {
   }
   return (
     <LangCtx.Provider value={{ lang, setLang: switchLang }}>
+      <AmbientBackdrop />
       {switching && (
         <div className="fixed inset-0 z-[100] bg-cream">
           <Loading text="Switching language..." />

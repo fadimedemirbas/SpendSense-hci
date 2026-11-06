@@ -583,6 +583,10 @@ const TR: Record<string, string> = {
   "Add income": "Gelir ekle",
   "Add expense": "Gider ekle",
   "You're getting closer to your goal.": "Hedefine yaklaşıyorsun.",
+  "Pause goal rotation": "Hedef geçişini duraklat",
+  "Resume goal rotation": "Hedef geçişini sürdür",
+  "Swipe up or down, or use the arrow keys to change goals.":
+    "Hedef değiştirmek için yukarı veya aşağı kaydırabilir ya da ok tuşlarını kullanabilirsin.",
   "You tend to pause longer before bigger purchases.":
     "Büyük alışverişlerden önce daha uzun düşünüyor gibisin.",
   "Getting started": "Başlarken",
@@ -1188,7 +1192,7 @@ export function Segmented<T extends string>({
   describedBy,
 }: {
   value: T;
-  options: [T, string][];
+  options: [T, string, ReactNode?][];
   onChange: (v: T) => void;
   label: string;
   full?: boolean;
@@ -1214,17 +1218,19 @@ export function Segmented<T extends string>({
         event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
       }}
     >
-      {options.map(([v, l], i) => (
+      {options.map(([v, l, icon], i) => (
         <button
           key={v}
           role="radio"
+          aria-label={icon ? l : undefined}
+          title={icon ? l : undefined}
           aria-checked={value === v}
           aria-disabled={!enabled[i] || undefined}
           tabIndex={value === v ? 0 : -1}
           onClick={() => enabled[i] && onChange(v)}
           className={`f-ui min-h-11 px-3 sm:px-4 leading-tight rounded-full transition ${full ? "flex-1" : ""} ${value === v ? "clay-sun" : enabled[i] ? "hover:bg-peach" : "text-soft cursor-not-allowed"}`}
         >
-          {l}
+          {icon ?? l}
         </button>
       ))}
     </div>
@@ -1480,7 +1486,7 @@ function TextInfoTip({ label, text }: { label: string; text: string }) {
   const id = useId();
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const [place, setPlace] = useState({ shift: 0, above: false });
+  const [place, setPlace] = useState({ left: 0, top: 0, arrow: 128, above: false });
   const wrap = useRef<HTMLSpanElement>(null);
   const bubble = useRef<HTMLSpanElement>(null);
   const open = hovered || pinned;
@@ -1488,20 +1494,52 @@ function TextInfoTip({ label, text }: { label: string; text: string }) {
     setHovered(false);
     setPinned(false);
   };
-  // Keep the bubble on screen: shift it sideways, or show it above the button.
+  // The browser's top layer escapes card transforms, clipping and modal z-indexes.
   useLayoutEffect(() => {
-    if (!open || !bubble.current) return;
-    const margin = 12;
-    const rect = bubble.current.getBoundingClientRect();
-    const left = rect.left - place.shift;
-    const right = rect.right - place.shift;
-    const shift =
-      left < margin ? margin - left : right > innerWidth - margin ? innerWidth - margin - right : 0;
-    const anchor = wrap.current!.getBoundingClientRect();
-    const above =
-      anchor.bottom + rect.height + margin > innerHeight && anchor.top - rect.height - margin > 0;
-    if (shift !== place.shift || above !== place.above) setPlace({ shift, above });
-  }, [open, place]);
+    if (!open || !bubble.current || !wrap.current) return;
+    const panel = bubble.current;
+    panel.showPopover();
+    const position = () => {
+      const margin = 12;
+      const rect = panel.getBoundingClientRect();
+      const anchor = wrap.current!.getBoundingClientRect();
+      const center = anchor.left + anchor.width / 2;
+      const left = Math.max(
+        margin,
+        Math.min(center - rect.width / 2, innerWidth - rect.width - margin),
+      );
+      const above =
+        anchor.bottom + rect.height + margin > innerHeight && anchor.top >= rect.height + margin;
+      const top = Math.max(
+        margin,
+        Math.min(
+          above ? anchor.top - rect.height : anchor.bottom,
+          innerHeight - rect.height - margin,
+        ),
+      );
+      const arrow = Math.max(12, Math.min(center - left, rect.width - 12));
+      setPlace((previous) =>
+        previous.left === left &&
+        previous.top === top &&
+        previous.arrow === arrow &&
+        previous.above === above
+          ? previous
+          : { left, top, arrow, above },
+      );
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(wrap.current);
+    observer.observe(panel);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      if (panel.matches(":popover-open")) panel.hidePopover();
+    };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && close();
@@ -1543,14 +1581,15 @@ function TextInfoTip({ label, text }: { label: string; text: string }) {
         <span
           ref={bubble}
           role="tooltip"
+          popover="manual"
           id={id}
-          style={{ transform: `translateX(calc(-50% + ${place.shift}px))` }}
-          className={`absolute z-[35] left-1/2 w-64 max-w-[calc(100vw-24px)] ${place.above ? "bottom-full pb-2" : "top-full pt-2"}`}
+          style={{ left: place.left, top: place.top }}
+          className={`fixed inset-auto m-0 border-0 bg-transparent overflow-visible w-64 max-w-[calc(100vw-24px)] px-0 ${place.above ? "pt-0 pb-2" : "pb-0 pt-2"}`}
         >
           <span className="relative block clay rounded-inner! px-3.5 py-3 text-sm f-ui font-normal text-left text-ink normal-case tracking-normal">
             <span
               aria-hidden
-              style={{ left: `calc(50% - ${place.shift}px)` }}
+              style={{ left: place.arrow }}
               className={`absolute w-3 h-3 -ml-1.5 rotate-45 bg-card border-cardline ${place.above ? "-bottom-1.5 border-r border-b" : "-top-1.5 border-l border-t"}`}
             />
             {text}

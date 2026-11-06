@@ -64,7 +64,7 @@ import { InstallHelp, TENDENCY } from "./Onboarding";
 import { requireSupabase } from "./lib/supabase";
 import { onlineOperation } from "./pwa/network";
 import { usePwa } from "./pwa/Pwa";
-import { useTheme } from "./useTheme";
+import { ThemePicker } from "./ThemePicker";
 import { version } from "../package.json";
 
 const SECTIONS: [SettingsSection, string, LucideIcon][] = [
@@ -335,7 +335,6 @@ export function SettingsPage({
   const t = useT();
   const pwa = usePwa();
   const { lang, setLang } = useContext(LangCtx);
-  const theme = useTheme();
   const rates = useRates();
   const [confirm, setConfirm] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -472,17 +471,7 @@ export function SettingsPage({
                 desc={t("System follows your device's light or dark setting.")}
               >
                 <Control>
-                  <Segmented
-                    full
-                    label={t("Theme")}
-                    value={theme.preference}
-                    onChange={theme.setPreference}
-                    options={[
-                      ["light", t("Light")],
-                      ["dark", t("Dark")],
-                      ["system", t("System")],
-                    ]}
-                  />
+                  <ThemePicker full />
                 </Control>
               </Row>
               <Row

@@ -147,6 +147,56 @@
   --glow-coral: #ff6b4a40;
   --glow-sun: #ffc93c33;
 }
+/* A soft colour dissolve and a passing warm horizon; never blocks interaction. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme-transition],
+  :root[data-theme-transition] *,
+  :root[data-theme-transition] *::before,
+  :root[data-theme-transition] *::after {
+    /* Inherited colour/currentColor must not chase a parent's animated value. */
+    transition-property: background-color, border-color, box-shadow !important;
+    transition-duration: 750ms !important;
+    transition-timing-function: ease-in-out !important;
+  }
+  :root[data-theme-transition]::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 100%, #ffc93c40, #ff6b4a18 45%, transparent 75%);
+    animation: theme-sunrise 900ms ease-in-out both;
+  }
+  :root[data-theme-transition="dark"]::after {
+    animation-name: theme-sunset;
+  }
+}
+@keyframes theme-sunrise {
+  from {
+    opacity: 0;
+    transform: translateY(15%);
+  }
+  40% {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-15%);
+  }
+}
+@keyframes theme-sunset {
+  from {
+    opacity: 0;
+    transform: translateY(-15%);
+  }
+  40% {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(15%);
+  }
+}
 /* Element defaults live in the base layer so Tailwind utilities on a specific
    element (min-w-*, text-5xl, [overflow-wrap:normal]…) can still override them.
    Unlayered, these rules silently beat every utility. */
@@ -179,6 +229,115 @@
   }
   svg {
     flex-shrink: 0;
+  }
+}
+/* Quiet contour lines and drifting light, confined to the desktop margins. */
+.ambient-backdrop {
+  display: none;
+}
+@media (min-width: 1280px) {
+  body {
+    isolation: isolate;
+  }
+  .ambient-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+    mask-image: linear-gradient(to right, #000, transparent 27%, transparent 73%, #000);
+  }
+  .ambient-backdrop::before,
+  .ambient-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: -12% -5%;
+    transition: opacity 750ms ease-in-out;
+    animation: ambient-light-drift 22s ease-in-out infinite alternate;
+  }
+  .ambient-backdrop::before {
+    background:
+      radial-gradient(ellipse at 3% 28%, #eeb86a26, transparent 42%),
+      radial-gradient(ellipse at 98% 72%, #eab09c28, transparent 40%);
+    opacity: 1;
+  }
+  .ambient-backdrop::after {
+    background:
+      radial-gradient(ellipse at 3% 28%, #879edb1f, transparent 42%),
+      radial-gradient(ellipse at 98% 72%, #aa87d526, transparent 40%);
+    opacity: 0;
+  }
+  :root[data-theme="dark"] .ambient-backdrop::before {
+    opacity: 0;
+  }
+  :root[data-theme="dark"] .ambient-backdrop::after {
+    opacity: 1;
+  }
+  :root[data-theme-transition] .ambient-backdrop::before,
+  :root[data-theme-transition] .ambient-backdrop::after {
+    transition-property: opacity !important;
+  }
+  .ambient-contours {
+    position: absolute;
+    top: -8%;
+    width: clamp(80px, calc((100vw - 1024px) / 2 - 32px), 320px);
+    height: 116%;
+    color: #b88969;
+    mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent);
+    animation: ambient-contour-drift 28s ease-in-out infinite alternate;
+  }
+  .ambient-contours-left {
+    left: 0;
+  }
+  .ambient-contours-right {
+    right: 0;
+    scale: -1 1;
+    animation-delay: -14s;
+  }
+  :root[data-theme="dark"] .ambient-contours {
+    color: #a499c6;
+  }
+  .ambient-contour-lines {
+    stroke: currentColor;
+    stroke-width: 0.8;
+    opacity: 0.22;
+  }
+  .ambient-contour-glint {
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-dasharray: 18 982;
+    opacity: 0.5;
+    animation: ambient-glint 24s linear infinite;
+  }
+  .ambient-contours-right .ambient-contour-glint {
+    animation-delay: -12s;
+  }
+}
+@keyframes ambient-light-drift {
+  from {
+    transform: translate3d(0, -3%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(0, 4%, 0) scale(1.06);
+  }
+}
+@keyframes ambient-contour-drift {
+  from {
+    transform: translateY(-2%);
+  }
+  to {
+    transform: translateY(2%);
+  }
+}
+@keyframes ambient-glint {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 .app-safe {
